@@ -74,6 +74,24 @@ class StrategyStats(Base):
     updated_at = Column(DateTime, default=dt.datetime.utcnow)
 
 
+class OrderIntent(Base):
+    """Durable, idempotent record of a submission attempt. intent_key is unique so
+    retries/restarts/duplicate workers cannot cause a second broker submission for
+    the same logical decision. Status transitions: pending -> submitted -> {filled,
+    rejected, canceled, unknown (needs reconciliation)}."""
+    __tablename__ = "order_intents"
+    intent_key = Column(String, primary_key=True)  # deterministic hash of (symbol, strategy, decision, time_bucket)
+    trade_id = Column(String, index=True)
+    account_id = Column(String, index=True)
+    symbol = Column(String, index=True)
+    side = Column(String)
+    quantity = Column(Float)
+    status = Column(String, default="pending", index=True)
+    broker_order_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow)
+
+
 class AccountSnapshot(Base):
     """Daily/periodic equity snapshots for drawdown + return calculations."""
     __tablename__ = "account_snapshots"

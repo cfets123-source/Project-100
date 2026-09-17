@@ -4,7 +4,13 @@ Any change to a risk-affecting field must be logged by the caller via audit.log_
 """
 from enum import Enum
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, model_validator
+
+
+class ConfigConsistencyError(ValueError):
+    """Raised when TRADING_MODE / AUTONOMY_LEVEL / AUTO_EXECUTION form an unsafe
+    or contradictory combination. Fails startup rather than silently picking
+    a behavior."""
 
 
 class TradingMode(str, Enum):
@@ -71,6 +77,43 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
+    @model_validator(mode="after")
+    def _reconcile_authorization_policy(self) -> "Settings":
+        """Single source of truth reconciling mode/level/execution-flag. Any
+        combination not explicitly whitelisted is rejected at startup."""
+        mode, level, auto = self.TRADING_MODE, self.AUTONOMY_LEVEL, self.AUTO_EXECUTION
+
+        if mode in (TradingMode.PAPER, TradingMode.SHADOW) and level >= AutonomyLevel.LEVEL_3_LIVE_NEEDS_APPROVAL:
+            raise ConfigConsistencyError(
+                f"TRADING_MODE={mode} cannot be combined with AUTONOMY_LEVEL={level} "
+                "(live-order autonomy levels require TRADING_MODE=live)"
+            )
+
+        if mode == TradingMode.LIVE and level < AutonomyLevel.LEVEL_3_LIVE_NEEDS_APPROVAL:
+            raise ConfigConsistencyError(
+                f"TRADING_MODE=live requires AUTONOMY_LEVEL>=3 (got {level})"
+            )
+
+        if auto and mode == TradingMode.LIVE and level == AutonomyLevel.LEVEL_3_LIVE_NEEDS_APPROVAL:
+            raise ConfigConsistencyError(
+                "AUTO_EXECUTION=true is incompatible with AUTONOMY_LEVEL_3 "
+                "(LEVEL_3 is human-approval-required by definition)"
+            )
+
+        if auto and mode == TradingMode.LIVE and level < AutonomyLevel.LEVEL_4_LIVE_AUTONOMOUS:
+            raise ConfigConsistencyError(
+                "AUTO_EXECUTION=true with TRADING_MODE=live requires AUTONOMY_LEVEL>=4"
+            )
+
+        if mode != TradingMode.LIVE and (self.ALLOW_MARGIN or self.ALLOW_OPTIONS or
+                                          self.ALLOW_SHORTS or self.ALLOW_LEVERAGE):
+            # Not unsafe by itself (paper can simulate anything), but flagged so it is
+            # never mistaken for a live-safe default. Left as a no-op guard point for
+            # future stricter policy; explicit ALLOW_* still all default False.
+            pass
+
+        return self
 
 
 settings = Settings()
