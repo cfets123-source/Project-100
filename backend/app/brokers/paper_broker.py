@@ -14,6 +14,7 @@ class PaperBrokerAdapter(BrokerAdapter):
         self.starting_cash = starting_cash
         self.positions: dict[str, dict] = {}   # symbol -> {qty, avg_price}
         self.orders: dict[str, dict] = {}
+        self.pending_stops: dict[str, dict] = {}  # order_id -> {symbol, side, quantity, stop_price}
         self.quote_source = quote_source        # callable(symbols) -> list[Quote]
         self.commission_per_order = commission_per_order
         self.slippage_bps = slippage_bps
@@ -63,6 +64,26 @@ class PaperBrokerAdapter(BrokerAdapter):
 
     def place_order(self, order: OrderRequest) -> OrderResult:
         order_id = str(uuid.uuid4())
+
+        if order.order_type == "stop":
+            # Resting stop order: does NOT fill immediately. It must be triggered
+            # by a subsequent price check (see check_and_trigger_stops). A prior
+            # version of this broker treated 'stop' identically to a market order,
+            # which meant a protective stop actually closed the position instantly
+            # at entry time instead of resting — that was a real defect, fixed here.
+            if order.side == "sell":
+                pos = self.positions.get(order.symbol)
+                if not pos or pos["qty"] < order.quantity:
+                    result = OrderResult(order_id=order_id, status="rejected",
+                                          raw={"reason": "insufficient_position_for_stop"})
+                    self.orders[order_id] = {"order": order, "result": result, "ts": time.time()}
+                    return result
+            self.pending_stops[order_id] = {"symbol": order.symbol, "side": order.side,
+                                             "quantity": order.quantity, "stop_price": order.limit_price}
+            result = OrderResult(order_id=order_id, status="accepted", raw={"resting": True})
+            self.orders[order_id] = {"order": order, "result": result, "ts": time.time()}
+            return result
+
         if not self._is_market_open():
             result = OrderResult(order_id=order_id, status="rejected", raw={"reason": "market_closed"})
             self.orders[order_id] = {"order": order, "result": result, "ts": time.time()}
@@ -101,11 +122,44 @@ class PaperBrokerAdapter(BrokerAdapter):
 
     def cancel_order(self, order_id: str) -> bool:
         entry = self.orders.get(order_id)
-        if entry and entry["result"].status not in ("filled", "canceled"):
+        if entry and entry["result"].status not in ("filled", "canceled", "rejected"):
             entry["result"].status = "canceled"
+            self.pending_stops.pop(order_id, None)
             return True
         return False
 
     def get_order_status(self, order_id: str) -> dict:
         entry = self.orders.get(order_id)
         return entry["result"].__dict__ if entry else {}
+
+    def check_and_trigger_stops(self) -> list[OrderResult]:
+        """Must be called periodically (e.g. once per monitoring-loop tick) to
+        evaluate resting stop orders against current prices and fill any that
+        have been touched. Returns the results of any stops that fired."""
+        fired = []
+        for order_id, stop in list(self.pending_stops.items()):
+            q = self.quote_source([stop["symbol"]])[0]
+            triggered = (stop["side"] == "sell" and q.last <= stop["stop_price"]) or \
+                        (stop["side"] == "buy" and q.last >= stop["stop_price"])
+            if not triggered:
+                continue
+            base_px = q.bid if stop["side"] == "sell" else q.ask
+            slip = base_px * (self.slippage_bps / 10_000.0)
+            fill_price = base_px - slip if stop["side"] == "sell" else base_px + slip
+
+            pos = self.positions.get(stop["symbol"])
+            if stop["side"] == "sell" and pos:
+                qty = min(stop["quantity"], pos["qty"])
+                pos["qty"] -= qty
+                self.cash += fill_price * qty - self.commission_per_order
+                if pos["qty"] <= 1e-9:
+                    del self.positions[stop["symbol"]]
+                result = OrderResult(order_id=order_id, status="filled", filled_qty=qty, fill_price=fill_price)
+            else:
+                result = OrderResult(order_id=order_id, status="rejected",
+                                      raw={"reason": "no_position_to_stop_out"})
+
+            self.orders[order_id]["result"] = result
+            del self.pending_stops[order_id]
+            fired.append(result)
+        return fired

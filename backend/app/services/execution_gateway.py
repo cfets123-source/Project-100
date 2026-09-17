@@ -35,6 +35,7 @@ from app.models.models import OrderIntent, TradeDecisionRecord
 from app.audit.logger import log_and_commit
 from app.services.state_machine import StateManager, SHADOW, PAPER, LIVE
 from app.services import risk_budget
+from app.market_data.base import MarketDataProvider, validate_quote
 
 
 class WrongAccountError(Exception):
@@ -56,12 +57,14 @@ def _intent_key(account_id: str, decision_id: str) -> str:
 
 class ExecutionGateway:
     def __init__(self, db: Session, broker: BrokerAdapter, risk_engine: RiskEngine,
-                 state_manager: StateManager, designated_account_id: str):
+                 state_manager: StateManager, designated_account_id: str,
+                 market_data: MarketDataProvider | None = None):
         self.db = db
         self.broker = broker
         self.risk_engine = risk_engine
         self.state_manager = state_manager
         self.designated_account_id = designated_account_id
+        self.market_data = market_data
 
     def submit(self, raw_signal: dict, account_id: str, quote: Quote,
                risk_context: dict, account_equity: float, buying_power: float) -> GatewayResult:
@@ -183,6 +186,17 @@ class ExecutionGateway:
             log_and_commit(self.db, "entry_blocked_by_state_at_recheck", {"symbol": signal.symbol,
                                                                             "reason": recheck_why})
             return GatewayResult(submitted=False, reason=recheck_why, trade_id=rec.trade_id)
+
+        # --- 8b. Re-check market-data freshness immediately before submission ---
+        if self.market_data is not None:
+            fresh_quote = self.market_data.get_quote(signal.symbol)
+            fv = validate_quote(fresh_quote, self.risk_engine.cfg.MAX_QUOTE_AGE_SECONDS)
+            if not fv.valid:
+                intent.status = "canceled"
+                self.db.commit()
+                log_and_commit(self.db, "entry_blocked_stale_data_at_recheck",
+                                {"symbol": signal.symbol, "reason": fv.reason})
+                return GatewayResult(submitted=False, reason=f"recheck_{fv.reason}", trade_id=rec.trade_id)
 
         # --- 9. Broker submission — exceptions/uncertain outcomes never trigger a retry here ---
         order = OrderRequest(symbol=signal.symbol, side=intent.side, quantity=decision.position_size)
