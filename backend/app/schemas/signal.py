@@ -12,6 +12,9 @@ class SignalSchema(BaseModel):
     symbol: str
     direction: str          # long|short
     strategy: str
+    decision_id: str        # unique id assigned once per originating decision/signal-generation
+                             # event by the strategy/AI layer — dedupe keys off THIS, not wall clock,
+                             # so retries/restarts of the same decision collide and new decisions don't.
     entry_price: float
     stop_price: float
     target_price: float | None = None

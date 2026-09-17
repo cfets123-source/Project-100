@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # --- Data freshness ---
     MAX_QUOTE_AGE_SECONDS: int = 5
 
+    # --- Hard kill switch on real-money execution, independent of AUTONOMY_LEVEL ---
+    # Must remain False for the entirety of this development task. Flipping this
+    # requires an explicit, separate, out-of-band change — never set via strategy
+    # code, AI output, or milestone logic.
+    LIVE_TRADING_ENABLED: bool = False
+
     class Config:
         env_file = ".env"
 

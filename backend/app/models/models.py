@@ -1,11 +1,24 @@
 import uuid
 import datetime as dt
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, JSON
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, JSON, event
 from app.db.session import Base
 
 
 def gen_id() -> str:
     return str(uuid.uuid4())
+
+
+class AuditImmutabilityError(Exception):
+    """Raised when code attempts to UPDATE or DELETE an audit_log row.
+    THREAT MODEL: this is an ORM-level (application-role) guard — it stops this
+    application's own code (including a compromised strategy/AI component) from
+    mutating history through the normal SQLAlchemy session. It does NOT stop a
+    database administrator, a raw SQL console, or anyone with direct DB
+    credentials from altering rows. True immutability additionally requires
+    revoking UPDATE/DELETE grants for the application's Postgres role and/or an
+    append-only storage backend — not implemented here (sqlite dev environment
+    has no role-based grants). This limitation is intentional to document, not
+    to hide."""
 
 
 class AuditLogEntry(Base):
@@ -16,6 +29,16 @@ class AuditLogEntry(Base):
     event_type = Column(String, index=True)  # config_change, risk_veto, trade_decision, state_change, kill_switch, error
     actor = Column(String, default="system")  # system | user | ai
     payload = Column(JSON)
+
+
+@event.listens_for(AuditLogEntry, "before_update")
+def _block_audit_update(mapper, connection, target):
+    raise AuditImmutabilityError("audit_log rows cannot be updated (application-level guard)")
+
+
+@event.listens_for(AuditLogEntry, "before_delete")
+def _block_audit_delete(mapper, connection, target):
+    raise AuditImmutabilityError("audit_log rows cannot be deleted (application-level guard)")
 
 
 class SystemStateRecord(Base):
@@ -75,21 +98,47 @@ class StrategyStats(Base):
 
 
 class OrderIntent(Base):
-    """Durable, idempotent record of a submission attempt. intent_key is unique so
-    retries/restarts/duplicate workers cannot cause a second broker submission for
-    the same logical decision. Status transitions: pending -> submitted -> {filled,
-    rejected, canceled, unknown (needs reconciliation)}."""
+    """Durable, idempotent record of a submission attempt. intent_key is the primary
+    key and is derived from the ORIGINATING DECISION (decision_id), not wall-clock
+    time — so retries, restarts, and time-boundary crossings of the SAME decision
+    always collide on this key (DB-enforced uniqueness), while a genuinely NEW
+    decision (new decision_id) is never suppressed."""
     __tablename__ = "order_intents"
-    intent_key = Column(String, primary_key=True)  # deterministic hash of (symbol, strategy, decision, time_bucket)
+    intent_key = Column(String, primary_key=True)  # sha256(account_id | decision_id)
+    decision_id = Column(String, index=True)
     trade_id = Column(String, index=True)
     account_id = Column(String, index=True)
     symbol = Column(String, index=True)
     side = Column(String)
     quantity = Column(Float)
+    quantity_filled = Column(Float, default=0.0)
     status = Column(String, default="pending", index=True)
+    # pending -> submitted -> {filled, partial, rejected, canceled, unknown}
+    # 'unknown' = broker response was not received (timeout/exception after send);
+    # must be resolved by reconciliation, never blindly resubmitted.
     broker_order_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
     updated_at = Column(DateTime, default=dt.datetime.utcnow)
+
+
+class RiskReservation(Base):
+    """Aggregate risk/buying-power/sector reservation, held for the lifetime of a
+    pending or open position so two individually-valid proposals cannot jointly
+    breach account-level limits. Concurrency note: enforced via sequential
+    check-then-insert within one process/session — this is NOT a distributed lock
+    and does not by itself guarantee correctness across multiple worker processes
+    hitting the same account concurrently against a real DB; that requires a
+    SELECT ... FOR UPDATE / serializable-isolation transaction in Postgres,
+    not implemented against sqlite here. Documented as a deployment requirement."""
+    __tablename__ = "risk_reservations"
+    id = Column(String, primary_key=True, default=gen_id)
+    account_id = Column(String, index=True)
+    decision_id = Column(String, index=True)
+    risk_dollars = Column(Float)
+    notional = Column(Float)
+    sector = Column(String, nullable=True)
+    status = Column(String, default="active")  # active|released
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
 
 
 class AccountSnapshot(Base):
