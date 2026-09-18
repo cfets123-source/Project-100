@@ -222,3 +222,11 @@ def live_readiness(db: Session = Depends(get_db)):
     except Exception:
         broker = {"read_only_ready": False, "paper": True}
     return live_readiness_report(settings, broker, market_open=False, external_paper_lifecycle_verified=False)
+
+
+@app.get("/paper/execution-worker", dependencies=[Depends(require_dashboard_access)])
+def paper_execution_worker(db: Session = Depends(get_db)):
+    row = db.get(models.ExternalPaperRuntimeState, "alpaca-paper-1")
+    if not row:
+        return {"configured": True, "started": False, "status": "waiting"}
+    return {"configured": True, "started": True, "status": row.status, "heartbeat": row.heartbeat, "references": row.payload.get("references", {})}
