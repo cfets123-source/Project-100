@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     TRADING_MODE: TradingMode = TradingMode.PAPER
     AUTONOMY_LEVEL: AutonomyLevel = AutonomyLevel.LEVEL_0_RESEARCH_ONLY
     AUTO_EXECUTION: bool = False
+    # A separate, default-off gate for an external broker's simulated account.
+    # It is never equivalent to LIVE_TRADING_ENABLED.
+    ALPACA_PAPER_EXECUTION_ENABLED: bool = False
 
     # --- Capital ---
     STARTING_CAPITAL: float = 100.0

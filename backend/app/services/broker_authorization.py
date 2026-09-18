@@ -4,6 +4,13 @@ Real protective-order execution remains unavailable until a real adapter can
 prove account binding, position ownership and durable order reconciliation.
 """
 from app.brokers.paper_broker import PaperBrokerAdapter
+from app.brokers.alpaca_adapter import AlpacaBrokerAdapter
+
+
+def _external_paper_allowed(state_manager, broker):
+    return (isinstance(broker, AlpacaBrokerAdapter) and broker.paper
+            and broker.allow_order_submission
+            and bool(state_manager.cfg.ALPACA_PAPER_EXECUTION_ENABLED))
 from app.services.state_machine import PAPER, LIVE, SAFE
 
 
@@ -20,7 +27,9 @@ def mutation_allowed(state_manager, broker, *, defensive=False):
             return False, "defensive_real_broker_not_supported"
         return True, ""
     if state == PAPER:
-        return (True, "") if isinstance(broker, PaperBrokerAdapter) else (False, "paper_requires_paper_broker")
+        if isinstance(broker, PaperBrokerAdapter) or _external_paper_allowed(state_manager, broker):
+            return True, ""
+        return False, "paper_requires_simulator_or_explicit_alpaca_paper_gate"
     if state == LIVE:
         return state_manager.live_broker_mutation_allowed()
     return False, f"broker_mutation_blocked_state_{state}"
