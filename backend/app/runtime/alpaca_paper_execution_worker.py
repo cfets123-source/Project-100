@@ -35,3 +35,15 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     log_and_commit(db, 'alpaca_paper_worker_cycle_completed', {'entry_count': len(entries)})
     state.payload={**state.payload, 'references': references}; state.status='healthy'; db.commit()
     return {**reconciliation, 'entries': entries, 'references': references, 'processed_at': time.time()}
+
+if __name__ == '__main__':
+    # Service wiring is intentionally not self-activating; compose passes the
+    # default-off paper gate through the environment.
+    import argparse
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from app.core.config import Settings
+    parser=argparse.ArgumentParser(); parser.add_argument('--database', required=True); parser.add_argument('--account-id', required=True); parser.add_argument('--symbols', required=True); parser.add_argument('--once', action='store_true')
+    args=parser.parse_args(); cfg=Settings(); engine=create_engine(args.database)
+    with Session(engine) as db:
+        print(run_cycle(db, cfg, args.account_id, args.symbols.split(',')))
