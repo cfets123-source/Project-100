@@ -6,6 +6,7 @@ from app.runtime.alpaca_paper_reconciler import run_reconciliation_cycle
 from app.strategies.test_dip_buy import TestDipBuyStrategy
 from app.audit.logger import log_and_commit
 from app.models.models import ExternalPaperRuntimeState
+from app.services.protective_order_verification import verify_protective_orders
 
 
 def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None):
@@ -18,6 +19,12 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     state.heartbeat = time.time(); state.status = "running"; db.commit()
     log_and_commit(db, 'alpaca_paper_worker_cycle_started', {'symbols': symbols})
     reconciliation = run_reconciliation_cycle(db, cfg, symbols)
+    read_adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
+    protection = verify_protective_orders(read_adapter)
+    if not protection['protected']:
+        state.status = 'halted_unprotected_position'; db.commit()
+        log_and_commit(db, 'alpaca_paper_worker_unprotected_position', protection)
+        return {**reconciliation, **protection, 'entries': []}
     if not reconciliation['market_open'] or not cfg.ALPACA_PAPER_EXECUTION_ENABLED:
         log_and_commit(db, 'alpaca_paper_worker_entries_blocked', {'market_open': reconciliation['market_open'], 'paper_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED})
         state.payload={**state.payload, 'references': references}; state.status='blocked'; db.commit()
