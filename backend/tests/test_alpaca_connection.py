@@ -40,3 +40,18 @@ def test_connect_encrypts_credential_and_readiness_never_enables_execution(db, m
     assert ready['paper'] is True
     assert ready['balances']['buying_power'] == 100.0
     assert ready['open_positions'] == 0 and ready['open_orders'] == 0
+
+
+def test_live_read_only_credential_is_separate_from_paper(db, monkeypatch):
+    monkeypatch.setattr(alpaca_connection, 'AlpacaBrokerAdapter', StubAdapter)
+    key = 'YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE='
+    alpaca_connection.connect(db, 'paper-key', 'paper-secret', key, paper=True)
+    alpaca_connection.connect(db, 'live-key', 'live-secret', key, paper=False)
+
+    paper_adapter, paper = alpaca_connection.load_read_only_adapter(db, key, paper=True)
+    live_adapter, live = alpaca_connection.load_read_only_adapter(db, key, paper=False)
+
+    assert paper is True and live is False
+    assert db.get(BrokerConnection, alpaca_connection.PAPER_BROKER) is not None
+    assert db.get(BrokerConnection, alpaca_connection.LIVE_BROKER) is not None
+    assert paper_adapter is not live_adapter
