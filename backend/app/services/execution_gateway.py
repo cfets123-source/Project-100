@@ -180,7 +180,6 @@ class ExecutionGateway:
             # A connected broker can only be used for paper execution when its
             # own simulated environment and the separate config gate are both
             # explicit. Default behavior remains simulator-only.
-            from app.services.broker_authorization import mutation_allowed
             paper_ok, paper_why = mutation_allowed(self.state_manager, self.broker)
             if not paper_ok:
                 cancel_unsubmitted("rejected")
