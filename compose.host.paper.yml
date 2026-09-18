@@ -22,6 +22,24 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  alpaca-monitor:
+    build: .
+    command: ["python", "-m", "app.runtime.alpaca_monitor_worker", "--database", "sqlite:////data/paper.db", "--symbols", "${ALPACA_MONITOR_SYMBOLS:-AAPL,MSFT}", "--interval", "${ALPACA_MONITOR_INTERVAL_SECONDS:-15}"]
+    env_file: .env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: paper
+      LIVE_TRADING_ENABLED: "false"
+      ALPACA_PAPER_EXECUTION_ENABLED: "false"
+    volumes:
+      - paper-data:/data
+    restart: "on-failure:3"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
   api:
     build: .
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
