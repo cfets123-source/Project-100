@@ -218,9 +218,11 @@ def get_risk_config():
 @app.get("/live/readiness", dependencies=[Depends(require_dashboard_access)])
 def live_readiness(db: Session = Depends(get_db)):
     try:
-        broker = alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        # Live credentials are stored separately and are read-only here.  This
+        # endpoint is a visibility gate, never an activation path.
+        broker = alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
     except Exception:
-        broker = {"read_only_ready": False, "paper": True}
+        broker = {"read_only_ready": False, "paper": False}
     return live_readiness_report(settings, broker, market_open=False, external_paper_lifecycle_verified=False)
 
 
