@@ -24,7 +24,7 @@ def place_protective_stop(db: Session, broker: BrokerAdapter, state_manager: Sta
         return False
     try:
         result = broker.place_order(OrderRequest(symbol=symbol, side="sell", quantity=quantity,
-                                                   order_type="stop", limit_price=stop_price))
+                                                   order_type="stop", stop_price=stop_price))
     except Exception as e:  # noqa: BLE001 — any broker-side failure is treated the same: fail safe
         state_manager.enter_safe_mode(f"protective_stop_placement_failed:{symbol}:{e}")
         log_and_commit(db, "protective_stop_failed", {"symbol": symbol, "error": str(e)})

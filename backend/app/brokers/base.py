@@ -22,6 +22,7 @@ class OrderRequest:
     quantity: float
     order_type: str = "market"   # market|limit
     limit_price: Optional[float] = None
+    stop_price: Optional[float] = None
     time_in_force: str = "day"
 
 

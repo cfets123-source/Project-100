@@ -1,12 +1,12 @@
 """Autonomous Alpaca paper worker. Requires the separate paper execution gate."""
 import time
-from app.brokers.alpaca_connection import load_read_only_adapter
+from app.brokers.alpaca_connection import load_read_only_adapter, load_paper_execution_adapter
 from app.runtime.alpaca_paper_controller import evaluate_candidate
 from app.runtime.alpaca_paper_reconciler import run_reconciliation_cycle
 from app.strategies.test_dip_buy import TestDipBuyStrategy
 from app.audit.logger import log_and_commit
 from app.models.models import ExternalPaperRuntimeState
-from app.services.protective_order_verification import verify_protective_orders
+from app.services.alpaca_paper_protection import ensure_protective_stops
 
 
 def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None):
@@ -23,8 +23,11 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
         log_and_commit(db, 'alpaca_paper_worker_entries_blocked', {'market_open': reconciliation['market_open'], 'paper_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED})
         state.payload={**state.payload, 'references': references}; state.status='blocked'; db.commit()
         return {**reconciliation, 'entries': []}
-    read_adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
-    protection = verify_protective_orders(read_adapter)
+    # Reconciliation may have discovered a fill since the last cycle.  Create
+    # its broker-side stop before evaluating any new entry.
+    execution_adapter = load_paper_execution_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY,
+                                                     enabled=cfg.ALPACA_PAPER_EXECUTION_ENABLED)
+    protection = ensure_protective_stops(db, execution_adapter, cfg)
     if not protection['protected']:
         state.status = 'halted_unprotected_position'; db.commit()
         log_and_commit(db, 'alpaca_paper_worker_unprotected_position', protection)

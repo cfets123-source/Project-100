@@ -108,6 +108,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                    "type": order.order_type, "time_in_force": order.time_in_force}
         if order.limit_price is not None:
             payload["limit_price"] = str(order.limit_price)
+        if order.stop_price is not None:
+            payload["stop_price"] = str(order.stop_price)
         raw = self._request("POST", "/v2/orders", json=payload)
         return OrderResult(order_id=str(raw["id"]), status=str(raw.get("status", "accepted")),
                            filled_qty=float(raw.get("filled_qty") or 0),

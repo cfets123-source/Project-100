@@ -49,6 +49,15 @@ def test_enabled_submission_has_explicit_order_payload():
     assert client.calls[-1][2]['json'] == {'symbol': 'AAPL', 'side': 'buy', 'qty': '1', 'type': 'market', 'time_in_force': 'day'}
 
 
+def test_stop_submission_uses_alpaca_stop_price_and_gtc():
+    client = Client()
+    adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)
+    adapter.place_order(OrderRequest(symbol='AAPL', side='sell', quantity=1,
+                                     order_type='stop', stop_price=90, time_in_force='gtc'))
+    assert client.calls[-1][2]['json'] == {'symbol': 'AAPL', 'side': 'sell', 'qty': '1',
+                                            'type': 'stop', 'time_in_force': 'gtc', 'stop_price': '90'}
+
+
 def test_cancel_accepts_alpaca_empty_success_response():
     client = Client()
     adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)

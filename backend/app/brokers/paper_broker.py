@@ -79,7 +79,8 @@ class PaperBrokerAdapter(BrokerAdapter):
                     self.orders[order_id] = {"order": order, "result": result, "ts": time.time()}
                     return result
             self.pending_stops[order_id] = {"symbol": order.symbol, "side": order.side,
-                                             "quantity": order.quantity, "stop_price": order.limit_price}
+                                             "quantity": order.quantity,
+                                             "stop_price": order.stop_price if order.stop_price is not None else order.limit_price}
             result = OrderResult(order_id=order_id, status="accepted", raw={"resting": True})
             self.orders[order_id] = {"order": order, "result": result, "ts": time.time()}
             return result
