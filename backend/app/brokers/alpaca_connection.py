@@ -71,3 +71,14 @@ def verify_read_only(db: Session, encryption_key: str) -> dict:
     report = verify_read_only_connection(adapter, str(accounts[0]["account_id"]))
     report["paper"] = paper
     return report
+
+
+def load_paper_execution_adapter(db: Session, encryption_key: str, *, enabled: bool) -> AlpacaBrokerAdapter:
+    """Return a submitting adapter only for an explicitly enabled paper account."""
+    adapter, paper = load_read_only_adapter(db, encryption_key)
+    if not enabled:
+        raise BrokerOAuthConfigurationError("Alpaca paper execution gate is disabled")
+    if not paper:
+        raise BrokerOAuthConfigurationError("refusing to construct execution adapter for live credential")
+    return AlpacaBrokerAdapter(adapter.headers["APCA-API-KEY-ID"], adapter.headers["APCA-API-SECRET-KEY"],
+                               paper=True, allow_order_submission=True)
