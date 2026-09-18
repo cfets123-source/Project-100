@@ -96,3 +96,14 @@ def load_paper_execution_adapter(db: Session, encryption_key: str, *, enabled: b
         raise BrokerOAuthConfigurationError("refusing to construct execution adapter for live credential")
     return AlpacaBrokerAdapter(adapter.headers["APCA-API-KEY-ID"], adapter.headers["APCA-API-SECRET-KEY"],
                                paper=True, allow_order_submission=True)
+
+
+def load_live_execution_adapter(db: Session, encryption_key: str, *, enabled: bool) -> AlpacaBrokerAdapter:
+    """Construct a submitting live adapter only at the final activation gate."""
+    adapter, paper = load_read_only_adapter(db, encryption_key, paper=False)
+    if not enabled:
+        raise BrokerOAuthConfigurationError("live execution gate is disabled")
+    if paper:
+        raise BrokerOAuthConfigurationError("refusing live execution with a paper credential")
+    return AlpacaBrokerAdapter(adapter.headers["APCA-API-KEY-ID"], adapter.headers["APCA-API-SECRET-KEY"],
+                               paper=False, allow_order_submission=True)

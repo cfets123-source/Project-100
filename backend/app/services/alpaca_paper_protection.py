@@ -8,12 +8,18 @@ from __future__ import annotations
 
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
-from app.models.models import TradeDecisionRecord
+from app.models.models import ExternalPaperProtection, TradeDecisionRecord
 from app.services.protective_order_verification import verify_protective_orders
 from app.services.state_machine import StateManager
 
 
-def _stop_for_position(db, symbol: str, quantity: float) -> float | None:
+def _entry_for_position(db, adapter, symbol: str, quantity: float) -> tuple[str, float] | None:
+    """Resolve a position to its exact filled Project 100 entry order.
+
+    Alpaca positions are symbol-aggregated rather than exposing an entry-lot
+    identifier.  We therefore reject overlapping entries in the runner and
+    require the broker's filled order id to match our recorded decision.
+    """
     decision = (db.query(TradeDecisionRecord)
                 .filter(TradeDecisionRecord.symbol == symbol,
                         TradeDecisionRecord.direction == "long",
@@ -22,7 +28,13 @@ def _stop_for_position(db, symbol: str, quantity: float) -> float | None:
                 .order_by(TradeDecisionRecord.timestamp.desc()).first())
     if decision is None:
         return None
-    return float(decision.stop_price)
+    orders = {str(order.get("id")): order for order in adapter.get_orders()}
+    entry = orders.get(str(decision.order_id))
+    if not entry or str(entry.get("side")) != "buy" or str(entry.get("status")) != "filled":
+        return None
+    if float(entry.get("filled_qty") or 0) < quantity:
+        return None
+    return str(decision.order_id), float(decision.stop_price)
 
 
 def ensure_protective_stops(db, adapter, cfg) -> dict:
@@ -41,13 +53,24 @@ def ensure_protective_stops(db, adapter, cfg) -> dict:
     for symbol in check["uncovered_positions"]:
         position = positions[symbol]
         quantity = abs(float(position.get("qty") or 0))
-        stop_price = _stop_for_position(db, symbol, quantity)
-        if quantity <= 0 or stop_price is None:
+        entry = _entry_for_position(db, adapter, symbol, quantity)
+        if quantity <= 0 or entry is None:
             state.activate_kill_switch(f"paper position without recorded protective stop: {symbol}")
             log_and_commit(db, "alpaca_paper_protective_stop_failed",
                            {"symbol": symbol, "reason": "missing_recorded_stop"})
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "missing_recorded_stop"}
+        entry_order_id, stop_price = entry
+        recorded = db.get(ExternalPaperProtection, entry_order_id)
+        if recorded is not None:
+            # The verification result above says it is not currently protected;
+            # do not silently create a second stop for the same entry.
+            state.activate_kill_switch(f"paper recorded stop missing at broker: {symbol}")
+            log_and_commit(db, "alpaca_paper_protective_stop_failed",
+                           {"symbol": symbol, "reason": "recorded_stop_missing_at_broker",
+                            "entry_order_id": entry_order_id})
+            return {"protected": False, "placed": placed, "failed": symbol,
+                    "reason": "recorded_stop_missing_at_broker"}
         try:
             result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=quantity,
                                                        order_type="stop", stop_price=stop_price,
@@ -65,6 +88,10 @@ def ensure_protective_stops(db, adapter, cfg) -> dict:
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "rejected"}
         placed.append({"symbol": symbol, "order_id": result.order_id, "stop_price": stop_price})
+        db.add(ExternalPaperProtection(entry_order_id=entry_order_id, symbol=symbol,
+                                       quantity=quantity, stop_price=stop_price,
+                                       protective_order_id=result.order_id))
+        db.commit()
         log_and_commit(db, "alpaca_paper_protective_stop_placed", placed[-1])
     verified = verify_protective_orders(adapter)
     return {**verified, "placed": placed}

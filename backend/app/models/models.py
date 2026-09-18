@@ -203,3 +203,14 @@ class ExternalPaperRuntimeState(Base):
     payload = Column(JSON, nullable=False)
     heartbeat = Column(Float, nullable=False)
     status = Column(String, nullable=False, default="waiting")
+
+
+class ExternalPaperProtection(Base):
+    """One broker-side stop bound to the exact filled external entry order."""
+    __tablename__ = "external_paper_protections"
+    entry_order_id = Column(String, primary_key=True)
+    symbol = Column(String, nullable=False, index=True)
+    quantity = Column(Float, nullable=False)
+    stop_price = Column(Float, nullable=False)
+    protective_order_id = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
