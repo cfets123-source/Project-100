@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.brokers.robinhood_oauth import (BROKER, MCP_URL, TOKEN_URL,
                                          BrokerOAuthConfigurationError, _fernet)
+from app.audit.logger import log_and_commit
 from app.models.models import BrokerConnection
 
 MCP_PROTOCOL_VERSION = "2025-03-26"
@@ -128,4 +129,12 @@ def discover_capabilities(db: Session, encryption_key: str) -> dict:
         raise
     except httpx.HTTPError as exc:
         raise RobinhoodMcpError("Robinhood capability check could not reach the broker") from exc
+    # Preserve evidence that discovery happened, but retain neither credentials
+    # nor broker output beyond names/count. Tool descriptions and schemas can be
+    # arbitrary server content and do not belong in the audit event.
+    log_and_commit(db, "broker_capability_discovered", {
+        "broker": BROKER, "tool_count": len(tools),
+        "tool_names": [tool["name"] for tool in tools],
+        "discovery_only": True, "execution_enabled": False,
+    })
     return {"broker": BROKER, "discovery_only": True, "execution_enabled": False, "tools": tools}

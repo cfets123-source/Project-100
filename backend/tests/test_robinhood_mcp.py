@@ -10,6 +10,7 @@ from app.brokers.robinhood_oauth import BROKER
 from app.db.session import Base
 from app.models import models  # noqa: F401 registers all tables
 from app.models.models import BrokerConnection
+from app.models.models import AuditLogEntry
 
 
 @pytest.fixture
@@ -42,6 +43,10 @@ def test_capability_discovery_only_lists_tools(post, db):
     result = discover_capabilities(db, key)
     assert result["execution_enabled"] is False
     assert result["tools"][0]["name"] == "accounts_list"
+    audit = db.query(AuditLogEntry).one()
+    assert audit.event_type == "broker_capability_discovered"
+    assert audit.payload["tool_names"] == ["accounts_list"]
+    assert "access" not in str(audit.payload)
     methods = [call.kwargs.get("json", {}).get("method") for call in post.call_args_list]
     assert methods == [None, "initialize", "notifications/initialized", "tools/list"]
     assert "tools/call" not in methods
