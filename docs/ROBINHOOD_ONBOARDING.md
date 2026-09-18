@@ -13,7 +13,7 @@ Project 100 is **not connected to Robinhood yet**. This is intentional: a broker
 
 ## Connection contract
 
-The future Robinhood adapter must implement the existing broker abstraction and support account lookup, quotes, positions, orders, order lookup, cancellation, and capability discovery. It must reject live submission unless all of these are true:
+The future Robinhood adapter must implement the existing broker abstraction and support account lookup, quotes, positions, orders, order lookup, cancellation, and capability discovery. The application now has a read-only verification gate that checks authentication, the specifically selected dedicated account, finite balances and buying power, positions, and orders without calling any trade method. It must reject live submission unless all of these are true:
 
 - the adapter's authenticated account is the selected dedicated Agentic account;
 - the broker reports the necessary permission and trading capability;
