@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Depends, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.db.session import Base, engine, get_db, initialize_schema
 from app.models import models  # noqa: F401 ensures models are registered
 from app.core.config import settings
 from app.runtime.paper import paper_status
 from app.analytics.performance import account_performance
+from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connection_status,
+    finish_connection, start_connection)
 
 initialize_schema(engine)
 
@@ -40,16 +42,33 @@ def get_paper_activity(limit: int = Query(default=50, ge=1, le=200), db: Session
 
 
 @app.get("/brokers/robinhood/status")
-def robinhood_status():
+def robinhood_status(db: Session = Depends(get_db)):
     """Connection state without exposing credentials or account data."""
+    status = connection_status(db)
     return {
-        "broker": "robinhood_agentic_trading",
-        "connected": False,
-        "execution_enabled": False,
-        "reason": "No user-authorized Robinhood Agentic Trading session is configured.",
+        **status,
         "setup_url": "https://robinhood.com/us/en/support/articles/agentic-trading-overview/",
         "account_requirement": "A dedicated Robinhood Agentic Trading account is required.",
     }
+
+
+@app.get("/brokers/robinhood/connect")
+def robinhood_connect(db: Session = Depends(get_db)):
+    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools."""
+    try:
+        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL), status_code=302)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/brokers/robinhood/callback")
+def robinhood_callback(state: str, code: str, db: Session = Depends(get_db)):
+    try:
+        result = finish_connection(db, state, code, settings.BROKER_OAUTH_REDIRECT_URL,
+                                   settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        return JSONResponse(result)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

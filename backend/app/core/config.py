@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # code, AI output, or milestone logic.
     LIVE_TRADING_ENABLED: bool = False
 
+    # --- Broker OAuth: deployment-only. Keep empty in local development. ---
+    BROKER_OAUTH_REDIRECT_URL: str = ""
+    BROKER_TOKEN_ENCRYPTION_KEY: str = ""
+
     class Config:
         env_file = ".env"
 

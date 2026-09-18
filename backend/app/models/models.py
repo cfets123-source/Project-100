@@ -176,3 +176,22 @@ class CapitalStageState(Base):
     __tablename__ = "capital_stage_state"
     id = Column(String, primary_key=True)
     payload = Column(JSON, nullable=False)
+
+
+class BrokerOAuthState(Base):
+    """Short-lived PKCE state. The verifier is not exposed through the API."""
+    __tablename__ = "broker_oauth_states"
+    state = Column(String, primary_key=True)
+    code_verifier = Column(String, nullable=False)
+    client_id = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+
+
+class BrokerConnection(Base):
+    """One encrypted OAuth session per named broker; never return token fields."""
+    __tablename__ = "broker_connections"
+    broker = Column(String, primary_key=True)
+    client_id = Column(String, nullable=False)
+    encrypted_refresh_token = Column(Text, nullable=False)
+    connected_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    status = Column(String, nullable=False, default="connected")

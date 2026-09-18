@@ -6,7 +6,7 @@ Project 100 is **not connected to Robinhood yet**. This is intentional: a broker
 
 1. Create or identify the dedicated Robinhood Agentic Trading account in Robinhood's official setup. Do not use an account holding unrelated investments.
 2. Fund that account with the $100 starting balance through Robinhood's own transfer flow. This is a user-performed financial transfer, not an automated Project 100 action.
-3. Authorize a broker session through the official Robinhood Agentic Trading/MCP flow. Verify that it reports the dedicated account and its available cash.
+3. Deploy the application to a HTTPS address and set its callback URL plus a deployment-managed Fernet token-encryption key. Then authorize the application's own broker session through the official Robinhood Agentic Trading/MCP flow. The Codex desktop connection is separate and cannot supply application credentials.
 4. Store broker credentials only in the deployment secret store. Do not add them to `.env`, git history, logs, screenshots, or the dashboard.
 5. Run a read-only capability check and reconcile reported buying power with the account. Keep execution disabled.
 6. Complete the paper, shadow, reliability, and deployment gates. A separate explicit live-enable decision is required after those gates pass.
