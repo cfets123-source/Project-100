@@ -21,7 +21,10 @@ class StubAdapter:
     def __init__(self, *_args, **_kwargs): pass
     def authenticate(self): return True
     def get_accounts(self): return [{'account_id': 'paper-account'}]
-    def get_balances(self): return {'buying_power': 100.0}
+    def get_balances(self): return {'equity': 100.0, 'cash': 100.0, 'buying_power': 100.0}
+    def get_buying_power(self): return 100.0
+    def get_positions(self): return []
+    def get_orders(self): return []
 
 
 def test_connect_encrypts_credential_and_readiness_never_enables_execution(db, monkeypatch):
@@ -32,5 +35,8 @@ def test_connect_encrypts_credential_and_readiness_never_enables_execution(db, m
     assert connected['execution_enabled'] is False
     assert 'secret' not in stored.encrypted_refresh_token
     ready = alpaca_connection.verify_read_only(db, key)
-    assert ready == {'read_only_ready': True, 'paper': True, 'account_count': 1,
-                     'buying_power': 100.0, 'execution_enabled': False}
+    assert ready['read_only_ready'] is True
+    assert ready['execution_enabled'] is False
+    assert ready['paper'] is True
+    assert ready['balances']['buying_power'] == 100.0
+    assert ready['open_positions'] == 0 and ready['open_orders'] == 0

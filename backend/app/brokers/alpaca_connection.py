@@ -52,9 +52,13 @@ def verify_read_only(db: Session, encryption_key: str) -> dict:
         payload = json.loads(_fernet(encryption_key).decrypt(record.encrypted_refresh_token.encode()).decode())
     except Exception as exc:
         raise BrokerOAuthConfigurationError("Stored Alpaca credential cannot be decrypted") from exc
+    from app.services.broker_readiness import verify_read_only_connection
+
     adapter = AlpacaBrokerAdapter(payload["api_key"], payload["api_secret"], paper=bool(payload["paper"]))
     accounts = adapter.get_accounts()
-    balances = adapter.get_balances()
-    return {"read_only_ready": len(accounts) == 1, "paper": bool(payload["paper"]),
-            "account_count": len(accounts), "buying_power": balances["buying_power"],
-            "execution_enabled": False}
+    if len(accounts) != 1 or not accounts[0].get("account_id"):
+        return {"connected": False, "read_only_ready": False, "execution_enabled": False,
+                "paper": bool(payload["paper"]), "reasons": ["expected exactly one Alpaca account"]}
+    report = verify_read_only_connection(adapter, str(accounts[0]["account_id"]))
+    report["paper"] = bool(payload["paper"])
+    return report
