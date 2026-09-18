@@ -230,3 +230,19 @@ def paper_execution_worker(db: Session = Depends(get_db)):
     if not row:
         return {"configured": True, "started": False, "status": "waiting"}
     return {"configured": True, "started": True, "status": row.status, "heartbeat": row.heartbeat, "references": row.payload.get("references", {})}
+
+
+@app.get("/brokers/alpaca/paper-portfolio", dependencies=[Depends(require_dashboard_access)])
+def alpaca_paper_portfolio(db: Session = Depends(get_db)):
+    try:
+        adapter, paper = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        if not paper:
+            raise HTTPException(status_code=409, detail="stored Alpaca credential is not paper")
+        from app.services.protective_order_verification import verify_protective_orders
+        positions, orders = adapter.get_positions(), adapter.get_orders()
+        protection = verify_protective_orders(adapter)
+        return {"paper_only": True, "positions": positions, "orders": orders, "protection": protection}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"paper portfolio unavailable: {type(exc).__name__}")
