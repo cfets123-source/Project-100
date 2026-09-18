@@ -42,6 +42,11 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                                        headers=self.headers, params=params, json=json)
         try:
             response.raise_for_status()
+            # Alpaca returns an empty successful response for DELETE /v2/orders.
+            # Treat that as success rather than turning a completed cancellation
+            # into an ambiguous broker outcome.
+            if method.upper() == "DELETE":
+                return {}
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise AlpacaBrokerError(f"Alpaca {method} {path} failed") from exc

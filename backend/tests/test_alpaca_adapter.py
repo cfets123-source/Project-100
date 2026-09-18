@@ -47,3 +47,12 @@ def test_enabled_submission_has_explicit_order_payload():
     result = adapter.place_order(OrderRequest(symbol='AAPL', side='buy', quantity=1))
     assert result.order_id == 'order-1'
     assert client.calls[-1][2]['json'] == {'symbol': 'AAPL', 'side': 'buy', 'qty': '1', 'type': 'market', 'time_in_force': 'day'}
+
+
+def test_cancel_accepts_alpaca_empty_success_response():
+    client = Client()
+    adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)
+    assert adapter.cancel_order('order-1')
+    method, url, _ = client.calls[-1]
+    assert method == 'DELETE'
+    assert url.endswith('/v2/orders/order-1')
