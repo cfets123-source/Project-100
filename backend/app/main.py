@@ -9,23 +9,24 @@ from app.analytics.performance import account_performance
 from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connection_status,
     finish_connection, start_connection)
 from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
+from app.security.dashboard import require_dashboard_access
 
 initialize_schema(engine)
 
 app = FastAPI(title="Project 100", version="0.1.0-phase1")
 
 
-@app.get("/paper/status")
+@app.get("/paper/status", dependencies=[Depends(require_dashboard_access)])
 def get_paper_status(db: Session = Depends(get_db)):
     return paper_status(db)
 
 
-@app.get("/paper/performance")
+@app.get("/paper/performance", dependencies=[Depends(require_dashboard_access)])
 def get_paper_performance(db: Session = Depends(get_db)):
     return account_performance(db)
 
 
-@app.get("/paper/activity")
+@app.get("/paper/activity", dependencies=[Depends(require_dashboard_access)])
 def get_paper_activity(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
     """Recent append-only paper-runtime actions for the operator dashboard."""
     events = (db.query(models.AuditLogEntry)
@@ -42,7 +43,7 @@ def get_paper_activity(limit: int = Query(default=50, ge=1, le=200), db: Session
     ]}
 
 
-@app.get("/brokers/robinhood/status")
+@app.get("/brokers/robinhood/status", dependencies=[Depends(require_dashboard_access)])
 def robinhood_status(db: Session = Depends(get_db)):
     """Connection state without exposing credentials or account data."""
     status = connection_status(db)
@@ -72,7 +73,7 @@ def robinhood_callback(state: str, code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@app.get("/brokers/robinhood/capabilities")
+@app.get("/brokers/robinhood/capabilities", dependencies=[Depends(require_dashboard_access)])
 def robinhood_capabilities(db: Session = Depends(get_db)):
     """Discover broker-advertised tools only; this endpoint cannot call one."""
     try:
@@ -81,7 +82,7 @@ def robinhood_capabilities(db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_dashboard_access)])
 def dashboard():
     """Dependency-free operations dashboard that refreshes once per second."""
     return HTMLResponse("""<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">
@@ -109,7 +110,7 @@ def health():
     return {"status": "ok", "trading_mode": settings.TRADING_MODE, "autonomy_level": settings.AUTONOMY_LEVEL}
 
 
-@app.get("/system/state")
+@app.get("/system/state", dependencies=[Depends(require_dashboard_access)])
 def get_state(db: Session = Depends(get_db)):
     rec = db.get(models.SystemStateRecord, "current")
     if not rec:
@@ -120,7 +121,7 @@ def get_state(db: Session = Depends(get_db)):
     return {"state": rec.state, "reason": rec.reason, "updated_at": rec.updated_at}
 
 
-@app.get("/config/risk")
+@app.get("/config/risk", dependencies=[Depends(require_dashboard_access)])
 def get_risk_config():
     """Read-only view of active risk configuration (no secrets)."""
     return {

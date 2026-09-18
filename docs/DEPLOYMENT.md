@@ -30,6 +30,23 @@ TLS, external monitoring and off-host backups, choose an authorized host, and
 review its costs. Real data, broker OAuth/MCP, PostgreSQL migrations, secrets
 management and live-trading gates are separate uncompleted integrations.
 
+## Required secret configuration for a hosted dashboard
+
+Before setting `APP_ENV=production`, set these values in the chosen host's
+secret manager. Do not put any of them in the repository, Docker image, or a
+committed `.env` file.
+
+- `DASHBOARD_USERNAME` and a strong `DASHBOARD_PASSWORD` protect `/dashboard`
+  and its operational data APIs with browser sign-in.
+- `BROKER_OAUTH_REDIRECT_URL` must be the deployment's HTTPS callback URL.
+- `BROKER_TOKEN_ENCRYPTION_KEY` must be a unique Fernet key stored only by the
+  host. Generate it with `Fernet.generate_key()` from the `cryptography`
+  package; rotating it disconnects existing broker sessions until reauthorized.
+
+Production startup refuses an empty dashboard password. The separate broker
+OAuth callback remains public because Robinhood must redirect to it; its
+short-lived PKCE state validates the return and it does not expose credentials.
+
 ## Tested local SQLite backup and restoration
 
 From `backend/`:

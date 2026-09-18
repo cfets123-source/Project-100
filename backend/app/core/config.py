@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     # --- Broker OAuth: deployment-only. Keep empty in local development. ---
     BROKER_OAUTH_REDIRECT_URL: str = ""
     BROKER_TOKEN_ENCRYPTION_KEY: str = ""
+    DASHBOARD_USERNAME: str = "operator"
+    DASHBOARD_PASSWORD: str = ""
 
     class Config:
         env_file = ".env"
@@ -122,6 +124,9 @@ class Settings(BaseSettings):
             # never mistaken for a live-safe default. Left as a no-op guard point for
             # future stricter policy; explicit ALLOW_* still all default False.
             pass
+
+        if self.APP_ENV.lower() in {"production", "prod"} and not self.DASHBOARD_PASSWORD:
+            raise ConfigConsistencyError("DASHBOARD_PASSWORD is required when APP_ENV is production")
 
         return self
 

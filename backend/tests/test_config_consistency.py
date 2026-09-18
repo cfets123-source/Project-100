@@ -38,3 +38,9 @@ def test_allows_live_level_3_without_auto_execution():
     s = Settings(TRADING_MODE=TradingMode.LIVE, AUTONOMY_LEVEL=AutonomyLevel.LEVEL_3_LIVE_NEEDS_APPROVAL,
                   AUTO_EXECUTION=False)
     assert s.AUTO_EXECUTION is False
+
+
+def test_production_requires_dashboard_password():
+    with pytest.raises(ValidationError, match="DASHBOARD_PASSWORD"):
+        Settings(APP_ENV="production")
+    assert Settings(APP_ENV="production", DASHBOARD_PASSWORD="secret").DASHBOARD_PASSWORD == "secret"
