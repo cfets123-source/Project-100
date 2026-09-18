@@ -241,7 +241,11 @@ def alpaca_paper_portfolio(db: Session = Depends(get_db)):
         from app.services.protective_order_verification import verify_protective_orders
         positions, orders = adapter.get_positions(), adapter.get_orders()
         protection = verify_protective_orders(adapter)
-        return {"paper_only": True, "positions": positions, "orders": orders, "protection": protection}
+        active_statuses = {"new", "accepted", "pending", "open", "partially_filled"}
+        active_orders = [order for order in orders if str(order.get("status")) in active_statuses]
+        historical_orders = [order for order in orders if str(order.get("status")) not in active_statuses]
+        return {"paper_only": True, "positions": positions, "active_orders": active_orders,
+                "historical_orders": historical_orders, "protection": protection}
     except HTTPException:
         raise
     except Exception as exc:
