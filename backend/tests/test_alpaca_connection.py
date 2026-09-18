@@ -1,5 +1,20 @@
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
 from app.brokers import alpaca_connection
+from app.db.session import Base
+from app.models import models  # noqa: F401
 from app.models.models import BrokerConnection
+
+
+@pytest.fixture
+def db():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        yield session
+    engine.dispose()
 
 
 class StubAdapter:
