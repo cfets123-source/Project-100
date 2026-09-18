@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, finish_connection,
-                                         start_connection)
+                                         start_connection, connection_status)
 from app.db.session import Base
 from app.models import models  # noqa: F401 registers all tables
 from app.models.models import BrokerConnection, BrokerOAuthState
@@ -40,4 +40,7 @@ def test_oauth_pkce_and_encrypted_refresh_token(post, db):
     saved = db.get(BrokerConnection, "robinhood_agentic_trading")
     assert result == {"connected": True, "execution_enabled": False}
     assert saved.encrypted_refresh_token != "secret-refresh"
+    assert saved.status == "authorized"
+    assert connection_status(db)["connected"] is False
+    assert connection_status(db)["application_authorized"] is True
     assert db.get(BrokerOAuthState, state) is None

@@ -90,11 +90,11 @@ def finish_connection(db: Session, state: str, code: str, redirect_url: str, enc
         connection = db.get(BrokerConnection, BROKER)
         if connection is None:
             connection = BrokerConnection(broker=BROKER, client_id=pending.client_id,
-                                          encrypted_refresh_token=token)
+                                          encrypted_refresh_token=token, status="authorized")
             db.add(connection)
         else:
             connection.client_id, connection.encrypted_refresh_token = pending.client_id, token
-            connection.connected_at, connection.status = dt.datetime.utcnow(), "connected"
+            connection.connected_at, connection.status = dt.datetime.utcnow(), "authorized"
         db.delete(pending)
         db.commit()
         return {"connected": True, "execution_enabled": False}
@@ -105,7 +105,16 @@ def finish_connection(db: Session, state: str, code: str, redirect_url: str, enc
 
 def connection_status(db: Session):
     connection = db.get(BrokerConnection, BROKER)
-    return {"broker": BROKER, "connected": bool(connection and connection.status == "connected"),
-            "execution_enabled": False,
-            "connection_time": connection.connected_at if connection else None,
-            "reason": None if connection else "Application OAuth has not been completed."}
+    authorized = bool(connection and connection.status in {"authorized", "connected"})
+    return {
+        "broker": BROKER,
+        # OAuth proves only that the application can refresh a credential. It
+        # does not prove the selected account, balances, or permissions.
+        "connected": False,
+        "application_authorized": authorized,
+        "read_only_ready": False,
+        "execution_enabled": False,
+        "connection_time": connection.connected_at if connection else None,
+        "reason": ("Application OAuth is complete; dedicated account verification is still required."
+                   if authorized else "Application OAuth has not been completed."),
+    }
