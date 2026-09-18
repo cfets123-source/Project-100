@@ -31,6 +31,8 @@ from app.services.execution_gateway import ExecutionGateway
 from app.services.protective_exit import place_protective_stop
 from app.services.state_machine import StateManager, OFF, PAPER, SAFE, HALTED
 from app.strategies.test_dip_buy import TestDipBuyStrategy
+from app.services.capital_stages import evaluate_paper_stage
+from app.analytics.performance import account_performance
 
 ACCOUNT = "paper-1"
 
@@ -310,6 +312,9 @@ class PaperRuntime:
                     if not protected:
                         break
             equity = broker.get_balances()["equity"]
+            data['max_drawdown'] = max(data['max_drawdown'], 1-equity/data['high_water'])
+            db.flush()
+            data['stage'] = evaluate_paper_stage(db, equity, data['max_drawdown'], sm.get_state() == PAPER)
             data.update(broker=serialize_broker(broker), last_sequence=frame.sequence,
                         last_data_at=time.time(), last_equity=equity)
             row.payload = data
@@ -344,6 +349,8 @@ class PaperRuntime:
             rec.status, rec.exit_price, rec.exit_reason = "closed", result.fill_price, reason
             rec.pnl = pnl
             rec.r_multiple = pnl / rec.risk_dollars if rec.risk_dollars else 0
+            rec.post_trade_analysis = {"closed_at": time.time(), "mode": "paper", "simulated": True,
+                                       "costs_included": trade['entry_fee'] + self.fee}
             for reservation in db.query(RiskReservation).filter_by(account_id=ACCOUNT,
                     decision_id=trade["decision_id"], status="active").all():
                 reservation.status = "released"
@@ -385,4 +392,5 @@ def paper_status(db):
             "last_sequence": payload["last_sequence"], "equity": payload["last_equity"],
             "cash": payload["broker"]["cash"], "positions": payload["broker"]["positions"],
             "realized_pnl": payload["realized_pnl"], "max_drawdown": payload.get("max_drawdown", 0),
+            "stage": payload.get('stage'), "performance": account_performance(db),
             "last_error": row.last_error}

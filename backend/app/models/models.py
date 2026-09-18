@@ -170,3 +170,9 @@ class PaperEvent(Base):
     sequence = Column(Integer, nullable=False, unique=True)
     payload_hash = Column(String, nullable=False)
     result = Column(JSON, nullable=False)
+
+
+class CapitalStageState(Base):
+    __tablename__ = "capital_stage_state"
+    id = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False)

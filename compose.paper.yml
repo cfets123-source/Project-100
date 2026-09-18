@@ -1,0 +1,38 @@
+# Development simulation only. Prepared configuration; no deployment implied.
+services:
+  worker:
+    build: .
+    command: ["python", "-m", "app.runtime.worker", "--database", "/data/paper.db", "run", "--feed", "/feeds/paper-replay.jsonl", "--enable-paper"]
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: paper
+      LIVE_TRADING_ENABLED: "false"
+    volumes:
+      - paper-data:/data
+      - ./backend/examples:/feeds:ro
+    restart: "on-failure:3"
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+  api:
+    build: .
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: paper
+      LIVE_TRADING_ENABLED: "false"
+    volumes:
+      - paper-data:/data
+    ports: ["127.0.0.1:8000:8000"]
+    restart: "on-failure:3"
+    depends_on: [worker]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+volumes:
+  paper-data:

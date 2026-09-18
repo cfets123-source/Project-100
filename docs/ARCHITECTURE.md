@@ -41,4 +41,4 @@ state and workers, authenticated controls, actual market-data and broker
 integrations, strategy validation, capital stages, performance tracking and
 cloud deployment. Do not enable real trading based on unit-test success.
 
-The persistent paper runtime adds atomic broker/ledger/audit persistence, stable event deduplication, real-process restart tests and duplicate-worker tests. The expanded suite currently passes 138 tests.
+The persistent paper runtime adds atomic broker/ledger/audit persistence, stable event deduplication, real-process restart tests and duplicate-worker tests. The expanded suite currently passes 153 tests.

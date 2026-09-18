@@ -35,7 +35,7 @@ entry/exit accounting and reservation release, and serializes events with a SQLi
 write lock. It is not a real-market service or a cloud deployment. The general
 non-runtime gateway still lacks transaction-safe external-order lifecycle, account
 freshness enforcement, partial-cancel reconciliation, and cross-worker protection.
-Capital-stage evaluation and real data/broker integrations remain outstanding.
+Paper capital-stage evaluation is implemented without changing risk or permissions. Real data/broker integrations remain outstanding.
 
 Outside the paper runtime, audit events use an ORM-level guard. The SQLite paper
 runtime also installs UPDATE/DELETE-blocking triggers. State,

@@ -8,6 +8,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+def initialize_schema(target_engine=engine):
+    """Serialize SQLite schema creation with worker startup; no data deletion."""
+    with target_engine.connect() as conn:
+        if target_engine.dialect.name == "sqlite":
+            conn.exec_driver_sql("BEGIN IMMEDIATE")
+        Base.metadata.create_all(bind=conn)
+        conn.commit()
+
+
 def get_db():
     db = SessionLocal()
     try:
