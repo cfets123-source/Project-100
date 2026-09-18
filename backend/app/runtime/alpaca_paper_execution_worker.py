@@ -19,16 +19,16 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     state.heartbeat = time.time(); state.status = "running"; db.commit()
     log_and_commit(db, 'alpaca_paper_worker_cycle_started', {'symbols': symbols})
     reconciliation = run_reconciliation_cycle(db, cfg, symbols)
+    if not reconciliation['market_open'] or not cfg.ALPACA_PAPER_EXECUTION_ENABLED:
+        log_and_commit(db, 'alpaca_paper_worker_entries_blocked', {'market_open': reconciliation['market_open'], 'paper_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED})
+        state.payload={**state.payload, 'references': references}; state.status='blocked'; db.commit()
+        return {**reconciliation, 'entries': []}
     read_adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     protection = verify_protective_orders(read_adapter)
     if not protection['protected']:
         state.status = 'halted_unprotected_position'; db.commit()
         log_and_commit(db, 'alpaca_paper_worker_unprotected_position', protection)
         return {**reconciliation, **protection, 'entries': []}
-    if not reconciliation['market_open'] or not cfg.ALPACA_PAPER_EXECUTION_ENABLED:
-        log_and_commit(db, 'alpaca_paper_worker_entries_blocked', {'market_open': reconciliation['market_open'], 'paper_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED})
-        state.payload={**state.payload, 'references': references}; state.status='blocked'; db.commit()
-        return {**reconciliation, 'entries': []}
     adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     if not paper: raise RuntimeError('paper worker refuses live credential')
     strategy, entries = TestDipBuyStrategy(), []
