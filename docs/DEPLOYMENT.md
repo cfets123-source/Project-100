@@ -30,6 +30,22 @@ TLS, external monitoring and off-host backups, choose an authorized host, and
 review its costs. Real data, broker OAuth/MCP, PostgreSQL migrations, secrets
 management and live-trading gates are separate uncompleted integrations.
 
+## Single-server paper dashboard
+
+`compose.host.paper.yml` is a repeatable, password-protected deployment for a
+single server. It remains paper-only and binds the API to the server loopback
+address. Copy `.env.host.example` to a host-only `.env.host` file, replace both
+secrets, and start it with:
+
+```sh
+docker compose -f compose.host.paper.yml up --build -d
+```
+
+Do not open port 8000 directly to the internet. Until a domain, TLS reverse
+proxy, and firewall policy are completed, reach it through an authenticated SSH
+tunnel. A public HTTPS address is also required before configuring Robinhood's
+application OAuth redirect URL.
+
 ## Required secret configuration for a hosted dashboard
 
 Before setting `APP_ENV=production`, set these values in the chosen host's
