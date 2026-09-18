@@ -43,6 +43,53 @@ def get_paper_activity(limit: int = Query(default=50, ge=1, le=200), db: Session
     ]}
 
 
+@app.get("/paper/insights", dependencies=[Depends(require_dashboard_access)])
+def get_paper_insights(db: Session = Depends(get_db)):
+    """Historical paper-only observations for the operations dashboard.
+
+    Values are realized or recorded simulation data. The endpoint deliberately
+    provides no forecasts, recommendations, or live-market claims.
+    """
+    snapshots = list(reversed(db.query(models.AccountSnapshot)
+                              .order_by(models.AccountSnapshot.timestamp.desc())
+                              .limit(500).all()))
+    high_water = 0.0
+    curve = []
+    for row in snapshots:
+        high_water = max(high_water, row.equity or 0.0)
+        drawdown = 0.0 if high_water <= 0 else max(0.0, 1 - row.equity / high_water)
+        curve.append({"timestamp": row.timestamp, "equity": row.equity,
+                      "cash": row.cash, "drawdown": drawdown})
+
+    closed = (db.query(models.TradeDecisionRecord)
+              .filter(models.TradeDecisionRecord.status == "closed")
+              .order_by(models.TradeDecisionRecord.timestamp.desc()).limit(200).all())
+    trades = [{"timestamp": row.timestamp, "symbol": row.symbol,
+               "strategy": row.strategy, "pnl": row.pnl, "r_multiple": row.r_multiple,
+               "exit_reason": row.exit_reason} for row in reversed(closed)]
+    strategy = {}
+    for row in trades:
+        bucket = strategy.setdefault(row["strategy"] or "unclassified",
+                                     {"strategy": row["strategy"] or "unclassified", "trades": 0,
+                                      "wins": 0, "pnl": 0.0, "r_total": 0.0})
+        bucket["trades"] += 1
+        bucket["wins"] += int((row["pnl"] or 0) > 0)
+        bucket["pnl"] += row["pnl"] or 0.0
+        bucket["r_total"] += row["r_multiple"] or 0.0
+    strategy_rows = []
+    for row in strategy.values():
+        row["win_rate"] = row["wins"] / row["trades"] if row["trades"] else None
+        strategy_rows.append(row)
+
+    vetoes = (db.query(models.AuditLogEntry)
+              .filter(models.AuditLogEntry.event_type.in_(["risk_veto", "kill_switch", "error"]))
+              .order_by(models.AuditLogEntry.timestamp.desc()).limit(50).all())
+    return {"mode": "paper", "simulated": True, "equity_curve": curve,
+            "closed_trades": trades, "strategy_breakdown": strategy_rows,
+            "risk_events": [{"timestamp": item.timestamp, "type": item.event_type,
+                             "payload": item.payload} for item in vetoes]}
+
+
 @app.get("/brokers/robinhood/status", dependencies=[Depends(require_dashboard_access)])
 def robinhood_status(db: Session = Depends(get_db)):
     """Connection state without exposing credentials or account data."""
