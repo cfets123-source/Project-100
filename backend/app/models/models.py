@@ -195,3 +195,11 @@ class BrokerConnection(Base):
     encrypted_refresh_token = Column(Text, nullable=False)
     connected_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
     status = Column(String, nullable=False, default="connected")
+
+class ExternalPaperRuntimeState(Base):
+    """Durable state for the external Alpaca paper worker."""
+    __tablename__ = "external_paper_runtime"
+    id = Column(String, primary_key=True, default=lambda: "alpaca-paper-1")
+    payload = Column(JSON, nullable=False)
+    heartbeat = Column(Float, nullable=False)
+    status = Column(String, nullable=False, default="waiting")
