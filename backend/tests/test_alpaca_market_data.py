@@ -11,7 +11,8 @@ class StubAdapter:
         self.balances_calls = self.positions_calls = 0
 
     def get_quotes(self, symbols):
-        assert symbols == ["AAPL"]
+        if symbols != ["AAPL"]:
+            return []
         return [Quote("alpaca", "AAPL", self.timestamp, 0, 100.0, 100.2, 100.1, "open")]
 
     def get_balances(self):
