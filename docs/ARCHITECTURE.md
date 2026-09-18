@@ -1,36 +1,42 @@
-# Project 100 — Phase 1 Architecture
+# Project 100 architecture
 
-## Pipeline (enforced order, no shortcuts)
-Market Data → Strategy Engine → AI Analysis → Signal → **Risk Engine (final authority)**
-→ Order Validator → Broker Adapter → Execution → Audit Log
+## Current implementation
 
-LLM output is never passed to `BrokerAdapter.place_order` directly. Signals pass through
-`app/risk/engine.py::RiskEngine.evaluate()`, a pure deterministic function, before any
-order is constructed.
+Python/FastAPI shell, SQLite development storage, simulated broker and data
+provider, deterministic risk evaluation, persisted operating state, entry intent
+deduplication, risk reservations, reconciliation helpers, audit records and one
+unvalidated test strategy.
 
-## Repo layout
-```
-backend/app/
-  core/config.py      # ALL risk params, single source of truth (env-driven)
-  db/session.py        # SQLAlchemy engine (sqlite dev, postgres prod via DATABASE_URL)
-  models/models.py     # AuditLogEntry, TradeDecisionRecord, StrategyStats, SystemStateRecord, AccountSnapshot
-  brokers/base.py       # BrokerAdapter interface + Quote/OrderRequest/OrderResult
-  brokers/paper_broker.py  # PaperBrokerAdapter (Phase 1 implementation)
-  risk/engine.py        # RiskEngine — deterministic veto authority
-  strategies/base.py     # BaseStrategy interface
-  audit/logger.py        # append-only audit log helpers
-  main.py                 # FastAPI shell: /health, /system/state, /config/risk
-```
+Entry path:
 
-## Phase 1 status: PASS
-- 24/24 tests passing (risk engine, paper broker, audit log, API shell).
-- Default state on boot: `AUTONOMY_LEVEL=0` (research only), `TRADING_MODE=paper`,
-  `AUTO_EXECUTION=false`, margin/options/shorts/leverage all disabled.
-- Not yet implemented: RobinhoodAdapter, ETradeAdapter, market data provider,
-  scanner/watchlist, catalyst engine, signal scoring, backtester, frontend, Docker,
-  Celery/Redis, kill switch, self-pause/safe-mode logic. These are Phase 2+.
+Market data / strategy → signal schema → state/account checks → risk engine →
+risk reservation → durable intent → mode/adapter checks → quote freshness →
+final mutation policy → broker submission → audit.
 
-## Deferred infra decisions
-- Postgres/Redis/Docker not stood up yet in this sandbox — `DATABASE_URL` defaults
-  to sqlite so the app is runnable without external infra during scaffolding.
-  Swap to postgres via env var when infra is provisioned; no code change needed.
+Defensive path:
+
+Protective-stop request → shared mutation policy (paper only) → order value
+validation → simulated broker → audit; failure enters SAFE without clearing HALTED.
+
+The complete paper entry-to-stop sequence is currently demonstrated in tests.
+There is no continuously running trading process. The FastAPI routes remain
+`/health`, `/system/state`, and `/config/risk`; health does not prove trading readiness.
+
+## Safety regression pass
+
+The original 73-test suite was independently reproduced at `2123a66`. The eight
+subsequent failing safety checks are now regression tests. The expanded suite
+contains 114 passing tests, including boundary cases for quote age and numeric
+values, defensive mode/adapter restrictions, sticky halt, partial-order polling,
+pre-submission reservation release and retention after unknown outcomes.
+
+Gateway fixtures pin market-open behavior so authorization tests do not depend
+on wall-clock time. Broker market-hour behavior remains separately tested.
+
+## Next work
+
+See [THREAT_MODEL.md](THREAT_MODEL.md) for remaining control limits. Production
+work still requires a transaction-safe execution lifecycle, persistent paper
+state and workers, authenticated controls, actual market-data and broker
+integrations, strategy validation, capital stages, performance tracking and
+cloud deployment. Do not enable real trading based on unit-test success.

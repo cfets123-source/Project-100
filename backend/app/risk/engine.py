@@ -5,6 +5,8 @@ The engine can only REJECT or APPROVE; it never modifies strategy intent silentl
 beyond size clamping, and every clamp/veto reason is returned for the audit log.
 """
 from dataclasses import dataclass, field
+import math
+import time
 from app.core.config import settings
 from app.brokers.base import Quote
 
@@ -46,11 +48,28 @@ class RiskEngine:
 
     def evaluate(self, p: TradeProposal) -> RiskDecision:
         reasons: list[str] = []
+        if p.stop_price is None:
+            return RiskDecision(False, ["missing_or_invalid_stop"])
+        if p.quote is None:
+            return RiskDecision(False, ["missing_quote"])
+        values = (p.entry_price, p.stop_price, p.account_equity, p.avg_dollar_volume,
+                  p.sector_exposure_pct, p.open_position_count, p.daily_pnl_pct,
+                  p.weekly_drawdown_pct, p.total_drawdown_pct, p.quote.bid,
+                  p.quote.ask, p.quote.last, p.quote.timestamp, p.quote.age_seconds)
+        if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in values):
+            return RiskDecision(False, ["invalid_numeric_input"])
+        if min(p.entry_price, p.stop_price, p.account_equity, p.quote.bid,
+               p.quote.ask, p.quote.last) <= 0 or p.quote.bid > p.quote.ask:
+            return RiskDecision(False, ["invalid_price_or_equity"])
+        if p.direction not in ("long", "short"):
+            return RiskDecision(False, ["invalid_direction"])
+        if p.quote.symbol != p.symbol:
+            return RiskDecision(False, ["quote_symbol_mismatch"])
 
         # --- Hard prohibitions ---
         if p.uses_margin and not self.cfg.ALLOW_MARGIN:
             reasons.append("margin_disabled")
-        if p.is_short and not self.cfg.ALLOW_SHORTS:
+        if (p.direction == "short" or p.is_short) and not self.cfg.ALLOW_SHORTS:
             reasons.append("shorts_disabled")
         if p.is_option and not self.cfg.ALLOW_OPTIONS:
             reasons.append("options_disabled")
@@ -62,9 +81,15 @@ class RiskEngine:
         # --- Missing stop = automatic rejection ---
         if p.stop_price is None or p.stop_price == p.entry_price:
             reasons.append("missing_or_invalid_stop")
+        elif ((p.direction == "long" and p.stop_price > p.entry_price)
+              or (p.direction == "short" and p.stop_price < p.entry_price)):
+            reasons.append("stop_wrong_side_of_entry")
 
         # --- Data freshness ---
-        if p.quote.age_seconds > self.cfg.MAX_QUOTE_AGE_SECONDS:
+        now = time.time()
+        if p.quote.timestamp > now + 1 or p.quote.age_seconds < 0:
+            reasons.append("invalid_quote_timestamp")
+        if max(p.quote.age_seconds, now - p.quote.timestamp) > self.cfg.MAX_QUOTE_AGE_SECONDS:
             reasons.append("stale_market_data")
 
         # --- Spread quality ---

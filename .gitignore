@@ -3,3 +3,10 @@ __pycache__/
 .pytest_cache/
 *.db
 .env
+.env.*
+!.env.example
+.venv/
+venv/
+*.db-wal
+*.db-shm
+.DS_Store

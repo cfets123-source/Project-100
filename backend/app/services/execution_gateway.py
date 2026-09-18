@@ -1,7 +1,6 @@
 """
-ExecutionGateway is the single choke point between a validated Signal and a
-BrokerAdapter. Nothing else in the codebase is permitted to call
-BrokerAdapter.place_order(). Enforced, in order:
+ExecutionGateway controls entry submissions. Protective orders use the shared
+broker authorization policy in a separate defensive path. Enforced, in order:
 
   1. Schema validation (SignalSchema, extra='forbid' -> unknown/injected fields fail closed)
   2. System-state gate (OFF/RESEARCH/SAFE/HALTED block all new entries)
@@ -11,13 +10,13 @@ BrokerAdapter.place_order(). Enforced, in order:
   6. Durable, decision-id-keyed idempotent intent (DB primary key, not wall clock)
   7. Mode-specific broker handling: SHADOW never touches a broker; PAPER requires a
      PaperBrokerAdapter; LIVE requires the hard LIVE_TRADING_ENABLED flag AND state==LIVE
-  8. State re-check immediately before the broker call (closes the kill-switch race window)
+  8. State/mode re-check immediately before the broker call (not an atomic distributed lock)
   9. Broker submission; an exception or non-terminal response becomes status='unknown'
      for later reconciliation — NEVER a blind retry
   10. Audit logging at every step, approved or rejected
 
-THREAT MODEL: this class is the only wired-in path to place_order() in this
-codebase today. It cannot prevent a future developer from adding another path
+THREAT MODEL: entry and protective paths consult a shared mutation policy.
+They cannot prevent a future developer from adding another path
 that ignores it; that is a code-review/architecture responsibility, documented
 in docs/THREAT_MODEL.md, not a runtime guarantee.
 """
@@ -36,6 +35,7 @@ from app.audit.logger import log_and_commit
 from app.services.state_machine import StateManager, SHADOW, PAPER, LIVE
 from app.services import risk_budget
 from app.market_data.base import MarketDataProvider, validate_quote
+from app.services.broker_authorization import mutation_allowed
 
 
 class WrongAccountError(Exception):
@@ -156,47 +156,64 @@ class ExecutionGateway:
         intent.trade_id = rec.trade_id
         self.db.commit()
 
+        def cancel_unsubmitted(status="canceled"):
+            # Only use before calling the broker: uncertain submissions retain
+            # their reservation until reconciliation can establish exposure.
+            intent.status = status
+            rec.status = status
+            risk_budget.release(self.db, reservation.reservation_id)
+
         # --- 7. Mode-specific broker handling ---
         state = self.state_manager.get_state()
         if state == SHADOW:
             intent.status = "shadow_only"
             rec.status = "shadow_only"
-            self.db.commit()
+            risk_budget.release(self.db, reservation.reservation_id)
             log_and_commit(self.db, "shadow_decision_recorded", {"trade_id": rec.trade_id, "symbol": signal.symbol})
             return GatewayResult(submitted=False, reason="shadow_mode_no_broker_call",
                                   trade_id=rec.trade_id, risk_decision=decision)
 
         if state == PAPER and not isinstance(self.broker, PaperBrokerAdapter):
             # Defense in depth: PAPER state must never be wired to a real adapter.
+            cancel_unsubmitted("rejected")
             raise RuntimeError("PAPER state requires a PaperBrokerAdapter; refusing to submit")
 
         if state == LIVE:
             live_ok, live_why = self.state_manager.live_broker_mutation_allowed()
             if not live_ok:
-                intent.status = "rejected"
-                self.db.commit()
+                cancel_unsubmitted("rejected")
                 log_and_commit(self.db, "live_execution_blocked", {"symbol": signal.symbol, "reason": live_why})
                 return GatewayResult(submitted=False, reason=live_why, trade_id=rec.trade_id)
 
-        # --- 8. Re-check state immediately before the broker call (kill-switch race window) ---
+        # --- 8. Re-check state; another check follows the potentially slow data fetch. ---
         recheck_allowed, recheck_why = self.state_manager.can_open_new_entries()
         if not recheck_allowed:
-            intent.status = "canceled"
-            self.db.commit()
+            cancel_unsubmitted()
             log_and_commit(self.db, "entry_blocked_by_state_at_recheck", {"symbol": signal.symbol,
                                                                             "reason": recheck_why})
             return GatewayResult(submitted=False, reason=recheck_why, trade_id=rec.trade_id)
 
         # --- 8b. Re-check market-data freshness immediately before submission ---
         if self.market_data is not None:
-            fresh_quote = self.market_data.get_quote(signal.symbol)
-            fv = validate_quote(fresh_quote, self.risk_engine.cfg.MAX_QUOTE_AGE_SECONDS)
+            try:
+                fresh_quote = self.market_data.get_quote(signal.symbol)
+                fv = validate_quote(fresh_quote, self.risk_engine.cfg.MAX_QUOTE_AGE_SECONDS)
+            except Exception:
+                cancel_unsubmitted()
+                log_and_commit(self.db, "entry_blocked_data_error", {"symbol": signal.symbol})
+                return GatewayResult(False, "market_data_unavailable", trade_id=rec.trade_id)
             if not fv.valid:
-                intent.status = "canceled"
-                self.db.commit()
+                cancel_unsubmitted()
                 log_and_commit(self.db, "entry_blocked_stale_data_at_recheck",
                                 {"symbol": signal.symbol, "reason": fv.reason})
                 return GatewayResult(submitted=False, reason=f"recheck_{fv.reason}", trade_id=rec.trade_id)
+
+        final_allowed, final_reason = mutation_allowed(self.state_manager, self.broker)
+        if not final_allowed or self.state_manager.get_state() != state:
+            cancel_unsubmitted()
+            reason = final_reason or "execution_mode_changed"
+            log_and_commit(self.db, "entry_blocked_final_authorization", {"reason": reason})
+            return GatewayResult(False, reason, trade_id=rec.trade_id)
 
         # --- 9. Broker submission — exceptions/uncertain outcomes never trigger a retry here ---
         order = OrderRequest(symbol=signal.symbol, side=intent.side, quantity=decision.position_size)

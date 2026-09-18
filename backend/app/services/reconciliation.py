@@ -9,7 +9,7 @@ from app.models.models import OrderIntent
 from app.brokers.base import BrokerAdapter
 from app.audit.logger import log_and_commit
 
-RESOLVABLE_STATUSES = {"pending", "submitted", "unknown"}
+RESOLVABLE_STATUSES = {"pending", "submitted", "accepted", "partial", "unknown"}
 
 
 def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) -> str:
@@ -37,6 +37,8 @@ def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) ->
         intent.status = "rejected"
     elif broker_status == "canceled":
         intent.status = "canceled"
+    elif broker_status in ("accepted", "submitted", "pending"):
+        intent.status = broker_status
     else:
         intent.status = "unknown"
 

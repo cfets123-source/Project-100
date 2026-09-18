@@ -92,6 +92,9 @@ class StateManager:
     def enter_safe_mode(self, reason: str, actor: str = "system") -> SystemStateRecord:
         rec = self.get_record()
         previous = rec.state
+        if previous == HALTED:
+            log_and_commit(self.db, "safe_mode_ignored_while_halted", {"reason": reason}, actor=actor)
+            return rec
         rec.state = SAFE
         rec.reason = reason
         rec.updated_at = dt.datetime.utcnow()
@@ -110,7 +113,7 @@ class StateManager:
     # --- Broker-mutation eligibility gates, checked by ExecutionGateway ---
     def can_open_new_entries(self) -> tuple[bool, str]:
         state = self.get_state()
-        if state in (SAFE, HALTED, OFF, RESEARCH):
+        if state not in (PAPER, SHADOW, LIVE):
             return False, f"new_entries_blocked_state_{state}"
         return True, ""
 

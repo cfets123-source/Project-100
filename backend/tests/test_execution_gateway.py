@@ -1,4 +1,5 @@
 import time
+from dataclasses import replace
 import uuid
 import pytest
 from unittest.mock import MagicMock
@@ -49,13 +50,17 @@ def make_gateway(db, broker=None, state=PAPER):
     sm = StateManager(db)
     sm.transition(state, "test_setup") if state != OFF else None
     broker = broker or PaperBrokerAdapter(starting_cash=1000.0, quote_source=lambda syms: [good_quote() for _ in syms])
+    if isinstance(broker, PaperBrokerAdapter):
+        # Gateway tests exercise authorization/exposure, not the wall clock.
+        # Market-hours behavior is covered separately in test_paper_broker.py.
+        broker._is_market_open = lambda: True
     gw = ExecutionGateway(db=db, broker=broker, risk_engine=RiskEngine(cfg=Settings()),
                            state_manager=sm, designated_account_id="acct-designated")
     return gw, broker, sm
 
 
 def submit(gw, sig, account_equity=1000.0, buying_power=1000.0, account="acct-designated"):
-    return gw.submit(sig, account, good_quote(), base_risk_context(), account_equity, buying_power)
+    return gw.submit(sig, account, replace(good_quote(), symbol=sig["symbol"]), base_risk_context(), account_equity, buying_power)
 
 
 # --- 1. Durable decision-id idempotency ---
@@ -84,9 +89,8 @@ def test_distinct_decisions_for_same_symbol_are_not_suppressed(db):
     assert r2.submitted  # a genuinely new decision must never be treated as a duplicate
 
 
-def test_concurrent_duplicate_submission_only_one_wins(db):
-    """Simulates two 'workers' racing to submit the SAME decision_id. DB primary-key
-    uniqueness on intent_key (not app-level check-then-act) is what makes this safe."""
+def test_sequential_duplicate_submission_only_one_wins(db):
+    """Sequential duplicate delivery; does not prove concurrent worker safety."""
     gw, broker, sm = make_gateway(db)
     sig = good_signal(decision_id="race-decision")
     r1 = submit(gw, sig)
