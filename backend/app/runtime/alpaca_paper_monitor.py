@@ -24,7 +24,9 @@ def run_cycle(db, adapter, cfg, symbols: list[str]) -> dict:
                 quotes[symbol] = {"bid": quote.bid, "ask": quote.ask, "last": quote.last,
                                   "source_timestamp": quote.source_timestamp}
         except Exception as exc:
-            failures[symbol] = type(exc).__name__
+            # Keep the error class in the durable audit data while retaining a
+            # useful diagnosis for the operator dashboard.
+            failures[symbol] = f"{type(exc).__name__}:{exc}"
     balances = snapshot["balances"]
     db.add(AccountSnapshot(equity=float(balances["equity"]), cash=float(balances["cash"]),
                            buying_power=float(balances["buying_power"])))

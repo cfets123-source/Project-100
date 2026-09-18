@@ -39,8 +39,10 @@ class AlpacaMarketDataProvider(MarketDataProvider):
         return self.account_snapshot
 
     def get_quote(self, symbol: str) -> MarketQuote | None:
-        receipt = time.time()
         rows = self._adapter.get_quotes([symbol])
+        # Receipt time is recorded after the response is available. Recording it
+        # before a fast provider timestamp can falsely look out-of-order.
+        receipt = time.time()
         if not isinstance(rows, list):
             raise ValueError("Alpaca returned malformed quote collection")
         matches = [quote for quote in rows if quote.symbol.upper() == symbol.upper()]
