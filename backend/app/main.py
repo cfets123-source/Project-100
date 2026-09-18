@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.db.session import Base, engine, get_db, initialize_schema
@@ -10,6 +11,7 @@ from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connecti
     finish_connection, start_connection)
 from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
 from app.brokers.robinhood_adapter import verify_agentic_readiness
+from app.brokers import alpaca_connection
 from app.security.dashboard import require_dashboard_access
 from app.dashboard_html import DASHBOARD_HTML
 
@@ -90,6 +92,34 @@ def get_paper_insights(db: Session = Depends(get_db)):
             "closed_trades": trades, "strategy_breakdown": strategy_rows,
             "risk_events": [{"timestamp": item.timestamp, "type": item.event_type,
                              "payload": item.payload} for item in vetoes]}
+
+
+class AlpacaConnectRequest(BaseModel):
+    api_key: str
+    api_secret: str
+    paper: bool = True
+
+
+@app.get("/brokers/alpaca/status", dependencies=[Depends(require_dashboard_access)])
+def alpaca_status(db: Session = Depends(get_db)):
+    return alpaca_connection.status(db)
+
+
+@app.post("/brokers/alpaca/connect", dependencies=[Depends(require_dashboard_access)])
+def alpaca_connect(payload: AlpacaConnectRequest, db: Session = Depends(get_db)):
+    try:
+        return alpaca_connection.connect(db, payload.api_key, payload.api_secret,
+                                         settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=payload.paper)
+    except (BrokerOAuthConfigurationError, AlpacaBrokerError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/brokers/alpaca/readiness", dependencies=[Depends(require_dashboard_access)])
+def alpaca_readiness(db: Session = Depends(get_db)):
+    try:
+        return alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except (BrokerOAuthConfigurationError, AlpacaBrokerError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.get("/brokers/robinhood/status", dependencies=[Depends(require_dashboard_access)])
