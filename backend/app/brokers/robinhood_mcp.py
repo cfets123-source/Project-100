@@ -51,6 +51,7 @@ class RobinhoodMcpDiscoveryClient:
             "Content-Type": "application/json",
         }
         self._session_id = None
+        self._initialized = False
 
     def _request(self, method: str, params: Optional[dict] = None, notification: bool = False) -> dict:
         body = {"jsonrpc": "2.0", "method": method}
@@ -72,6 +73,8 @@ class RobinhoodMcpDiscoveryClient:
         return payload
 
     def _initialize(self) -> None:
+        if self._initialized:
+            return
         result = self._request("initialize", {
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {},
@@ -83,6 +86,7 @@ class RobinhoodMcpDiscoveryClient:
         if session_id:
             self._session_id = session_id
         self._request("notifications/initialized", notification=True)
+        self._initialized = True
 
     def list_tools(self) -> list[dict]:
         """Return only public tool metadata. No account or order action occurs."""
