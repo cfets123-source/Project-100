@@ -31,3 +31,4 @@ def test_dashboard_requires_password_when_configured(monkeypatch):
         assert client.get('/dashboard').status_code == 401
         token = base64.b64encode(b"operator:test-password").decode()
         assert client.get('/dashboard', headers={"Authorization": f"Basic {token}"}).status_code == 200
+        assert client.get('/brokers/robinhood/connect').status_code == 401

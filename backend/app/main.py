@@ -54,7 +54,7 @@ def robinhood_status(db: Session = Depends(get_db)):
     }
 
 
-@app.get("/brokers/robinhood/connect")
+@app.get("/brokers/robinhood/connect", dependencies=[Depends(require_dashboard_access)])
 def robinhood_connect(db: Session = Depends(get_db)):
     """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools."""
     try:

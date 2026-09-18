@@ -11,6 +11,11 @@ Project 100 is **not connected to Robinhood yet**. This is intentional: a broker
 5. Run a read-only capability check and reconcile reported buying power with the account. Keep execution disabled.
 6. Complete the paper, shadow, reliability, and deployment gates. A separate explicit live-enable decision is required after those gates pass.
 
+The application starts its OAuth connection only from the password-protected
+operator dashboard. Robinhood's callback endpoint is public solely for the
+return from that authorization; it validates a short-lived PKCE state before
+exchanging a code and never reveals tokens.
+
 ## Connection contract
 
 The future Robinhood adapter must implement the existing broker abstraction and support account lookup, quotes, positions, orders, order lookup, cancellation, and capability discovery. The application now has a read-only verification gate that checks authentication, the specifically selected dedicated account, finite balances and buying power, positions, and orders without calling any trade method. It must reject live submission unless all of these are true:
