@@ -38,7 +38,7 @@ def get_paper_activity(limit: int = Query(default=50, ge=1, le=200), db: Session
               .filter(models.AuditLogEntry.event_type.in_([
                   "paper_event_committed", "paper_trade_closed", "state_change",
                   "kill_switch", "risk_veto", "error", "alpaca_paper_monitor_cycle",
-                  "reconciliation_resolved", "uncertain_broker_outcome", "order_submitted", "risk_decision",
+                  "reconciliation_resolved", "uncertain_broker_outcome", "order_submitted", "risk_decision", "alpaca_paper_worker_cycle_started", "alpaca_paper_worker_entries_blocked", "alpaca_paper_worker_cycle_completed",
               ]))
               .order_by(models.AuditLogEntry.timestamp.desc(), models.AuditLogEntry.id.desc())
               .limit(limit).all())
