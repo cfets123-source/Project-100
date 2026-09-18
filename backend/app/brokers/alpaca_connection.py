@@ -35,6 +35,22 @@ def connect(db: Session, api_key: str, api_secret: str, encryption_key: str, *, 
     return {"connected": True, "paper": paper, "execution_enabled": False}
 
 
+def load_read_only_adapter(db: Session, encryption_key: str) -> tuple[AlpacaBrokerAdapter, bool]:
+    """Load the encrypted credential strictly for broker reads.
+
+    The returned adapter keeps order submission disabled. Any execution path must
+    construct and gate a separate adapter during an explicit activation flow.
+    """
+    record = db.get(BrokerConnection, BROKER)
+    if not record:
+        raise BrokerOAuthConfigurationError("Alpaca has not been connected")
+    try:
+        payload = json.loads(_fernet(encryption_key).decrypt(record.encrypted_refresh_token.encode()).decode())
+    except Exception as exc:
+        raise BrokerOAuthConfigurationError("Stored Alpaca credential cannot be decrypted") from exc
+    return AlpacaBrokerAdapter(payload["api_key"], payload["api_secret"], paper=bool(payload["paper"])), bool(payload["paper"])
+
+
 def status(db: Session) -> dict:
     record = db.get(BrokerConnection, BROKER)
     connected = bool(record and record.status == "authorized")
@@ -45,20 +61,13 @@ def status(db: Session) -> dict:
 
 
 def verify_read_only(db: Session, encryption_key: str) -> dict:
-    record = db.get(BrokerConnection, BROKER)
-    if not record:
-        raise BrokerOAuthConfigurationError("Alpaca has not been connected")
-    try:
-        payload = json.loads(_fernet(encryption_key).decrypt(record.encrypted_refresh_token.encode()).decode())
-    except Exception as exc:
-        raise BrokerOAuthConfigurationError("Stored Alpaca credential cannot be decrypted") from exc
+    adapter, paper = load_read_only_adapter(db, encryption_key)
     from app.services.broker_readiness import verify_read_only_connection
 
-    adapter = AlpacaBrokerAdapter(payload["api_key"], payload["api_secret"], paper=bool(payload["paper"]))
     accounts = adapter.get_accounts()
     if len(accounts) != 1 or not accounts[0].get("account_id"):
         return {"connected": False, "read_only_ready": False, "execution_enabled": False,
                 "paper": bool(payload["paper"]), "reasons": ["expected exactly one Alpaca account"]}
     report = verify_read_only_connection(adapter, str(accounts[0]["account_id"]))
-    report["paper"] = bool(payload["paper"])
+    report["paper"] = paper
     return report
