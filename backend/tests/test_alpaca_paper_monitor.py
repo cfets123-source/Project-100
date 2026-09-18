@@ -11,6 +11,7 @@ class Adapter:
     paper = True
     def get_balances(self): return {"cash": 100, "equity": 100, "buying_power": 100}
     def get_positions(self): return []
+    def get_market_clock(self): return {"is_open": True}
     def get_quotes(self, symbols): return [Quote("alpaca", symbols[0], datetime.now(timezone.utc).timestamp(), 0, 10, 10.1, 10.05, "open")]
 
 def test_monitor_records_fresh_broker_snapshot_without_order_methods():
@@ -18,3 +19,11 @@ def test_monitor_records_fresh_broker_snapshot_without_order_methods():
     report=run_cycle(db, Adapter(), Settings(), ["AAPL"])
     assert report["ready"] and report["paper_only"]
     assert db.query(models.AccountSnapshot).count() == 1
+
+    
+def test_monitor_marks_closed_market_without_stale_quote_failure():
+    class ClosedAdapter(Adapter):
+        def get_market_clock(self): return {"is_open": False}
+    engine=create_engine("sqlite:///:memory:"); Base.metadata.create_all(engine); db=sessionmaker(bind=engine)()
+    report=run_cycle(db, ClosedAdapter(), Settings(), ["AAPL"])
+    assert report["ready"] and report["market_open"] is False and report["quotes"] == {}
