@@ -14,6 +14,7 @@ from app.brokers.robinhood_adapter import verify_agentic_readiness
 from app.brokers import alpaca_connection
 from app.security.dashboard import require_dashboard_access
 from app.dashboard_html import DASHBOARD_HTML
+from app.services.live_readiness import report as live_readiness_report
 
 initialize_schema(engine)
 
@@ -212,3 +213,12 @@ def get_risk_config():
         "ALLOW_LEVERAGE": settings.ALLOW_LEVERAGE,
         "AUTO_EXECUTION": settings.AUTO_EXECUTION,
     }
+
+
+@app.get("/live/readiness", dependencies=[Depends(require_dashboard_access)])
+def live_readiness(db: Session = Depends(get_db)):
+    try:
+        broker = alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except Exception:
+        broker = {"read_only_ready": False, "paper": True}
+    return live_readiness_report(settings, broker, market_open=False, external_paper_lifecycle_verified=False)
