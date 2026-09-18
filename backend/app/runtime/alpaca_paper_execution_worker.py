@@ -53,7 +53,11 @@ if __name__ == '__main__':
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from app.core.config import Settings
-    parser=argparse.ArgumentParser(); parser.add_argument('--database', required=True); parser.add_argument('--account-id', required=True); parser.add_argument('--symbols', required=True); parser.add_argument('--once', action='store_true')
+    parser=argparse.ArgumentParser(); parser.add_argument('--database', required=True); parser.add_argument('--account-id', required=True); parser.add_argument('--symbols', required=True); parser.add_argument('--once', action='store_true'); parser.add_argument('--interval', type=float, default=15.0)
     args=parser.parse_args(); cfg=Settings(); engine=create_engine(args.database)
-    with Session(engine) as db:
-        print(run_cycle(db, cfg, args.account_id, args.symbols.split(',')))
+    while True:
+        with Session(engine) as db:
+            print(run_cycle(db, cfg, args.account_id, args.symbols.split(',')), flush=True)
+        if args.once:
+            break
+        time.sleep(max(1.0, args.interval))

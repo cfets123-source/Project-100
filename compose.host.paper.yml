@@ -24,7 +24,7 @@ services:
 
   alpaca-execution:
     build: .
-    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "${ALPACA_MONITOR_SYMBOLS:-AAPL,MSFT}", "--once"]
+    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "${ALPACA_MONITOR_SYMBOLS:-AAPL,MSFT}", "--interval", "${ALPACA_EXECUTION_INTERVAL_SECONDS:-15}"]
     env_file: .env.host
     environment:
       DATABASE_URL: sqlite:////data/paper.db
@@ -32,8 +32,7 @@ services:
       LIVE_TRADING_ENABLED: "false"
       ALPACA_PAPER_EXECUTION_ENABLED: "false"
     volumes: ["paper-data:/data"]
-    restart: "no"
-    profiles: ["paper-execution"]
+    restart: "on-failure:3"
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     read_only: true
