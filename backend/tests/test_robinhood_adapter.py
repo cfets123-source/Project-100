@@ -34,3 +34,28 @@ def test_read_only_adapter_refuses_order_mutation(monkeypatch):
         assert 'disabled' in str(exc)
     else:
         raise AssertionError('read-only adapter accepted a live order')
+
+
+def test_readiness_selects_only_active_agentic_account(monkeypatch):
+    import app.brokers.robinhood_adapter as module
+
+    class Stub:
+        def __init__(self, token, designated_account_id):
+            self.designated_account_id = designated_account_id
+        def get_accounts(self):
+            return [
+                {'account_id': 'ordinary', 'agentic_allowed': False, 'state': 'active'},
+                {'account_id': 'agentic', 'agentic_allowed': True, 'state': 'active', 'type': 'limited_margin'},
+            ]
+        def authenticate(self): return True
+        def get_balances(self): return {'cash': 100.0, 'equity': 100.0}
+        def get_buying_power(self): return 100.0
+        def get_positions(self): return []
+        def get_orders(self): return []
+
+    monkeypatch.setattr('app.brokers.robinhood_mcp._access_token', lambda db, key: 'token')
+    monkeypatch.setattr(module, 'RobinhoodMcpReadOnlyAdapter', Stub)
+    result = module.verify_agentic_readiness(object(), 'key')
+    assert result['read_only_ready'] is True
+    assert result['execution_enabled'] is False
+    assert result['expected_account_id'] == 'agentic'
