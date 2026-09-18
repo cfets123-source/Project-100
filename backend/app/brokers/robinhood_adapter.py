@@ -119,3 +119,22 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
         if len(matches) != 1:
             raise RobinhoodMcpError("Robinhood order was not found exactly once")
         return matches[0]
+
+
+def verify_agentic_readiness(db, encryption_key: str) -> dict:
+    """Run the complete read-only broker gate for the one Agentic account.
+
+    No account identifier is accepted from a caller: the adapter selects exactly
+    one active account explicitly marked as usable by the authenticated agent.
+    """
+    from app.brokers.robinhood_mcp import _access_token
+    from app.services.broker_readiness import verify_read_only_connection
+
+    adapter = RobinhoodMcpReadOnlyAdapter(_access_token(db, encryption_key), designated_account_id="")
+    accounts = adapter.get_accounts()
+    matches = [a for a in accounts if a.get("agentic_allowed") is True and a.get("state") == "active"]
+    if len(matches) != 1:
+        return {"connected": False, "read_only_ready": False, "execution_enabled": False,
+                "reasons": ["expected exactly one active Agentic account"]}
+    adapter.designated_account_id = str(matches[0]["account_id"])
+    return verify_read_only_connection(adapter, adapter.designated_account_id)

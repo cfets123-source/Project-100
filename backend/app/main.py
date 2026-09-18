@@ -9,6 +9,7 @@ from app.analytics.performance import account_performance
 from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connection_status,
     finish_connection, start_connection)
 from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
+from app.brokers.robinhood_adapter import verify_agentic_readiness
 from app.security.dashboard import require_dashboard_access
 from app.dashboard_html import DASHBOARD_HTML
 
@@ -126,6 +127,15 @@ def robinhood_capabilities(db: Session = Depends(get_db)):
     """Discover broker-advertised tools only; this endpoint cannot call one."""
     try:
         return discover_capabilities(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/brokers/robinhood/readiness", dependencies=[Depends(require_dashboard_access)])
+def robinhood_readiness(db: Session = Depends(get_db)):
+    """Verify broker data paths only; this endpoint never sends an order."""
+    try:
+        return verify_agentic_readiness(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
     except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
