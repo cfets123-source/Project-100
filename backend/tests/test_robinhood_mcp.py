@@ -30,7 +30,7 @@ def _response(payload):
 def test_capability_discovery_only_lists_tools(post, db):
     key = Fernet.generate_key().decode()
     db.add(BrokerConnection(broker=BROKER, client_id="client", encrypted_refresh_token=
-                            Fernet(key.encode()).encrypt(b"refresh").decode()))
+                            Fernet(key.encode()).encrypt(b"refresh").decode(), status="authorized"))
     db.commit()
     post.side_effect = [
         Mock(raise_for_status=Mock(), json=lambda: {"access_token": "access"}),

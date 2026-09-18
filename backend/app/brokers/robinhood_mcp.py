@@ -104,7 +104,9 @@ class RobinhoodMcpDiscoveryClient:
 
 def _access_token(db: Session, encryption_key: str) -> str:
     connection = db.get(BrokerConnection, BROKER)
-    if connection is None or connection.status != "connected":
+    # OAuth completion records "authorized" first. Capability discovery is the
+    # next safe, read-only step; it must not require a fictional prior state.
+    if connection is None or connection.status not in {"authorized", "connected"}:
         raise RobinhoodMcpError("Application OAuth has not been completed.")
     try:
         refresh_token = _fernet(encryption_key).decrypt(connection.encrypted_refresh_token.encode()).decode()
