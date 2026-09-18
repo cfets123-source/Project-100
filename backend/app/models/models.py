@@ -152,3 +152,21 @@ class AccountSnapshot(Base):
     realized_pnl = Column(Float, default=0.0)
     unrealized_pnl = Column(Float, default=0.0)
     stage = Column(Integer, default=0)
+
+
+class PaperRuntimeState(Base):
+    """One isolated simulated account, committed atomically with each paper event."""
+    __tablename__ = "paper_runtime"
+    id = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False)
+    heartbeat = Column(Float, nullable=False)
+    status = Column(String, nullable=False, default="waiting")
+    last_error = Column(String, nullable=True)
+
+
+class PaperEvent(Base):
+    __tablename__ = "paper_events"
+    event_id = Column(String, primary_key=True)
+    sequence = Column(Integer, nullable=False, unique=True)
+    payload_hash = Column(String, nullable=False)
+    result = Column(JSON, nullable=False)

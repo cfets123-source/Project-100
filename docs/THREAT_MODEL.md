@@ -30,13 +30,15 @@ from calling a broker directly. Separate execution authority and broker account
 binding are required for production. The final state check reduces races but is
 not atomic with network submission; no cross-worker locking is implemented.
 
-There is no persistent worker/supervisor, real data provider, account freshness
-enforcement in the gateway, full position/exit ledger, strategy-performance
-pipeline, capital-stage engine, or cloud deployment. Paper broker state is in
-memory. Reservation release after closed positions and final reconciliation of
-partially canceled orders require a complete lifecycle implementation.
+The standalone paper runtime persists its simulated broker state, handles full-fill
+entry/exit accounting and reservation release, and serializes events with a SQLite
+write lock. It is not a real-market service or a cloud deployment. The general
+non-runtime gateway still lacks transaction-safe external-order lifecycle, account
+freshness enforcement, partial-cancel reconciliation, and cross-worker protection.
+Capital-stage evaluation and real data/broker integrations remain outstanding.
 
-Audit events use an ORM-level guard, not database-level immutability. State,
+Outside the paper runtime, audit events use an ORM-level guard. The SQLite paper
+runtime also installs UPDATE/DELETE-blocking triggers. State,
 intent and audit writes are not one transaction. Unknown orders without broker
 IDs have no automatic broker-side identity lookup. Protective orders do not yet
 have durable intents, retry-safe submission, or outcome reconciliation.
@@ -44,3 +46,5 @@ have durable intents, retry-safe submission, or outcome reconciliation.
 The existing LIVE gateway mock tests explicitly override the default flag to
 exercise failure paths. They do not establish permission or readiness for real
 money. Passing tests demonstrate the covered cases only.
+
+See [PAPER_RUNTIME.md](PAPER_RUNTIME.md) for the atomic, simulation-only worker guarantees. They do not extend to external broker side effects.

@@ -1,12 +1,25 @@
 from fastapi import FastAPI, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import Base, engine, get_db
 from app.models import models  # noqa: F401 ensures models are registered
 from app.core.config import settings
+from app.runtime.paper import paper_status
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Project 100", version="0.1.0-phase1")
+
+
+@app.get("/paper/status")
+def get_paper_status(db: Session = Depends(get_db)):
+    return paper_status(db)
+
+
+@app.get("/ready")
+def readiness(db: Session = Depends(get_db)):
+    status = paper_status(db)
+    return JSONResponse(status, status_code=200 if status["ready"] else 503)
 
 
 @app.get("/health")

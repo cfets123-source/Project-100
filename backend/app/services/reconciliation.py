@@ -5,6 +5,7 @@ received). This module NEVER calls broker.place_order — reconciliation only re
 broker state and updates our own records to match reality.
 """
 from sqlalchemy.orm import Session
+from app.db.transactions import persist
 from app.models.models import OrderIntent
 from app.brokers.base import BrokerAdapter
 from app.audit.logger import log_and_commit
@@ -42,7 +43,7 @@ def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) ->
     else:
         intent.status = "unknown"
 
-    db.commit()
+    persist(db)
     log_and_commit(db, "reconciliation_resolved", {
         "intent_key": intent.intent_key, "resolved_status": intent.status,
         "quantity_filled": intent.quantity_filled, "fill_price": fill_price,

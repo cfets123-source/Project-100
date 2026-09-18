@@ -25,6 +25,7 @@ import json
 from dataclasses import dataclass
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from app.db.transactions import persist
 
 from app.schemas.signal import SignalSchema
 from app.risk.engine import RiskEngine, TradeProposal, RiskDecision
@@ -106,7 +107,7 @@ class ExecutionGateway:
                 ai_confidence=signal.ai_confidence,
                 risk_engine_result={"approved": False, "reasons": decision.reasons}, status="rejected",
             ))
-            self.db.commit()
+            persist(self.db)
             return GatewayResult(submitted=False, reason=",".join(decision.reasons), risk_decision=decision)
 
         # --- 5. Aggregate reservation (cross-position/sector, buying power) ---
@@ -134,8 +135,10 @@ class ExecutionGateway:
                               quantity=decision.position_size, status="pending")
         self.db.add(intent)
         try:
-            self.db.commit()
+            persist(self.db)
         except Exception:
+            if self.db.info.get("transaction_owner"):
+                raise  # The owning runtime must roll back the entire event.
             # Primary-key collision under concurrent submission of the SAME decision_id:
             # the DB itself is the source of truth for uniqueness, not app-level check-then-act.
             self.db.rollback()
@@ -151,10 +154,10 @@ class ExecutionGateway:
             risk_engine_result={"approved": True, "reasons": []}, status="open",
         )
         self.db.add(rec)
-        self.db.commit()
+        persist(self.db)
         self.db.refresh(rec)
         intent.trade_id = rec.trade_id
-        self.db.commit()
+        persist(self.db)
 
         def cancel_unsubmitted(status="canceled"):
             # Only use before calling the broker: uncertain submissions retain
@@ -221,7 +224,7 @@ class ExecutionGateway:
             result = self.broker.place_order(order)
         except Exception as e:  # noqa: BLE001 — broker-side failure of unknown kind
             intent.status = "unknown"
-            self.db.commit()
+            persist(self.db)
             log_and_commit(self.db, "uncertain_broker_outcome", {"trade_id": rec.trade_id,
                                                                    "intent_key": key, "error": str(e)})
             return GatewayResult(submitted=False, reason="uncertain_outcome_pending_reconciliation",
@@ -235,7 +238,7 @@ class ExecutionGateway:
         if result.status == "rejected":
             rec.status = "rejected"
             risk_budget.release(self.db, reservation.reservation_id)
-        self.db.commit()
+        persist(self.db)
 
         log_and_commit(self.db, "order_submitted", {
             "trade_id": rec.trade_id, "intent_key": key, "broker_order_id": result.order_id,

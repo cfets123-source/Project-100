@@ -9,6 +9,7 @@ docs/THREAT_MODEL.md), not a runtime guarantee this module can make on its own.
 """
 import datetime as dt
 from sqlalchemy.orm import Session
+from app.db.transactions import persist
 from app.models.models import SystemStateRecord
 from app.audit.logger import log_and_commit
 from app.core.config import settings
@@ -44,7 +45,7 @@ class StateManager:
         if rec is None:
             rec = SystemStateRecord(id="current", state=OFF, reason="initial")
             self.db.add(rec)
-            self.db.commit()
+            persist(self.db)
             self.db.refresh(rec)
         return rec
 
@@ -59,7 +60,7 @@ class StateManager:
         rec.state = new_state
         rec.reason = reason
         rec.updated_at = dt.datetime.utcnow()
-        self.db.commit()
+        persist(self.db)
         log_and_commit(self.db, "state_change", {"from": current, "to": new_state, "reason": reason}, actor=actor)
         return rec
 
@@ -70,7 +71,7 @@ class StateManager:
         rec.state = HALTED
         rec.reason = f"KILL_SWITCH: {reason} (was {previous})"
         rec.updated_at = dt.datetime.utcnow()
-        self.db.commit()
+        persist(self.db)
         log_and_commit(self.db, "kill_switch_activated", {"previous_state": previous, "reason": reason}, actor=actor)
         return rec
 
@@ -85,7 +86,7 @@ class StateManager:
         rec.state = OFF
         rec.reason = f"manual_reset_by_{actor}"
         rec.updated_at = dt.datetime.utcnow()
-        self.db.commit()
+        persist(self.db)
         log_and_commit(self.db, "kill_switch_reset", {"actor": actor}, actor=actor)
         return rec
 
@@ -98,7 +99,7 @@ class StateManager:
         rec.state = SAFE
         rec.reason = reason
         rec.updated_at = dt.datetime.utcnow()
-        self.db.commit()
+        persist(self.db)
         log_and_commit(self.db, "entered_safe_mode", {"previous_state": previous, "reason": reason}, actor=actor)
         return rec
 

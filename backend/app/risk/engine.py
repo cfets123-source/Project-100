@@ -32,6 +32,7 @@ class TradeProposal:
     uses_margin: bool = False
     is_short: bool = False
     is_option: bool = False
+    estimated_round_trip_fees: float = 0.0
 
 
 @dataclass
@@ -55,7 +56,8 @@ class RiskEngine:
         values = (p.entry_price, p.stop_price, p.account_equity, p.avg_dollar_volume,
                   p.sector_exposure_pct, p.open_position_count, p.daily_pnl_pct,
                   p.weekly_drawdown_pct, p.total_drawdown_pct, p.quote.bid,
-                  p.quote.ask, p.quote.last, p.quote.timestamp, p.quote.age_seconds)
+                  p.quote.ask, p.quote.last, p.quote.timestamp, p.quote.age_seconds,
+                  p.estimated_round_trip_fees)
         if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in values):
             return RiskDecision(False, ["invalid_numeric_input"])
         if min(p.entry_price, p.stop_price, p.account_equity, p.quote.bid,
@@ -63,6 +65,8 @@ class RiskEngine:
             return RiskDecision(False, ["invalid_price_or_equity"])
         if p.direction not in ("long", "short"):
             return RiskDecision(False, ["invalid_direction"])
+        if p.estimated_round_trip_fees < 0:
+            return RiskDecision(False, ["invalid_fee_estimate"])
         if p.quote.symbol != p.symbol:
             return RiskDecision(False, ["quote_symbol_mismatch"])
 
@@ -123,11 +127,14 @@ class RiskEngine:
 
         # --- Position sizing (risk-based) ---
         risk_dollars = p.account_equity * self.cfg.MAX_RISK_PER_TRADE
+        price_risk_budget = risk_dollars - p.estimated_round_trip_fees
+        if price_risk_budget <= 0:
+            return RiskDecision(False, ["fees_exceed_risk_budget"])
         per_share_risk = abs(p.entry_price - p.stop_price)
         if per_share_risk <= 0:
             return RiskDecision(approved=False, reasons=["invalid_risk_distance"])
 
-        raw_size = risk_dollars / per_share_risk
+        raw_size = price_risk_budget / per_share_risk
         max_position_dollars = p.account_equity * self.cfg.MAX_POSITION_PCT
         size_capped_by_notional = max_position_dollars / p.entry_price
         position_size = min(raw_size, size_capped_by_notional)
@@ -135,4 +142,5 @@ class RiskEngine:
         if position_size <= 0:
             return RiskDecision(approved=False, reasons=["position_size_zero"])
 
-        return RiskDecision(approved=True, reasons=[], position_size=position_size, risk_dollars=risk_dollars)
+        return RiskDecision(approved=True, reasons=[], position_size=position_size,
+                            risk_dollars=position_size * per_share_risk + p.estimated_round_trip_fees)

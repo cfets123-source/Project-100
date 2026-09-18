@@ -1,0 +1,3 @@
+{"event_id":"demo-entry","sequence":1,"prices":{"TST":9.5},"reference_prices":{"TST":10},"market_open":true}
+{"event_id":"demo-hold","sequence":2,"prices":{"TST":9.6},"reference_prices":{"TST":10},"market_open":true}
+{"event_id":"demo-exit","sequence":3,"prices":{"TST":8.9},"reference_prices":{"TST":10},"market_open":true}

@@ -19,8 +19,8 @@ Protective-stop request → shared mutation policy (paper only) → order value
 validation → simulated broker → audit; failure enters SAFE without clearing HALTED.
 
 The complete paper entry-to-stop sequence is currently demonstrated in tests.
-There is no continuously running trading process. The FastAPI routes remain
-`/health`, `/system/state`, and `/config/risk`; health does not prove trading readiness.
+A standalone SQLite paper worker now runs continuously over an append-only replay feed; see PAPER_RUNTIME.md. The FastAPI routes remain
+`/health`, `/system/state`, `/config/risk`, `/paper/status`, and `/ready`; health does not prove trading readiness.
 
 ## Safety regression pass
 
@@ -40,3 +40,5 @@ work still requires a transaction-safe execution lifecycle, persistent paper
 state and workers, authenticated controls, actual market-data and broker
 integrations, strategy validation, capital stages, performance tracking and
 cloud deployment. Do not enable real trading based on unit-test success.
+
+The persistent paper runtime adds atomic broker/ledger/audit persistence, stable event deduplication, real-process restart tests and duplicate-worker tests. The expanded suite currently passes 138 tests.

@@ -13,6 +13,7 @@ check+insert to be race-free across processes — not implemented here.
 from dataclasses import dataclass
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from app.db.transactions import persist
 from app.models.models import RiskReservation
 from app.core.config import Settings
 
@@ -57,7 +58,7 @@ def reserve(db: Session, account_id: str, decision_id: str, risk_dollars: float,
     row = RiskReservation(account_id=account_id, decision_id=decision_id, risk_dollars=risk_dollars,
                            notional=notional, sector=sector, status="active")
     db.add(row)
-    db.commit()
+    persist(db)
     db.refresh(row)
     return ReservationResult(approved=True, reservation_id=row.id)
 
@@ -66,4 +67,4 @@ def release(db: Session, reservation_id: str) -> None:
     row = db.get(RiskReservation, reservation_id)
     if row:
         row.status = "released"
-        db.commit()
+        persist(db)
