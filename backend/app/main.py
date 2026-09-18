@@ -8,6 +8,7 @@ from app.runtime.paper import paper_status
 from app.analytics.performance import account_performance
 from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connection_status,
     finish_connection, start_connection)
+from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
 
 initialize_schema(engine)
 
@@ -69,6 +70,15 @@ def robinhood_callback(state: str, code: str, db: Session = Depends(get_db)):
         return JSONResponse(result)
     except BrokerOAuthConfigurationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/brokers/robinhood/capabilities")
+def robinhood_capabilities(db: Session = Depends(get_db)):
+    """Discover broker-advertised tools only; this endpoint cannot call one."""
+    try:
+        return discover_capabilities(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
