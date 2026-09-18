@@ -8,7 +8,8 @@ not expected or guaranteed returns.
 
 ## Local tests
 
-Use Python 3.12 in an isolated environment:
+Use Python 3.12 or newer in an isolated environment. Python 3.9 is not
+supported because the application uses modern type syntax:
 
 ```sh
 python3.12 -m venv .venv

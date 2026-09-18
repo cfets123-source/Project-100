@@ -3,6 +3,8 @@
 The Dockerfile and `compose.paper.yml` are prepared for the **synthetic paper
 worker only**. Docker was unavailable on the development host; these files were
 syntax-inspected but no container image or deployment was executed/verified.
+The application runtime is Python 3.12 (recorded in `.python-version`); do not
+deploy it on Python 3.9.
 
 On a machine with Docker Compose installed:
 
