@@ -88,6 +88,10 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                                 bid=bid, ask=ask, last=(bid + ask) / 2, market_status="unknown"))
         return result
 
+    def get_market_clock(self) -> dict:
+        """Read Alpaca's market clock; this is a read-only endpoint."""
+        return self._request("GET", "/v2/clock")
+
     def get_orders(self) -> list[dict]:
         return self._request("GET", "/v2/orders", params={"status": "all", "limit": 500})
 
