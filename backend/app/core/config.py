@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     BROKER_TOKEN_ENCRYPTION_KEY: str = ""
     DASHBOARD_USERNAME: str = "operator"
     DASHBOARD_PASSWORD: str = ""
+    # Set false only when the API is bound to loopback and accessed through an
+    # SSH tunnel. Public deployments must serve HTTPS and leave this true.
+    DASHBOARD_COOKIE_SECURE: bool = True
 
     class Config:
         env_file = ".env"
