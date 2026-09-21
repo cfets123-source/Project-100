@@ -81,7 +81,7 @@ def ensure_protective_stops(db, adapter, cfg) -> dict:
                            {"symbol": symbol, "reason": type(exc).__name__})
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "broker_error"}
-        if result.status not in {"new", "accepted", "pending"} or not result.order_id:
+        if result.status not in {"new", "pending_new", "accepted", "pending", "open"} or not result.order_id:
             state.activate_kill_switch(f"paper protective stop rejected: {symbol}")
             log_and_commit(db, "alpaca_paper_protective_stop_failed",
                            {"symbol": symbol, "reason": "rejected", "status": result.status})

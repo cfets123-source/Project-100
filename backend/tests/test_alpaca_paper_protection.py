@@ -30,7 +30,8 @@ def test_places_alpaca_stop_for_unprotected_filled_position():
         [{'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'},
          {'symbol': 'AAPL', 'type': 'stop', 'status': 'accepted'}],
     ]
-    adapter.place_order.return_value = OrderResult(order_id='stop-1', status='accepted')
+    # Alpaca commonly reports a newly accepted resting stop as ``new``.
+    adapter.place_order.return_value = OrderResult(order_id='stop-1', status='new')
 
     result = ensure_protective_stops(db, adapter, SimpleNamespace())
 

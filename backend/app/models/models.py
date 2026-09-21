@@ -97,6 +97,27 @@ class StrategyStats(Base):
     updated_at = Column(DateTime, default=dt.datetime.utcnow)
 
 
+class StrategyValidationRecord(Base):
+    """Evidence produced by a fixed, out-of-sample strategy evaluation.
+
+    A live strategy must have its own passing record.  This is deliberately
+    separate from paper/live P&L so a handful of favorable executions can
+    never be mistaken for research validation.
+    """
+    __tablename__ = "strategy_validation_records"
+    strategy = Column(String, primary_key=True)
+    methodology_version = Column(String, nullable=False)
+    evaluated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    sample_start = Column(DateTime, nullable=True)
+    sample_end = Column(DateTime, nullable=True)
+    trades = Column(Integer, nullable=False)
+    win_rate = Column(Float, nullable=False)
+    total_return = Column(Float, nullable=False)
+    max_drawdown = Column(Float, nullable=False)
+    passed = Column(Boolean, nullable=False, default=False)
+    reasons = Column(JSON, nullable=False, default=list)
+
+
 class OrderIntent(Base):
     """Durable, idempotent record of a submission attempt. intent_key is the primary
     key and is derived from the ORIGINATING DECISION (decision_id), not wall-clock

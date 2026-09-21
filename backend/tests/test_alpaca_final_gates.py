@@ -15,4 +15,4 @@ def test_live_adapter_refuses_before_final_live_gate(monkeypatch):
     state = MagicMock(); state.live_broker_mutation_allowed.return_value = (False, 'live_trading_hard_disabled_in_config')
     monkeypatch.setattr('app.runtime.alpaca_live_execution.StateManager', lambda *_: state)
     with pytest.raises(RuntimeError, match='hard_disabled'):
-        load_finally_authorized_adapter(MagicMock(), SimpleNamespace())
+        load_finally_authorized_adapter(MagicMock(), SimpleNamespace(), "test-dip-buy-v0.1.0")

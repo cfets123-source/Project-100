@@ -1,13 +1,19 @@
 """Final live adapter boundary.  No service imports this module by default."""
 from app.brokers.alpaca_connection import load_live_execution_adapter
 from app.services.state_machine import StateManager
+from app.research.strategy_validation import require_passing_validation
 
 
-def load_finally_authorized_adapter(db, cfg):
-    """Require both config and persisted state before any live mutation exists."""
+def load_finally_authorized_adapter(db, cfg, strategy: str):
+    """Require final controls and a passing record for the exact strategy.
+
+    ``strategy`` is mandatory so an approved record can never be reused by an
+    unrelated strategy implementation.
+    """
     state = StateManager(db, cfg)
     allowed, reason = state.live_broker_mutation_allowed()
     if not allowed:
         raise RuntimeError(reason)
+    require_passing_validation(db, strategy)
     return load_live_execution_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY,
                                        enabled=bool(cfg.LIVE_TRADING_ENABLED))

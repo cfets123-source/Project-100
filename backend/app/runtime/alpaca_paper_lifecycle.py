@@ -62,9 +62,26 @@ def run_once(db, cfg, symbol: str) -> dict:
     if not protection.get("protected"):
         return {"passed": False, "reason": "protective_stop_failed", "protection": protection}
 
-    # Exit first while the stop remains active; only cancel it once no position
-    # remains.  This avoids an unprotected cancellation window.
-    exit_order = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=1, order_type="market"))
+    # Alpaca reserves the shares for an active sell stop, so it rejects a second
+    # sell order until that stop is canceled.  Cancel immediately before the
+    # market exit, and restore the exact stop if exit submission fails.
+    active_stops = list(protection.get("placed", []))
+    for item in active_stops:
+        adapter.cancel_order(item["order_id"])
+        deadline = time.monotonic() + TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            if adapter.get_order_status(item["order_id"]).get("status") == "canceled":
+                break
+            time.sleep(POLL_SECONDS)
+        else:
+            raise RuntimeError("protective stop cancellation was not confirmed")
+    try:
+        exit_order = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=1, order_type="market"))
+    except Exception:
+        for item in active_stops:
+            adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=1,
+                                             order_type="stop", stop_price=item["stop_price"], time_in_force="gtc"))
+        raise
     while time.monotonic() < deadline:
         exit_status = adapter.get_order_status(exit_order.order_id)
         if exit_status.get("status") in {"filled", "rejected", "canceled"}:
@@ -72,8 +89,6 @@ def run_once(db, cfg, symbol: str) -> dict:
         time.sleep(POLL_SECONDS)
     if exit_status.get("status") != "filled":
         return {"passed": False, "reason": "exit_not_filled", "order_id": exit_order.order_id}
-    for item in protection.get("placed", []):
-        adapter.cancel_order(item["order_id"])
     decision.status = "closed"; decision.exit_price = float(exit_status.get("filled_avg_price") or quote.bid); db.commit()
     evidence = {"run_id": str(uuid.uuid4()), "symbol": symbol, "entry_order_id": result.order_id,
                 "exit_order_id": exit_order.order_id, "protection": protection,
