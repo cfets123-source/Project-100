@@ -73,6 +73,18 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         return {"equity": float(account.get("equity", 0)), "cash": float(account.get("cash", 0)),
                 "buying_power": float(account.get("buying_power", 0))}
 
+    def get_account_capabilities(self) -> dict:
+        """Read broker permission fields used by Veloikos capability gates."""
+        account = self._request("GET", "/v2/account")
+        return {
+            "status": account.get("status"),
+            "trading_blocked": bool(account.get("trading_blocked")),
+            "account_blocked": bool(account.get("account_blocked")),
+            "crypto_status": account.get("crypto_status"),
+            "options_approved_level": account.get("options_approved_level"),
+            "options_trading_level": account.get("options_trading_level"),
+        }
+
     def get_buying_power(self) -> float:
         return self.get_balances()["buying_power"]
 

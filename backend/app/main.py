@@ -21,6 +21,7 @@ from app.dashboard_html import DASHBOARD_HTML
 from app.services.live_readiness import report as live_readiness_report
 from app.audit.logger import log_and_commit
 from app.markets.capabilities import CapabilityRegistry
+from app.markets.account_capabilities import account_approval_report
 from app.runtime.market_research_worker import run_scan as run_market_research_scan
 
 initialize_schema(engine)
@@ -39,6 +40,25 @@ _LIVE_PORTFOLIO_CACHE_SECONDS = 5.0
 def market_capabilities():
     """Public operator view of asset classes; this endpoint cannot enable one."""
     return {"capabilities": CapabilityRegistry().report()}
+
+
+@app.get("/market-capabilities/live-account", dependencies=[Depends(require_dashboard_access)])
+def live_account_market_capabilities(db: Session = Depends(get_db)):
+    """Read broker permissions without changing an execution gate."""
+    try:
+        adapter, paper = alpaca_connection.load_read_only_adapter(
+            db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False
+        )
+        if paper:
+            raise HTTPException(status_code=409, detail="stored credential is not live")
+        account = adapter.get_account_capabilities()
+        return {"broker_account": account, "approvals": account_approval_report(account),
+                "capabilities": CapabilityRegistry().report(),
+                "execution_note": "Broker approval alone does not enable an asset class for execution."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"live account capability unavailable: {type(exc).__name__}")
 
 
 @app.get("/research/market-scan", dependencies=[Depends(require_dashboard_access)])
