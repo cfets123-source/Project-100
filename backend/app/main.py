@@ -1,3 +1,5 @@
+import time
+
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -21,6 +23,12 @@ from app.audit.logger import log_and_commit
 initialize_schema(engine)
 
 app = FastAPI(title="Project 100", version="0.1.0-phase1")
+
+# The browser refreshes its display every second, but Alpaca account endpoints
+# must not be called at browser-poll frequency.  This short process-local cache
+# keeps the display live while reserving API capacity for the execution worker.
+_live_portfolio_cache: dict[str, object] = {"expires_at": 0.0, "payload": None}
+_LIVE_PORTFOLIO_CACHE_SECONDS = 5.0
 
 
 @app.get("/paper/status", dependencies=[Depends(require_dashboard_access)])
@@ -312,6 +320,10 @@ def alpaca_paper_portfolio(db: Session = Depends(get_db)):
 def alpaca_live_portfolio(db: Session = Depends(get_db)):
     """Read-only live-account snapshot for the operator dashboard."""
     try:
+        now = time.monotonic()
+        cached = _live_portfolio_cache.get("payload")
+        if cached is not None and now < float(_live_portfolio_cache["expires_at"]):
+            return cached
         adapter, paper = alpaca_connection.load_read_only_adapter(
             db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False
         )
@@ -320,9 +332,12 @@ def alpaca_live_portfolio(db: Session = Depends(get_db)):
         positions, orders = adapter.get_positions(), adapter.get_orders()
         active_statuses = {"new", "accepted", "pending", "open", "partially_filled", "held"}
         active_orders = [order for order in orders if str(order.get("status")) in active_statuses]
-        return {"live": True, "balances": adapter.get_balances(),
-                "positions": positions, "active_orders": active_orders,
-                "market_clock": adapter.get_market_clock()}
+        payload = {"live": True, "balances": adapter.get_balances(),
+                   "positions": positions, "active_orders": active_orders,
+                   "market_clock": adapter.get_market_clock()}
+        _live_portfolio_cache.update({"payload": payload,
+                                      "expires_at": now + _LIVE_PORTFOLIO_CACHE_SECONDS})
+        return payload
     except HTTPException:
         raise
     except Exception as exc:

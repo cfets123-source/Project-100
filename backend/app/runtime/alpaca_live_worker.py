@@ -8,6 +8,7 @@ from app.risk.engine import RiskEngine
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.audit.logger import log_and_commit
 from app.runtime.alpaca_live_position_manager import manage_live_positions, reconcile_broker_bracket_exits
+from app.brokers.alpaca_adapter import AlpacaBrokerError
 
 LIVE_SYMBOLS=("SPY","QQQ","IWM","GLD","TLT")
 
@@ -61,6 +62,16 @@ if __name__ == '__main__':
     args=parser.parse_args(); cfg=Settings(); engine=create_engine(args.database)
     while True:
         with Session(engine) as db:
-            print(run_cycle(db, cfg), flush=True)
+            # Read throttling is an external, temporary condition.  Never let
+            # it terminate the supervised live worker or turn into an order
+            # retry; record it and wait for the next normal cycle instead.
+            try:
+                result = run_cycle(db, cfg)
+            except AlpacaBrokerError as exc:
+                log_and_commit(db, "alpaca_live_worker_rate_limited", {
+                    "error": type(exc).__name__,
+                })
+                result = {"started": True, "entries": [], "reason": "broker_rate_limited"}
+            print(result, flush=True)
         if args.once: break
         time.sleep(max(5.0, args.interval))
