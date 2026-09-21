@@ -97,6 +97,23 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  alpaca-broad-live:
+    build: .
+    profiles: ["broad-live"]
+    command: ["python", "-m", "app.runtime.alpaca_broad_live_worker", "--database", "sqlite:////data/paper.db", "--interval", "60"]
+    env_file: .env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: live
+      AUTONOMY_LEVEL: "4"
+      AUTO_EXECUTION: "true"
+      LIVE_TRADING_ENABLED: "${BROAD_LIVE_TRADING_ENABLED:-false}"
+    volumes: ["paper-data:/data"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
   api:
     build: .
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

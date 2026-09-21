@@ -26,15 +26,17 @@ def allocated_live_equity(balances: dict, cfg) -> float:
         raise RuntimeError("live_account_equity_must_be_positive")
     return equity
 
-def start_live_worker(db, cfg):
-    strategy=DailyTrendPullback()
+def start_live_worker(db, cfg, strategy: DailyTrendPullback | None = None):
+    strategy = strategy or DailyTrendPullback()
     # This constructs the broker mutation adapter only after state, final flag,
     # and this exact strategy's passing validation record have all been checked.
     return load_finally_authorized_adapter(db, cfg, strategy.name)
 
-def run_cycle(db, cfg):
+def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
+              symbols: tuple[str, ...] = LIVE_SYMBOLS):
     """One guarded live cycle; disabled gates fail before any broker mutation."""
-    adapter=start_live_worker(db,cfg)
+    strategy = strategy or DailyTrendPullback()
+    adapter=start_live_worker(db,cfg,strategy)
     protection=ensure_protective_stops(db, adapter, cfg, mode="live")
     if not protection.get('protected'):
         StateManager(db,cfg).activate_kill_switch('live position lacks verified protective stop')
@@ -46,8 +48,7 @@ def run_cycle(db, cfg):
         return {"started": True, "entries": [], "reason": "position_already_open",
                 "protection": protection, "lifecycle": lifecycle,
                 "bracket_reconciliation": bracket_reconciliation}
-    strategy=DailyTrendPullback()
-    signal=strategy.portfolio_signal(adapter, LIVE_SYMBOLS)
+    signal=strategy.portfolio_signal(adapter, symbols)
     if not signal:
         log_and_commit(db, "alpaca_live_worker_no_qualifying_signal", {"strategy": strategy.name})
         return {"started": True, "entries": [], "reason": "no_qualifying_signal",
