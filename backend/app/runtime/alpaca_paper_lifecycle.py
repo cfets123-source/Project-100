@@ -17,6 +17,7 @@ from app.market_data.base import validate_quote
 from app.models.models import TradeDecisionRecord
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.services.protective_order_verification import verify_protective_orders
+from app.runtime.alpaca_live_position_manager import manage_paper_positions
 
 MAX_NOTIONAL = 10.0
 POLL_SECONDS = 2.0
@@ -70,36 +71,32 @@ def run_once(db, cfg, symbol: str, strategy: str = "paper_lifecycle_verification
     if not protection.get("protected"):
         return {"passed": False, "reason": "protective_stop_failed", "protection": protection}
 
-    # Alpaca reserves the shares for an active sell stop, so it rejects a second
-    # sell order until that stop is canceled.  Cancel immediately before the
-    # market exit, and restore the exact stop if exit submission fails.
-    active_stops = list(protection.get("placed", []))
-    for item in active_stops:
-        adapter.cancel_order(item["order_id"])
-        deadline = time.monotonic() + TIMEOUT_SECONDS
-        while time.monotonic() < deadline:
-            if adapter.get_order_status(item["order_id"]).get("status") == "canceled":
-                break
-            time.sleep(POLL_SECONDS)
-        else:
-            raise RuntimeError("protective stop cancellation was not confirmed")
-    try:
-        exit_order = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=1, order_type="market"))
-    except Exception:
-        for item in active_stops:
-            adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=1,
-                                             order_type="stop", stop_price=item["stop_price"], time_in_force="gtc"))
-        raise
+    # Engineering test only: use a target already met by the fresh quote so the
+    # real target-exit manager is exercised without waiting for a market move.
+    # Normal strategy trades retain their strategy-derived target prices.
+    decision.target_price = 0.01
+    db.commit()
+    lifecycle = manage_paper_positions(db, adapter)
+    if not lifecycle["target_exits_submitted"]:
+        return {"passed": False, "reason": "target_exit_not_submitted", "protection": protection}
+    exit_order_id = lifecycle["target_exits_submitted"][0]["exit_order_id"]
     while time.monotonic() < deadline:
-        exit_status = adapter.get_order_status(exit_order.order_id)
+        exit_status = adapter.get_order_status(exit_order_id)
         if exit_status.get("status") in {"filled", "rejected", "canceled"}:
             break
         time.sleep(POLL_SECONDS)
     if exit_status.get("status") != "filled":
-        return {"passed": False, "reason": "exit_not_filled", "order_id": exit_order.order_id}
-    decision.status = "closed"; decision.exit_price = float(exit_status.get("filled_avg_price") or quote.bid); db.commit()
+        return {"passed": False, "reason": "exit_not_filled", "order_id": exit_order_id}
+    deadline = time.monotonic() + TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        completed = manage_paper_positions(db, adapter)
+        if completed["stops_cancelled"]:
+            break
+        time.sleep(POLL_SECONDS)
+    else:
+        return {"passed": False, "reason": "stop_not_cancelled_after_flat", "order_id": exit_order_id}
     evidence = {"run_id": str(uuid.uuid4()), "symbol": symbol, "entry_order_id": result.order_id,
-                "exit_order_id": exit_order.order_id, "protection": protection,
+                "exit_order_id": exit_order_id, "protection": protection, "lifecycle": completed,
                 "quote_age_seconds": quote.age_seconds}
     log_and_commit(db, "alpaca_paper_lifecycle_passed", evidence)
     return {"passed": True, **evidence}

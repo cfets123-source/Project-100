@@ -30,7 +30,7 @@ def _release_reservations(db, trade):
             reservation.status = "released"
 
 
-def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str):
+def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str, mode: str):
     trade = _trade(db, entry_order_id)
     if trade is None or trade.status == "closed":
         return False
@@ -49,7 +49,7 @@ def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str):
                                  "reason": reason}
     _release_reservations(db, trade)
     db.commit()
-    log_and_commit(db, "alpaca_live_trade_closed", {"trade_id": trade.trade_id,
+    log_and_commit(db, f"alpaca_{mode}_trade_closed", {"trade_id": trade.trade_id,
                    "entry_order_id": entry_order_id, "exit_order_id": str(exit_order.get("id")),
                    "reason": reason, "pnl": pnl})
     return True
@@ -114,10 +114,10 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
         # exact stop only after flatness is confirmed.
         exit_order = orders.get(exit_row.exit_order_id) if exit_row else None
         if exit_order and str(exit_order.get("status")) in FILLED:
-            if _finish_trade(db, entry_id, exit_order, "target_hit"):
+            if _finish_trade(db, entry_id, exit_order, "target_hit", mode):
                 closed.append({"symbol": symbol, "reason": "target_hit"})
         elif stop and str(stop.get("status")) in FILLED:
-            if _finish_trade(db, entry_id, stop, "stop_hit"):
+            if _finish_trade(db, entry_id, stop, "stop_hit", mode):
                 closed.append({"symbol": symbol, "reason": "stop_hit"})
         if stop and str(stop.get("status")) in OPEN:
             adapter.cancel_order(str(protection.protective_order_id))
