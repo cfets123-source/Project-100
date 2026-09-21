@@ -90,8 +90,18 @@ def get_paper_insights(db: Session = Depends(get_db)):
     vetoes = (db.query(models.AuditLogEntry)
               .filter(models.AuditLogEntry.event_type.in_(["risk_veto", "kill_switch", "error"]))
               .order_by(models.AuditLogEntry.timestamp.desc()).limit(50).all())
+    validations = (db.query(models.StrategyValidationRecord)
+                   .order_by(models.StrategyValidationRecord.evaluated_at.desc()).all())
     return {"mode": "paper", "simulated": True, "equity_curve": curve,
             "closed_trades": trades, "strategy_breakdown": strategy_rows,
+            "strategy_validations": [{"strategy": row.strategy,
+                                      "methodology_version": row.methodology_version,
+                                      "evaluated_at": row.evaluated_at,
+                                      "trades": row.trades, "win_rate": row.win_rate,
+                                      "total_return": row.total_return,
+                                      "max_drawdown": row.max_drawdown,
+                                      "passed": row.passed, "reasons": row.reasons}
+                                     for row in validations],
             "risk_events": [{"timestamp": item.timestamp, "type": item.event_type,
                              "payload": item.payload} for item in vetoes]}
 

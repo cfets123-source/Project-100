@@ -88,6 +88,17 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                                 bid=bid, ask=ask, last=(bid + ask) / 2, market_status="unknown"))
         return result
 
+    def get_daily_bars(self, symbol: str, start: str, end: str) -> list[dict]:
+        """Read adjusted daily bars for research. This endpoint cannot trade."""
+        raw = self._request("GET", "/v2/stocks/bars", data_api=True, params={
+            "symbols": symbol, "timeframe": "1Day", "start": start, "end": end,
+            "adjustment": "all", "feed": "iex", "limit": 10000,
+        })
+        bars = raw.get("bars", {}).get(symbol, [])
+        return [{"timestamp": item["t"], "open": float(item["o"]), "high": float(item["h"]),
+                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
+                for item in bars]
+
     def get_market_clock(self) -> dict:
         """Read Alpaca's market clock; this is a read-only endpoint."""
         return self._request("GET", "/v2/clock")
