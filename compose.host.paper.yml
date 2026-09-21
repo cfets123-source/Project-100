@@ -71,7 +71,9 @@ services:
       TRADING_MODE: live
       AUTONOMY_LEVEL: "4"
       AUTO_EXECUTION: "true"
-      LIVE_TRADING_ENABLED: "false"
+      # Activation is supplied only by the host-only environment file after
+      # the final preflight passes.  The default remains disabled.
+      LIVE_TRADING_ENABLED: "${LIVE_TRADING_ENABLED:-false}"
     volumes: ["paper-data:/data"]
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
