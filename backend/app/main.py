@@ -64,13 +64,15 @@ def live_account_market_capabilities(db: Session = Depends(get_db)):
 
 @app.get("/research/options/chain", dependencies=[Depends(require_dashboard_access)])
 def option_chain_research(underlying: str = Query(default="SPY", min_length=1, max_length=10),
+                          feed: str = Query(default="indicative", pattern="^(indicative|opra)$"),
                           db: Session = Depends(get_db)):
     """Probe option data entitlement and liquidity using no execution APIs."""
     try:
         adapter, _ = alpaca_connection.load_read_only_adapter(
             db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False
         )
-        return assess_option_chain(adapter.get_option_chain(underlying), underlying=underlying.upper())
+        return assess_option_chain(adapter.get_option_chain(underlying, feed=feed),
+                                   underlying=underlying.upper(), feed=feed)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"option research unavailable: {type(exc).__name__}")
 

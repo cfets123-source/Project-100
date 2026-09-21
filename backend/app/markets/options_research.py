@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 
-def assess_option_chain(payload: dict, *, underlying: str) -> dict:
+def assess_option_chain(payload: dict, *, underlying: str, feed: str) -> dict:
     """Summarize chain availability without choosing or authorizing a contract."""
     snapshots = payload.get("snapshots") or {}
     quoted = 0
@@ -19,11 +19,14 @@ def assess_option_chain(payload: dict, *, underlying: str) -> dict:
             tight += 1
     return {
         "underlying": underlying,
-        "feed": "indicative",
+        "feed": feed,
         "contracts_returned": len(snapshots),
         "quoted_contracts": quoted,
         "tight_quote_contracts": tight,
-        "market_data_ready": quoted > 0,
+        "quote_probe_ready": quoted > 0,
+        # Indicative quotes are useful to discover a chain but Alpaca documents
+        # them as delayed/modified. They cannot validate or drive a strategy.
+        "strategy_data_ready": feed == "opra" and quoted > 0,
         "status": "research_only",
         "execution_note": "No contract selection, order, or execution authority is created by this probe.",
     }
