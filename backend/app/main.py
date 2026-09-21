@@ -3,6 +3,7 @@ import time
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.db.session import Base, engine, get_db, initialize_schema
 from app.models import models  # noqa: F401 ensures models are registered
@@ -22,7 +23,8 @@ from app.audit.logger import log_and_commit
 
 initialize_schema(engine)
 
-app = FastAPI(title="Project 100", version="0.1.0-phase1")
+app = FastAPI(title="Veloikos Trading", version="1.0.0")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # The browser refreshes its display every second, but Alpaca account endpoints
 # must not be called at browser-poll frequency.  This short process-local cache
@@ -205,7 +207,7 @@ class DashboardLogin(BaseModel):
 
 
 LOGIN_HTML = """<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Project 100</title><style>body{margin:0;background:#08111f;color:#eaf2ff;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#101d31;border:1px solid #29415f;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #405d80;background:#091728;color:#fff}button{background:#2b7fff;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><h1>Project 100</h1><p>Sign in to the live dashboard.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
+<title>Veloikos Trading</title><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/veloikos-mark.png" alt="Veloikos Trading" style="width:70px;height:70px;object-fit:contain"><h1>Veloikos Trading</h1><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
 
 
 @app.get("/login", response_class=HTMLResponse)

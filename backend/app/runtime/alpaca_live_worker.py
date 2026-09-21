@@ -12,6 +12,20 @@ from app.brokers.alpaca_adapter import AlpacaBrokerError
 
 LIVE_SYMBOLS=("SPY","QQQ","IWM","GLD","TLT")
 
+
+def allocated_live_equity(balances: dict, cfg) -> float:
+    """Use the designated live account's current equity for compounding.
+
+    STARTING_CAPITAL is the launch baseline, not a permanent ceiling.  Keeping
+    the ceiling here would make the system incapable of scaling an earned gain
+    into the next capital stage.  Position, stop, and circuit-breaker limits
+    still apply independently in the deterministic risk engine.
+    """
+    equity = float(balances["equity"])
+    if equity <= 0:
+        raise RuntimeError("live_account_equity_must_be_positive")
+    return equity
+
 def start_live_worker(db, cfg):
     strategy=DailyTrendPullback()
     # This constructs the broker mutation adapter only after state, final flag,
@@ -40,7 +54,7 @@ def run_cycle(db, cfg):
                 "protection": protection, "lifecycle": lifecycle,
                 "bracket_reconciliation": bracket_reconciliation}
     quote=adapter.get_quotes([signal['symbol']])[0]
-    balances=adapter.get_balances(); equity=min(float(balances['equity']), float(cfg.STARTING_CAPITAL))
+    balances=adapter.get_balances(); equity=allocated_live_equity(balances, cfg)
     account_id=str(adapter.get_accounts()[0]['account_id'])
     result=ExecutionGateway(db,adapter,RiskEngine(cfg),StateManager(db,cfg),account_id).submit(
         signal, account_id, quote,

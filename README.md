@@ -1,4 +1,4 @@
-# Project 100
+# Veloikos Trading
 
 Experimental autonomous-trading software under development. Current behavior is
 simulated; a persistent paper worker is available, but no real broker integration is present.
