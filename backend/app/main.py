@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -12,7 +12,8 @@ from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connecti
 from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
 from app.brokers.robinhood_adapter import verify_agentic_readiness
 from app.brokers import alpaca_connection
-from app.security.dashboard import require_dashboard_access
+from app.security.dashboard import (require_dashboard_access, dashboard_access_granted,
+                                    issue_dashboard_session)
 from app.dashboard_html import DASHBOARD_HTML
 from app.services.live_readiness import report as live_readiness_report
 from app.audit.logger import log_and_commit
@@ -183,9 +184,36 @@ def robinhood_readiness(db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-@app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_dashboard_access)])
-def dashboard():
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+    if not dashboard_access_granted(request):
+        return RedirectResponse("/login", status_code=303)
     return HTMLResponse(DASHBOARD_HTML)
+
+
+class DashboardLogin(BaseModel):
+    username: str
+    password: str
+
+
+LOGIN_HTML = """<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>
+<title>Project 100</title><style>body{margin:0;background:#08111f;color:#eaf2ff;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#101d31;border:1px solid #29415f;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #405d80;background:#091728;color:#fff}button{background:#2b7fff;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><h1>Project 100</h1><p>Sign in to the live dashboard.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page():
+    return HTMLResponse(LOGIN_HTML)
+
+
+@app.post("/login")
+def login(payload: DashboardLogin):
+    token = issue_dashboard_session(payload.username, payload.password)
+    if token is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    response = JSONResponse({"authenticated": True})
+    response.set_cookie("project100_dashboard", token, httponly=True, secure=True,
+                        samesite="strict", max_age=60 * 60 * 12, path="/")
+    return response
 
 @app.get("/ready")
 def readiness(db: Session = Depends(get_db)):
