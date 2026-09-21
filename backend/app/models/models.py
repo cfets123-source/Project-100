@@ -255,3 +255,15 @@ class ExternalLiveProtection(Base):
     stop_price = Column(Float, nullable=False)
     protective_order_id = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class ExternalLiveExit(Base):
+    """Idempotent live target-exit request tied to one original entry."""
+    __tablename__ = "external_live_exits"
+    entry_order_id = Column(String, primary_key=True)
+    symbol = Column(String, nullable=False, index=True)
+    quantity = Column(Float, nullable=False)
+    target_price = Column(Float, nullable=False)
+    exit_order_id = Column(String, nullable=False, unique=True)
+    status = Column(String, nullable=False, default="submitted")
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
