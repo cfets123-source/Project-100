@@ -22,6 +22,7 @@ from app.services.live_readiness import report as live_readiness_report
 from app.audit.logger import log_and_commit
 from app.markets.capabilities import CapabilityRegistry
 from app.markets.account_capabilities import account_approval_report
+from app.markets.options_research import assess_option_chain
 from app.runtime.market_research_worker import run_scan as run_market_research_scan
 
 initialize_schema(engine)
@@ -59,6 +60,19 @@ def live_account_market_capabilities(db: Session = Depends(get_db)):
         raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"live account capability unavailable: {type(exc).__name__}")
+
+
+@app.get("/research/options/chain", dependencies=[Depends(require_dashboard_access)])
+def option_chain_research(underlying: str = Query(default="SPY", min_length=1, max_length=10),
+                          db: Session = Depends(get_db)):
+    """Probe option data entitlement and liquidity using no execution APIs."""
+    try:
+        adapter, _ = alpaca_connection.load_read_only_adapter(
+            db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False
+        )
+        return assess_option_chain(adapter.get_option_chain(underlying), underlying=underlying.upper())
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"option research unavailable: {type(exc).__name__}")
 
 
 @app.get("/research/market-scan", dependencies=[Depends(require_dashboard_access)])

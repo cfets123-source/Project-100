@@ -116,8 +116,20 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         })
         bars = raw.get("bars", {}).get(symbol, [])
         return [{"timestamp": item["t"], "open": float(item["o"]), "high": float(item["h"]),
-                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
+                "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
                 for item in bars]
+
+    def get_option_chain(self, underlying_symbol: str, *, limit: int = 100) -> dict:
+        """Read an option chain using Alpaca's free indicative feed.
+
+        This method never accesses the orders API.  ``indicative`` makes the
+        data entitlement explicit; execution cannot treat this probe as an
+        OPRA-grade live signal.
+        """
+        if not underlying_symbol.isalpha() or len(underlying_symbol) > 10:
+            raise AlpacaBrokerError("invalid option-chain underlying")
+        return self._request("GET", f"/v1beta1/options/snapshots/{underlying_symbol.upper()}",
+                             data_api=True, params={"feed": "indicative", "limit": min(max(limit, 1), 1000)})
 
     def get_market_clock(self) -> dict:
         """Read Alpaca's market clock; this is a read-only endpoint."""
