@@ -20,7 +20,7 @@ def test_target_exit_is_submitted_once_and_keeps_stop_while_position_open():
     db.add(ExternalLiveProtection(entry_order_id='entry-1', symbol='SPY', quantity=.5,
                                   stop_price=94, protective_order_id='stop-1'))
     db.commit()
-    adapter = MagicMock()
+    adapter = MagicMock(paper=False)
     adapter.get_positions.return_value = [{'symbol': 'SPY', 'qty': '.5'}]
     adapter.get_orders.return_value = [{'id': 'stop-1', 'symbol': 'SPY', 'status': 'accepted', 'type': 'stop'}]
     adapter.get_quotes.return_value = [Quote('alpaca', 'SPY', 1, 0, 106, 106.1, 106.05, 'open')]
