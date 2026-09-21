@@ -24,13 +24,12 @@ services:
 
   alpaca-execution:
     build: .
-    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "${ALPACA_MONITOR_SYMBOLS:-AAPL,MSFT}", "--interval", "${ALPACA_EXECUTION_INTERVAL_SECONDS:-15}"]
+    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "SPY,QQQ,IWM,GLD,TLT", "--interval", "15"]
     env_file: .env.host
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
       LIVE_TRADING_ENABLED: "false"
-      ALPACA_PAPER_EXECUTION_ENABLED: "false"
     volumes: ["paper-data:/data"]
     restart: "on-failure:3"
     security_opt: ["no-new-privileges:true"]
@@ -52,6 +51,23 @@ services:
     restart: "on-failure:3"
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
+  alpaca-live:
+    build: .
+    command: ["python", "-c", "from app.runtime.alpaca_live_worker import run_cycle; from app.db.session import SessionLocal; from app.core.config import Settings; db=SessionLocal(); print(run_cycle(db, Settings()))"]
+    profiles: ["live"]
+    env_file: .env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: live
+      AUTONOMY_LEVEL: "4"
+      AUTO_EXECUTION: "true"
+      LIVE_TRADING_ENABLED: "false"
+    volumes: ["paper-data:/data"]
+    security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     read_only: true
     tmpfs: [/tmp]
