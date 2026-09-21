@@ -72,7 +72,7 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
     positions = {str(p.get("symbol")): p for p in adapter.get_positions()
                  if float(p.get("qty") or 0) != 0}
     orders = {str(o.get("id")): o for o in adapter.get_orders()}
-    submitted, closed, cancelled = [], [], []
+    submitted, failed, closed, cancelled = [], [], [], []
     protections = db.query(protection_model).all()
     for protection in protections:
         symbol, entry_id = protection.symbol, protection.entry_order_id
@@ -97,8 +97,17 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
             if quote is None or quote.last < float(trade.target_price):
                 continue
             qty = abs(float(positions[symbol].get("qty") or 0))
-            result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=qty,
-                                                      order_type="market", time_in_force="day"))
+            try:
+                result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=qty,
+                                                          order_type="market", time_in_force="day"))
+            except Exception as exc:
+                # The active stop remains in force. A failed target submission
+                # is never retried in-process and never removes protection.
+                failure = {"symbol": symbol, "entry_order_id": entry_id,
+                           "error": type(exc).__name__}
+                failed.append(failure)
+                log_and_commit(db, f"{event_prefix}_target_exit_failed", failure)
+                continue
             if not result.order_id or result.status == "rejected":
                 raise RuntimeError(f"live target exit rejected for {symbol}")
             db.add(exit_model(entry_order_id=entry_id, symbol=symbol, quantity=qty,
@@ -124,6 +133,7 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
             cancelled.append({"symbol": symbol, "stop_order_id": str(protection.protective_order_id)})
             log_and_commit(db, f"{event_prefix}_protective_stop_cancelled", cancelled[-1])
     return {"positions": sorted(positions), "target_exits_submitted": submitted,
+            "target_exit_failures": failed,
             "trades_closed": closed, "stops_cancelled": cancelled}
 
 
