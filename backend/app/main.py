@@ -306,3 +306,36 @@ def alpaca_paper_portfolio(db: Session = Depends(get_db)):
         raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"paper portfolio unavailable: {type(exc).__name__}")
+
+
+@app.get("/brokers/alpaca/live-portfolio", dependencies=[Depends(require_dashboard_access)])
+def alpaca_live_portfolio(db: Session = Depends(get_db)):
+    """Read-only live-account snapshot for the operator dashboard."""
+    try:
+        adapter, paper = alpaca_connection.load_read_only_adapter(
+            db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False
+        )
+        if paper:
+            raise HTTPException(status_code=409, detail="stored credential is not live")
+        positions, orders = adapter.get_positions(), adapter.get_orders()
+        active_statuses = {"new", "accepted", "pending", "open", "partially_filled", "held"}
+        active_orders = [order for order in orders if str(order.get("status")) in active_statuses]
+        return {"live": True, "balances": adapter.get_balances(),
+                "positions": positions, "active_orders": active_orders,
+                "market_clock": adapter.get_market_clock()}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"live portfolio unavailable: {type(exc).__name__}")
+
+
+@app.get("/live/activity", dependencies=[Depends(require_dashboard_access)])
+def live_activity(limit: int = Query(default=80, ge=1, le=200), db: Session = Depends(get_db)):
+    """Recent live-worker audit events; contains no credentials or order authority."""
+    events = (db.query(models.AuditLogEntry)
+              .filter(models.AuditLogEntry.event_type.like("alpaca_live%"))
+              .order_by(models.AuditLogEntry.timestamp.desc(), models.AuditLogEntry.id.desc())
+              .limit(limit).all())
+    return {"events": [{"id": event.id, "timestamp": event.timestamp,
+                        "type": event.event_type, "actor": event.actor,
+                        "payload": event.payload} for event in events]}
