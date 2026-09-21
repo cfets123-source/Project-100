@@ -49,17 +49,27 @@ def test_enabled_submission_has_explicit_order_payload():
     assert client.calls[-1][2]['json'] == {'symbol': 'AAPL', 'side': 'buy', 'qty': '1', 'type': 'market', 'time_in_force': 'day'}
 
 
-def test_day_bracket_submission_keeps_fractional_quantity_and_both_exit_legs():
+def test_day_bracket_submission_keeps_whole_quantity_and_both_exit_legs():
     client = Client()
     adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)
-    adapter.place_order(OrderRequest(symbol='LCID', side='buy', quantity=0.75,
+    adapter.place_order(OrderRequest(symbol='LCID', side='buy', quantity=1,
                                      order_class='bracket', take_profit_price=5.0,
                                      stop_loss_price=4.0, time_in_force='day'))
     assert client.calls[-1][2]['json'] == {
-        'symbol': 'LCID', 'side': 'buy', 'qty': '0.75', 'type': 'market', 'time_in_force': 'day',
+        'symbol': 'LCID', 'side': 'buy', 'qty': '1', 'type': 'market', 'time_in_force': 'day',
         'order_class': 'bracket', 'take_profit': {'limit_price': '5.0'},
         'stop_loss': {'stop_price': '4.0'},
     }
+
+
+def test_fractional_bracket_is_rejected_locally_without_a_broker_request():
+    client = Client()
+    adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)
+    with pytest.raises(AlpacaBrokerError, match='fractional orders must be simple'):
+        adapter.place_order(OrderRequest(symbol='LCID', side='buy', quantity=0.1,
+                                         order_class='bracket', take_profit_price=5.0,
+                                         stop_loss_price=4.0, time_in_force='day'))
+    assert client.calls == []
 
 
 def test_orders_request_includes_nested_bracket_legs():

@@ -231,6 +231,7 @@ class ExecutionGateway:
         # leg when either exit fills.
         order = OrderRequest(symbol=signal.symbol, side=intent.side, quantity=decision.position_size)
         if (isinstance(self.broker, AlpacaBrokerAdapter)
+                and float(decision.position_size).is_integer()
                 and signal.direction == "long"
                 and signal.target_price is not None
                 and signal.target_price > signal.stop_price

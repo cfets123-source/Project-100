@@ -126,6 +126,11 @@ class AlpacaBrokerAdapter(BrokerAdapter):
     def place_order(self, order: OrderRequest) -> OrderResult:
         if not self.allow_order_submission:
             raise AlpacaBrokerError("Alpaca order submission is disabled until final live activation")
+        # Alpaca explicitly rejects fractional advanced orders (including
+        # brackets): they must be simple DAY orders.  Fail locally before any
+        # request so a strategy cannot spend broker rate budget on a known 422.
+        if order.order_class is not None and not float(order.quantity).is_integer():
+            raise AlpacaBrokerError("Alpaca fractional orders must be simple orders")
         payload = {"symbol": order.symbol, "side": order.side, "qty": str(order.quantity),
                    "type": order.order_type, "time_in_force": order.time_in_force}
         if order.limit_price is not None:
