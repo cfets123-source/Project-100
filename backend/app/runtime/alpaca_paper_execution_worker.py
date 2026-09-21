@@ -9,6 +9,7 @@ from app.models.models import ExternalPaperRuntimeState
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.research.strategy_validation import require_passing_validation
 from app.brokers.alpaca_adapter import AlpacaBrokerError
+from app.runtime.alpaca_live_position_manager import manage_paper_positions
 
 
 def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None):
@@ -44,6 +45,7 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
         state.status = 'halted_unprotected_position'; db.commit()
         log_and_commit(db, 'alpaca_paper_worker_unprotected_position', protection)
         return {**reconciliation, **protection, 'entries': []}
+    lifecycle = manage_paper_positions(db, execution_adapter)
     adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     if not paper: raise RuntimeError('paper worker refuses live credential')
     strategy, entries = DailyTrendPullback(), []
@@ -51,13 +53,13 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     scan_day=time.strftime('%Y-%m-%d', time.gmtime())
     if state.payload.get('last_strategy_scan_day') == scan_day:
         state.status='daily_scan_already_recorded'; db.commit()
-        return {**reconciliation, 'entries': [], 'reason': 'daily_scan_already_recorded'}
+        return {**reconciliation, 'entries': [], 'reason': 'daily_scan_already_recorded', 'lifecycle': lifecycle}
     # Never create a second entry while the broker reports any open position.
     positions = execution_adapter.get_positions()
     if positions:
         state.payload={**state.payload, 'references': references, 'last_strategy_scan_day': scan_day}
         state.status='position_already_open'; db.commit()
-        return {**reconciliation, 'entries': [], 'reason': 'position_already_open'}
+        return {**reconciliation, 'entries': [], 'reason': 'position_already_open', 'lifecycle': lifecycle}
     signal = strategy.portfolio_signal(adapter, symbols)
     if signal:
         context={'avg_dollar_volume':5_000_000, 'sector':'unclassified', 'open_position_count':len(positions),
@@ -72,7 +74,7 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     state.status='healthy'; db.commit()
     return {**reconciliation, 'paper_execution_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED,
             'strategy': strategy.name, 'signal_found': bool(signal), 'entries': entries,
-            'references': references, 'processed_at': time.time()}
+            'references': references, 'processed_at': time.time(), 'lifecycle': lifecycle}
 
 if __name__ == '__main__':
     # Service wiring is intentionally not self-activating; compose passes the

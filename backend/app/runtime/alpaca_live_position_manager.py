@@ -4,6 +4,7 @@ from __future__ import annotations
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
 from app.models.models import (ExternalLiveExit, ExternalLiveProtection,
+                               ExternalPaperExit, ExternalPaperProtection,
                                OrderIntent, RiskReservation, TradeDecisionRecord)
 
 OPEN = {"new", "pending_new", "accepted", "pending", "open"}
@@ -54,22 +55,29 @@ def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str):
     return True
 
 
-def manage_live_positions(db, adapter) -> dict:
-    """Reconcile broker state and autonomously manage only recorded positions.
+def manage_external_positions(db, adapter, *, mode: str) -> dict:
+    """Reconcile broker state and autonomously manage recorded broker positions.
 
     A target order is idempotent through ``ExternalLiveExit``. The stop stays
     live while that order is outstanding. It is cancelled only after the
     broker reports the position flat, preventing an unprotected exit gap.
     """
+    if mode not in {"paper", "live"}:
+        raise ValueError("mode must be paper or live")
+    if bool(getattr(adapter, "paper", False)) != (mode == "paper"):
+        raise RuntimeError("position manager broker mode mismatch")
+    protection_model = ExternalPaperProtection if mode == "paper" else ExternalLiveProtection
+    exit_model = ExternalPaperExit if mode == "paper" else ExternalLiveExit
+    event_prefix = f"alpaca_{mode}"
     positions = {str(p.get("symbol")): p for p in adapter.get_positions()
                  if float(p.get("qty") or 0) != 0}
     orders = {str(o.get("id")): o for o in adapter.get_orders()}
     submitted, closed, cancelled = [], [], []
-    protections = db.query(ExternalLiveProtection).all()
+    protections = db.query(protection_model).all()
     for protection in protections:
         symbol, entry_id = protection.symbol, protection.entry_order_id
         stop = orders.get(str(protection.protective_order_id))
-        exit_row = db.get(ExternalLiveExit, entry_id)
+        exit_row = db.get(exit_model, entry_id)
         if symbol in positions:
             # A stop fill and a still-reported position is an ambiguity. Halt
             # upstream on the next protection verification rather than create
@@ -93,13 +101,13 @@ def manage_live_positions(db, adapter) -> dict:
                                                       order_type="market", time_in_force="day"))
             if not result.order_id or result.status == "rejected":
                 raise RuntimeError(f"live target exit rejected for {symbol}")
-            db.add(ExternalLiveExit(entry_order_id=entry_id, symbol=symbol, quantity=qty,
+            db.add(exit_model(entry_order_id=entry_id, symbol=symbol, quantity=qty,
                                     target_price=float(trade.target_price),
                                     exit_order_id=result.order_id, status=result.status))
             db.commit()
             submitted.append({"symbol": symbol, "entry_order_id": entry_id,
                               "exit_order_id": result.order_id, "status": result.status})
-            log_and_commit(db, "alpaca_live_target_exit_submitted", submitted[-1])
+            log_and_commit(db, f"{event_prefix}_target_exit_submitted", submitted[-1])
             continue
 
         # Flat at broker: resolve a stop/target fill, then cancel any resting
@@ -114,6 +122,14 @@ def manage_live_positions(db, adapter) -> dict:
         if stop and str(stop.get("status")) in OPEN:
             adapter.cancel_order(str(protection.protective_order_id))
             cancelled.append({"symbol": symbol, "stop_order_id": str(protection.protective_order_id)})
-            log_and_commit(db, "alpaca_live_protective_stop_cancelled", cancelled[-1])
+            log_and_commit(db, f"{event_prefix}_protective_stop_cancelled", cancelled[-1])
     return {"positions": sorted(positions), "target_exits_submitted": submitted,
             "trades_closed": closed, "stops_cancelled": cancelled}
+
+
+def manage_live_positions(db, adapter) -> dict:
+    return manage_external_positions(db, adapter, mode="live")
+
+
+def manage_paper_positions(db, adapter) -> dict:
+    return manage_external_positions(db, adapter, mode="paper")
