@@ -73,9 +73,24 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
                  if float(p.get("qty") or 0) != 0}
     orders = {str(o.get("id")): o for o in adapter.get_orders()}
     submitted, failed, closed, cancelled = [], [], [], []
+    # Alpaca aggregates lots by symbol. Project 100 permits one position per
+    # symbol, so only the newest still-open recorded entry can manage it.
+    # Historical lifecycle evidence must never generate another exit request.
+    current_entry = {}
+    for symbol in positions:
+        trade = (db.query(TradeDecisionRecord)
+                 .filter(TradeDecisionRecord.symbol == symbol,
+                         TradeDecisionRecord.direction == "long",
+                         TradeDecisionRecord.status.in_(("open", "proposed")),
+                         TradeDecisionRecord.order_id.isnot(None))
+                 .order_by(TradeDecisionRecord.timestamp.desc()).first())
+        if trade is not None:
+            current_entry[symbol] = str(trade.order_id)
     protections = db.query(protection_model).all()
     for protection in protections:
         symbol, entry_id = protection.symbol, protection.entry_order_id
+        if symbol in positions and current_entry.get(symbol) != entry_id:
+            continue
         stop = orders.get(str(protection.protective_order_id))
         exit_row = db.get(exit_model, entry_id)
         if symbol in positions:

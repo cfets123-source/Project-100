@@ -43,6 +43,10 @@ def test_paper_target_exit_uses_the_paper_ledger_only():
                                target_price=106, position_size=.5, status='open'))
     db.add(models.ExternalPaperProtection(entry_order_id='paper-entry', symbol='QQQ', quantity=.5,
                                           stop_price=94, protective_order_id='paper-stop'))
+    db.add(TradeDecisionRecord(symbol='QQQ', strategy='old', direction='long', order_id='old-entry',
+                               fill_price=90, target_price=91, position_size=.5, status='closed'))
+    db.add(models.ExternalPaperProtection(entry_order_id='old-entry', symbol='QQQ', quantity=.5,
+                                          stop_price=85, protective_order_id='old-stop'))
     db.commit()
     adapter = MagicMock(paper=True)
     adapter.get_positions.return_value = [{'symbol': 'QQQ', 'qty': '.5'}]
