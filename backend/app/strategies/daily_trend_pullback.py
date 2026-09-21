@@ -1,0 +1,48 @@
+"""Runtime signal for the validated daily trend-pullback portfolio."""
+from __future__ import annotations
+
+import datetime as dt
+import uuid
+
+from app.research.daily_trend_portfolio import (
+    STOP_LOSS, STRATEGY_VERSION, TAKE_PROFIT, UNIVERSE, WARMUP_BARS,
+)
+
+
+class DailyTrendPullback:
+    """One-position, once-per-day selector matching the research hypothesis."""
+
+    name = STRATEGY_VERSION
+    universe = UNIVERSE
+
+    def portfolio_signal(self, adapter, symbols: list[str] | tuple[str, ...] | None = None) -> dict | None:
+        symbols = tuple(symbols or self.universe)
+        end = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT00:00:00Z")
+        start = (dt.datetime.now(dt.UTC) - dt.timedelta(days=180)).strftime("%Y-%m-%dT00:00:00Z")
+        candidates: list[tuple[float, str]] = []
+        for symbol in symbols:
+            bars = adapter.get_daily_bars(symbol, start, end)
+            if len(bars) < WARMUP_BARS:
+                continue
+            close = float(bars[-1]["close"])
+            sma50 = sum(float(row["close"]) for row in bars[-50:]) / 50
+            high5 = max(float(row["high"]) for row in bars[-5:])
+            pullback = close / high5 - 1
+            if close > sma50 and pullback <= -0.015:
+                candidates.append((pullback, symbol))
+        if not candidates:
+            return None
+        _, symbol = min(candidates)
+        quote = next((item for item in adapter.get_quotes([symbol]) if item.symbol == symbol), None)
+        if quote is None or quote.last <= 0:
+            return None
+        entry = quote.last
+        day = dt.datetime.now(dt.UTC).date().isoformat()
+        return {
+            "symbol": symbol, "direction": "long", "strategy": self.name,
+            "decision_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{self.name}:{day}:{symbol}")),
+            "entry_price": entry, "stop_price": round(entry * (1 - STOP_LOSS), 4),
+            "target_price": round(entry * (1 + TAKE_PROFIT), 4),
+            "thesis": "daily trend pullback above 50-day trend",
+            "ai_confidence": None,
+        }

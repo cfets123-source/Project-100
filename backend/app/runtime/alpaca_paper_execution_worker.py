@@ -3,10 +3,11 @@ import time
 from app.brokers.alpaca_connection import load_read_only_adapter, load_paper_execution_adapter
 from app.runtime.alpaca_paper_controller import evaluate_candidate
 from app.runtime.alpaca_paper_reconciler import run_reconciliation_cycle
-from app.strategies.test_dip_buy import TestDipBuyStrategy
+from app.strategies.daily_trend_pullback import DailyTrendPullback
 from app.audit.logger import log_and_commit
 from app.models.models import ExternalPaperRuntimeState
 from app.services.alpaca_paper_protection import ensure_protective_stops
+from app.research.strategy_validation import require_passing_validation
 
 
 def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None):
@@ -34,16 +35,26 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
         return {**reconciliation, **protection, 'entries': []}
     adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     if not paper: raise RuntimeError('paper worker refuses live credential')
-    strategy, entries = TestDipBuyStrategy(), []
-    for quote in adapter.get_quotes(symbols):
-        reference = references.setdefault(quote.symbol, quote.last)
-        signal = strategy.generate_signal(quote.symbol, {'last_price': quote.last, 'reference_price': reference})
-        if not signal: continue
-        context={'avg_dollar_volume':5_000_000, 'sector':'unclassified', 'open_position_count':0,
+    strategy, entries = DailyTrendPullback(), []
+    require_passing_validation(db, strategy.name)
+    scan_day=time.strftime('%Y-%m-%d', time.gmtime())
+    if state.payload.get('last_strategy_scan_day') == scan_day:
+        state.status='daily_scan_already_recorded'; db.commit()
+        return {**reconciliation, 'entries': [], 'reason': 'daily_scan_already_recorded'}
+    # Never create a second entry while the broker reports any open position.
+    positions = execution_adapter.get_positions()
+    if positions:
+        state.payload={**state.payload, 'references': references, 'last_strategy_scan_day': scan_day}
+        state.status='position_already_open'; db.commit()
+        return {**reconciliation, 'entries': [], 'reason': 'position_already_open'}
+    signal = strategy.portfolio_signal(adapter, symbols)
+    if signal:
+        context={'avg_dollar_volume':5_000_000, 'sector':'unclassified', 'open_position_count':len(positions),
                  'daily_pnl_pct':0.0, 'weekly_drawdown_pct':0.0, 'total_drawdown_pct':0.0}
         entries.append(evaluate_candidate(db, cfg, account_id, signal, context))
+    state.payload={**state.payload, 'references': references, 'last_strategy_scan_day': scan_day}
     log_and_commit(db, 'alpaca_paper_worker_cycle_completed', {'entry_count': len(entries)})
-    state.payload={**state.payload, 'references': references}; state.status='healthy'; db.commit()
+    state.status='healthy'; db.commit()
     return {**reconciliation, 'entries': entries, 'references': references, 'processed_at': time.time()}
 
 if __name__ == '__main__':
