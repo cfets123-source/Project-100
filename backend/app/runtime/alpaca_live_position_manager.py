@@ -56,12 +56,14 @@ def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str, mode: 
     return True
 
 
-def manage_external_positions(db, adapter, *, mode: str) -> dict:
+def manage_external_positions(db, adapter, *, mode: str,
+                              allow_legacy_target_exit: bool = False) -> dict:
     """Reconcile broker state and autonomously manage recorded broker positions.
 
-    A target order is idempotent through ``ExternalLiveExit``. The stop stays
-    live while that order is outstanding. It is cancelled only after the
-    broker reports the position flat, preventing an unprotected exit gap.
+    Broker-native bracket orders own normal target/stop management.  A
+    separate target-exit POST is therefore disabled by default for legacy
+    standalone-stop positions: retrying that path after a 429 only extends the
+    broker cooldown.  It remains opt-in for the bounded lifecycle harness.
     """
     if mode not in {"paper", "live"}:
         raise ValueError("mode must be paper or live")
@@ -73,7 +75,7 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
     positions = {str(p.get("symbol")): p for p in adapter.get_positions()
                  if float(p.get("qty") or 0) != 0}
     orders = {str(o.get("id")): o for o in adapter.get_orders()}
-    submitted, deferred, failed, closed, cancelled = [], [], [], [], []
+    submitted, deferred, failed, closed, cancelled, legacy_disabled = [], [], [], [], [], []
     # Alpaca aggregates lots by symbol. Project 100 permits one position per
     # symbol, so only the newest still-open recorded entry can manage it.
     # Historical lifecycle evidence must never generate another exit request.
@@ -102,6 +104,11 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
                 continue
             trade = _trade(db, entry_id)
             if trade is None or trade.target_price is None:
+                continue
+            if not allow_legacy_target_exit:
+                # Existing positions retain their broker-side stop. New
+                # entries are brackets, so no second target request is needed.
+                legacy_disabled.append({"symbol": symbol, "entry_order_id": entry_id})
                 continue
             if exit_row is not None:
                 broker_exit = orders.get(exit_row.exit_order_id)
@@ -165,12 +172,15 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
             log_and_commit(db, f"{event_prefix}_protective_stop_cancelled", cancelled[-1])
     return {"positions": sorted(positions), "target_exits_submitted": submitted,
             "target_exit_deferred": deferred, "target_exit_failures": failed,
-            "trades_closed": closed, "stops_cancelled": cancelled}
+            "trades_closed": closed, "stops_cancelled": cancelled,
+            "legacy_target_management_disabled": legacy_disabled}
 
 
-def manage_live_positions(db, adapter) -> dict:
-    return manage_external_positions(db, adapter, mode="live")
+def manage_live_positions(db, adapter, *, allow_legacy_target_exit: bool = False) -> dict:
+    return manage_external_positions(db, adapter, mode="live",
+                                     allow_legacy_target_exit=allow_legacy_target_exit)
 
 
-def manage_paper_positions(db, adapter) -> dict:
-    return manage_external_positions(db, adapter, mode="paper")
+def manage_paper_positions(db, adapter, *, allow_legacy_target_exit: bool = False) -> dict:
+    return manage_external_positions(db, adapter, mode="paper",
+                                     allow_legacy_target_exit=allow_legacy_target_exit)

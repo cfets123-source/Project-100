@@ -26,11 +26,11 @@ def test_target_exit_is_submitted_once_and_keeps_stop_while_position_open():
     adapter.get_quotes.return_value = [Quote('alpaca', 'SPY', 1, 0, 106, 106.1, 106.05, 'open')]
     adapter.place_order.return_value = OrderResult(order_id='exit-1', status='accepted')
 
-    result = manage_live_positions(db, adapter)
+    result = manage_live_positions(db, adapter, allow_legacy_target_exit=True)
 
     assert result['target_exits_submitted'][0]['exit_order_id'] == 'exit-1'
     assert adapter.cancel_order.call_count == 0
-    manage_live_positions(db, adapter)
+    manage_live_positions(db, adapter, allow_legacy_target_exit=True)
     assert adapter.place_order.call_count == 1
 
 
@@ -54,10 +54,33 @@ def test_paper_target_exit_uses_the_paper_ledger_only():
     adapter.get_quotes.return_value = [Quote('alpaca', 'QQQ', 1, 0, 106, 106.1, 106.05, 'open')]
     adapter.place_order.return_value = OrderResult(order_id='paper-exit', status='accepted')
 
-    result = manage_paper_positions(db, adapter)
+    result = manage_paper_positions(db, adapter, allow_legacy_target_exit=True)
 
     assert result['target_exits_submitted'][0]['exit_order_id'] == 'paper-exit'
     assert db.get(models.ExternalPaperExit, 'paper-entry').exit_order_id == 'paper-exit'
+
+
+def test_continuous_worker_does_not_retry_legacy_target_exit_requests():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(TradeDecisionRecord(symbol='LCID', strategy='legacy', direction='long',
+                               order_id='entry-legacy', fill_price=4.2,
+                               target_price=4.3, position_size=1, status='open'))
+    db.add(models.ExternalPaperProtection(entry_order_id='entry-legacy', symbol='LCID', quantity=1,
+                                          stop_price=4.1, protective_order_id='stop-legacy'))
+    db.commit()
+    adapter = MagicMock(paper=True)
+    adapter.get_positions.return_value = [{'symbol': 'LCID', 'qty': '1'}]
+    adapter.get_orders.return_value = [{'id': 'stop-legacy', 'symbol': 'LCID',
+                                        'status': 'accepted', 'type': 'stop'}]
+
+    result = manage_paper_positions(db, adapter)
+
+    assert result['legacy_target_management_disabled'] == [
+        {'symbol': 'LCID', 'entry_order_id': 'entry-legacy'}]
+    adapter.get_quotes.assert_not_called()
+    adapter.place_order.assert_not_called()
 
 
 def test_target_exit_broker_failure_keeps_stop_and_returns_safe_result():
@@ -76,12 +99,12 @@ def test_target_exit_broker_failure_keeps_stop_and_returns_safe_result():
     adapter.get_quotes.return_value = [Quote('alpaca', 'QQQ', 1, 0, 106, 106.1, 106.05, 'open')]
     adapter.place_order.side_effect = RuntimeError('rate limited')
 
-    result = manage_paper_positions(db, adapter)
+    result = manage_paper_positions(db, adapter, allow_legacy_target_exit=True)
 
     assert result['target_exit_failures'][0]['error'] == 'RuntimeError'
     adapter.cancel_order.assert_not_called()
     retry = db.get(models.ExternalTargetExitRetry, 'paper-entry')
     assert retry is not None
-    result = manage_paper_positions(db, adapter)
+    result = manage_paper_positions(db, adapter, allow_legacy_target_exit=True)
     assert result['target_exit_deferred'][0]['entry_order_id'] == 'paper-entry'
     assert adapter.place_order.call_count == 1

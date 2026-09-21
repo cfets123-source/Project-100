@@ -76,7 +76,7 @@ def run_once(db, cfg, symbol: str, strategy: str = "paper_lifecycle_verification
     # Normal strategy trades retain their strategy-derived target prices.
     decision.target_price = 0.01
     db.commit()
-    lifecycle = manage_paper_positions(db, adapter)
+    lifecycle = manage_paper_positions(db, adapter, allow_legacy_target_exit=True)
     if not lifecycle["target_exits_submitted"]:
         return {"passed": False, "reason": "target_exit_not_submitted", "protection": protection}
     exit_order_id = lifecycle["target_exits_submitted"][0]["exit_order_id"]
@@ -89,7 +89,7 @@ def run_once(db, cfg, symbol: str, strategy: str = "paper_lifecycle_verification
         return {"passed": False, "reason": "exit_not_filled", "order_id": exit_order_id}
     deadline = time.monotonic() + TIMEOUT_SECONDS
     while time.monotonic() < deadline:
-        completed = manage_paper_positions(db, adapter)
+        completed = manage_paper_positions(db, adapter, allow_legacy_target_exit=True)
         if completed["stops_cancelled"]:
             break
         time.sleep(POLL_SECONDS)
