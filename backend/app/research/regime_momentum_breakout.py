@@ -47,9 +47,10 @@ def _exposure(closed_returns: list[float], equity: float, peak: float) -> float:
     return min(1.0, TARGET_ANNUALIZED_TRADE_VOL / annualized_vol) if annualized_vol else 1.0
 
 
-def evaluate(data: dict[str, list[dict]], *, split: str) -> list[Trade]:
+def evaluate(data: dict[str, list[dict]], *, split: str,
+             symbols: tuple[str, ...] = UNIVERSE) -> list[Trade]:
     """One-position chronological research portfolio with no look-ahead."""
-    if set(data) != set(UNIVERSE):
+    if set(data) != set(symbols):
         raise ValueError("data must contain exactly the liquid momentum universe")
     dates, indexed = _aligned(data)
     if len(dates) <= REGIME_DAYS + MAX_HOLD_DAYS + 1:
@@ -87,7 +88,7 @@ def evaluate(data: dict[str, list[dict]], *, split: str) -> list[Trade]:
         if spy_close <= sum(float(row["close"]) for row in spy_rows) / REGIME_DAYS:
             continue
         candidates: list[tuple[float, str]] = []
-        for symbol in UNIVERSE:
+        for symbol in symbols:
             rows = [indexed[symbol][item] for item in dates[index - WARMUP_BARS:index + 1]]
             close = float(rows[-1]["close"])
             sma50 = sum(float(row["close"]) for row in rows[-50:]) / 50
