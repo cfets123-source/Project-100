@@ -20,6 +20,7 @@ from app.security.dashboard import (require_dashboard_access, dashboard_access_g
 from app.dashboard_html import DASHBOARD_HTML
 from app.services.live_readiness import report as live_readiness_report
 from app.audit.logger import log_and_commit
+from app.markets.capabilities import CapabilityRegistry
 
 initialize_schema(engine)
 
@@ -31,6 +32,12 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # keeps the display live while reserving API capacity for the execution worker.
 _live_portfolio_cache: dict[str, object] = {"expires_at": 0.0, "payload": None}
 _LIVE_PORTFOLIO_CACHE_SECONDS = 5.0
+
+
+@app.get("/market-capabilities", dependencies=[Depends(require_dashboard_access)])
+def market_capabilities():
+    """Public operator view of asset classes; this endpoint cannot enable one."""
+    return {"capabilities": CapabilityRegistry().report()}
 
 
 @app.get("/paper/status", dependencies=[Depends(require_dashboard_access)])
