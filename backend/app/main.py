@@ -233,7 +233,17 @@ def live_readiness(db: Session = Depends(get_db)):
         broker = alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
     except Exception:
         broker = {"read_only_ready": False, "paper": False}
-    return live_readiness_report(settings, broker, market_open=False, external_paper_lifecycle_verified=False)
+    # Only a recorded external-paper lifecycle counts here; a unit test or a
+    # favorable dashboard state cannot promote live execution.
+    evidence = (db.query(models.AuditLogEntry)
+                .filter(models.AuditLogEntry.event_type == "alpaca_paper_lifecycle_passed")
+                .order_by(models.AuditLogEntry.timestamp.desc()).first())
+    report = live_readiness_report(
+        settings, broker, market_open=False,
+        external_paper_lifecycle_verified=evidence is not None,
+    )
+    report["external_paper_lifecycle_evidence"] = evidence.payload if evidence else None
+    return report
 
 
 @app.get("/paper/execution-worker", dependencies=[Depends(require_dashboard_access)])
