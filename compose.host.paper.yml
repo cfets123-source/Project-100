@@ -24,7 +24,7 @@ services:
 
   alpaca-execution:
     build: .
-    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "SPY,QQQ,IWM,GLD,TLT", "--interval", "15"]
+    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "SPY,QQQ,IWM,GLD,TLT", "--interval", "60"]
     env_file: .env.host
     environment:
       DATABASE_URL: sqlite:////data/paper.db

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+import time
 
 import httpx
 
@@ -38,8 +39,15 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
     def _request(self, method: str, path: str, *, data_api: bool = False,
                  params: dict[str, Any] | None = None, json: dict[str, Any] | None = None) -> Any:
-        response = self.client.request(method, (self.DATA_BASE_URL if data_api else self.base_url) + path,
-                                       headers=self.headers, params=params, json=json)
+        url = (self.DATA_BASE_URL if data_api else self.base_url) + path
+        response = None
+        # A transient read throttling response must not turn into an order retry.
+        # Only idempotent GETs are retried, with a bounded delay.
+        for attempt in range(3):
+            response = self.client.request(method, url, headers=self.headers, params=params, json=json)
+            if method.upper() != "GET" or getattr(response, "status_code", None) != 429:
+                break
+            time.sleep(1.0 * (attempt + 1))
         try:
             response.raise_for_status()
             # Alpaca returns an empty successful response for DELETE /v2/orders.
