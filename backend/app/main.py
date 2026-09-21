@@ -15,6 +15,7 @@ from app.brokers import alpaca_connection
 from app.security.dashboard import require_dashboard_access
 from app.dashboard_html import DASHBOARD_HTML
 from app.services.live_readiness import report as live_readiness_report
+from app.audit.logger import log_and_commit
 
 initialize_schema(engine)
 
@@ -231,6 +232,11 @@ def live_readiness(db: Session = Depends(get_db)):
         # Live credentials are stored separately and are read-only here.  This
         # endpoint is a visibility gate, never an activation path.
         broker = alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
+        log_and_commit(db, "alpaca_live_read_only_verified", {
+            "read_only_ready": bool(broker.get("read_only_ready")),
+            "paper": bool(broker.get("paper")),
+            "verified_at": broker.get("verified_at"),
+        })
     except Exception:
         broker = {"read_only_ready": False, "paper": False}
     # Only a recorded external-paper lifecycle counts here; a unit test or a
