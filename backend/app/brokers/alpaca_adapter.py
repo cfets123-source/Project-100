@@ -112,7 +112,10 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         return self._request("GET", "/v2/clock")
 
     def get_orders(self) -> list[dict]:
-        return self._request("GET", "/v2/orders", params={"status": "all", "limit": 500})
+        # ``nested=true`` exposes bracket/OCO child legs.  Protection and
+        # reconciliation must see those broker-managed stops rather than
+        # mistaking a bracket position for an uncovered one.
+        return self._request("GET", "/v2/orders", params={"status": "all", "limit": 500, "nested": "true"})
 
     def preview_order(self, order: OrderRequest) -> dict:
         # Alpaca has no separate preview endpoint. The risk engine is the preview.
@@ -129,6 +132,12 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             payload["limit_price"] = str(order.limit_price)
         if order.stop_price is not None:
             payload["stop_price"] = str(order.stop_price)
+        if order.order_class is not None:
+            payload["order_class"] = order.order_class
+        if order.take_profit_price is not None:
+            payload["take_profit"] = {"limit_price": str(order.take_profit_price)}
+        if order.stop_loss_price is not None:
+            payload["stop_loss"] = {"stop_price": str(order.stop_loss_price)}
         raw = self._request("POST", "/v2/orders", json=payload)
         return OrderResult(order_id=str(raw["id"]), status=str(raw.get("status", "accepted")),
                            filled_qty=float(raw.get("filled_qty") or 0),

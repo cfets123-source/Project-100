@@ -24,6 +24,11 @@ class OrderRequest:
     limit_price: Optional[float] = None
     stop_price: Optional[float] = None
     time_in_force: str = "day"
+    # Broker-native contingent exits.  These remain optional so simulated and
+    # non-Alpaca adapters keep the same narrow order contract.
+    order_class: Optional[str] = None
+    take_profit_price: Optional[float] = None
+    stop_loss_price: Optional[float] = None
 
 
 @dataclass

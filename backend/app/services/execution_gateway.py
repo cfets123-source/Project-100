@@ -31,6 +31,7 @@ from app.schemas.signal import SignalSchema
 from app.risk.engine import RiskEngine, TradeProposal, RiskDecision
 from app.brokers.base import BrokerAdapter, OrderRequest, Quote
 from app.brokers.paper_broker import PaperBrokerAdapter
+from app.brokers.alpaca_adapter import AlpacaBrokerAdapter
 from app.models.models import OrderIntent, TradeDecisionRecord
 from app.audit.logger import log_and_commit
 from app.services.state_machine import StateManager, SHADOW, PAPER, LIVE
@@ -223,7 +224,20 @@ class ExecutionGateway:
             return GatewayResult(False, reason, trade_id=rec.trade_id)
 
         # --- 9. Broker submission — exceptions/uncertain outcomes never trigger a retry here ---
+        # Alpaca bracket orders create the entry, profit target, and protective
+        # stop in one broker request.  This avoids a follow-up sell submission
+        # immediately after a fill, which was the source of repeated 429s in
+        # the paper worker.  The broker's OCO relationship cancels the sibling
+        # leg when either exit fills.
         order = OrderRequest(symbol=signal.symbol, side=intent.side, quantity=decision.position_size)
+        if (isinstance(self.broker, AlpacaBrokerAdapter)
+                and signal.direction == "long"
+                and signal.target_price is not None
+                and signal.target_price > signal.stop_price
+                and signal.stop_price < signal.entry_price < signal.target_price):
+            order.order_class = "bracket"
+            order.take_profit_price = signal.target_price
+            order.stop_loss_price = signal.stop_price
         try:
             result = self.broker.place_order(order)
         except Exception as e:  # noqa: BLE001 — broker-side failure of unknown kind
