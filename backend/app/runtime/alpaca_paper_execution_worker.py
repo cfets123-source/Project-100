@@ -52,10 +52,16 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
         context={'avg_dollar_volume':5_000_000, 'sector':'unclassified', 'open_position_count':len(positions),
                  'daily_pnl_pct':0.0, 'weekly_drawdown_pct':0.0, 'total_drawdown_pct':0.0}
         entries.append(evaluate_candidate(db, cfg, account_id, signal, context))
+    else:
+        log_and_commit(db, 'alpaca_paper_worker_no_qualifying_signal', {
+            'strategy': strategy.name, 'symbols': list(symbols), 'scan_day': scan_day,
+        })
     state.payload={**state.payload, 'references': references, 'last_strategy_scan_day': scan_day}
     log_and_commit(db, 'alpaca_paper_worker_cycle_completed', {'entry_count': len(entries)})
     state.status='healthy'; db.commit()
-    return {**reconciliation, 'entries': entries, 'references': references, 'processed_at': time.time()}
+    return {**reconciliation, 'paper_execution_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED,
+            'strategy': strategy.name, 'signal_found': bool(signal), 'entries': entries,
+            'references': references, 'processed_at': time.time()}
 
 if __name__ == '__main__':
     # Service wiring is intentionally not self-activating; compose passes the
