@@ -1,4 +1,4 @@
-from app.research.etf_trend import LOOKBACK_TREND, run
+from app.research.etf_trend import CompletedTrade, LOOKBACK_TREND, non_overlapping_portfolio_returns, run
 
 
 def _bar(value, *, low=None, high=None):
@@ -19,3 +19,10 @@ def test_entry_is_next_open_and_stop_is_enforced():
 def test_open_trade_is_not_counted_as_result():
     bars = [_bar(100) for _ in range(LOOKBACK_TREND)] + [_bar(102, high=103), _bar(104)]
     assert run(bars, "SPY") == []
+
+
+def test_portfolio_does_not_compound_overlapping_positions():
+    first = CompletedTrade("SPY", 1, 4, "2024-01-01", "2024-01-04", .1, .09, "exit")
+    overlap = CompletedTrade("QQQ", 2, 3, "2024-01-02", "2024-01-03", .5, .49, "exit")
+    later = CompletedTrade("IWM", 5, 7, "2024-01-05", "2024-01-07", -.1, -.11, "exit")
+    assert non_overlapping_portfolio_returns([overlap, later, first]) == [.09, -.11]

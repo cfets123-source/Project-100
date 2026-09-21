@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from app.brokers.alpaca_connection import load_read_only_adapter
 from app.core.config import Settings
 from app.db.session import Base
-from app.research.etf_trend import STRATEGY_VERSION, UNIVERSE, run
+from app.research.etf_trend import STRATEGY_VERSION, UNIVERSE, run, non_overlapping_portfolio_returns
 from app.research.strategy_validation import assess_out_of_sample, record_validation
 
 
@@ -45,11 +45,12 @@ def main() -> int:
         adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, paper=True)
         if not paper:
             raise RuntimeError("research requires paper/read-only data credential")
-        returns = []
+        post_split_trades = []
         for symbol in UNIVERSE:
             bars = adapter.get_daily_bars(symbol, args.start, args.end)
             split_index = next((i for i, row in enumerate(bars) if row["timestamp"] >= args.split), len(bars))
-            returns.extend(trade.net_return for trade in run(bars, symbol) if trade.entry_index >= split_index)
+            post_split_trades.extend(trade for trade in run(bars, symbol) if trade.entry_index >= split_index)
+        returns = non_overlapping_portfolio_returns(post_split_trades)
         result = assess_out_of_sample(returns)
         record_validation(db, strategy=STRATEGY_VERSION, result=result,
                           sample_start=dt.datetime.fromisoformat(args.split.replace("Z", "+00:00")),

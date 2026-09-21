@@ -23,6 +23,8 @@ class CompletedTrade:
     symbol: str
     entry_index: int
     exit_index: int
+    entry_timestamp: str
+    exit_timestamp: str
     gross_return: float
     net_return: float
     exit_reason: str
@@ -52,14 +54,16 @@ def run(bars: list[dict], symbol: str) -> list[CompletedTrade]:
             pending_entry = False
         elif pending_exit and position:
             gross = float(bar["open"]) / position["entry"] - 1
-            completed.append(CompletedTrade(symbol, position["entry_index"], index, gross,
+            completed.append(CompletedTrade(symbol, position["entry_index"], index,
+                                            bars[position["entry_index"]]["timestamp"], bar["timestamp"], gross,
                                             gross - ROUND_TRIP_COST, "trend_exit"))
             position, pending_exit = None, False
 
         if position:
             if float(bar["low"]) <= position["stop"]:
                 gross = position["stop"] / position["entry"] - 1
-                completed.append(CompletedTrade(symbol, position["entry_index"], index, gross,
+                completed.append(CompletedTrade(symbol, position["entry_index"], index,
+                                                bars[position["entry_index"]]["timestamp"], bar["timestamp"], gross,
                                                 gross - ROUND_TRIP_COST, "protective_stop"))
                 position = None
             elif index >= EXIT_LOOKBACK:
@@ -76,3 +80,20 @@ def run(bars: list[dict], symbol: str) -> list[CompletedTrade]:
         if float(bar["close"]) > trend and float(bar["close"]) > breakout:
             pending_entry = True
     return completed
+
+
+def non_overlapping_portfolio_returns(trades: list[CompletedTrade]) -> list[float]:
+    """One-account result series: fixed timestamp/symbol ordering, no overlap.
+
+    The account cannot hold simultaneous positions under this research protocol.
+    Sorting by symbol is only a deterministic tie-breaker for same-day signals;
+    it is fixed here before any pass/fail decision.
+    """
+    returns: list[float] = []
+    next_entry_allowed = ""
+    for trade in sorted(trades, key=lambda item: (item.entry_timestamp, item.symbol)):
+        if trade.entry_timestamp < next_entry_allowed:
+            continue
+        returns.append(trade.net_return)
+        next_entry_allowed = trade.exit_timestamp
+    return returns
