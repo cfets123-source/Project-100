@@ -8,6 +8,12 @@ from app.research.daily_trend_portfolio import (
     STOP_LOSS, STRATEGY_VERSION, TAKE_PROFIT, UNIVERSE, WARMUP_BARS,
 )
 
+BROAD_STRATEGY_VERSION = "daily-trend-pullback-broad-equity-etf-v1"
+BROAD_UNIVERSE = UNIVERSE + (
+    "AAPL", "AMD", "AMZN", "AVGO", "BRK.B", "COST", "GOOGL", "JPM", "LLY", "META",
+    "MSFT", "NFLX", "NVDA", "ORCL", "PANW", "PLTR", "TSLA", "UNH", "V", "WMT",
+)
+
 
 class DailyTrendPullback:
     """One-position, once-per-day selector matching the research hypothesis."""
@@ -46,3 +52,9 @@ class DailyTrendPullback:
             "thesis": "daily trend pullback above 50-day trend",
             "ai_confidence": None,
         }
+
+
+class BroadDailyTrendPullback(DailyTrendPullback):
+    """The independently validated broad liquid-equity and ETF variant."""
+    name = BROAD_STRATEGY_VERSION
+    universe = BROAD_UNIVERSE

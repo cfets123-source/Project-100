@@ -1,4 +1,4 @@
-from app.strategies.daily_trend_pullback import DailyTrendPullback
+from app.strategies.daily_trend_pullback import BroadDailyTrendPullback, DailyTrendPullback
 
 
 class _Adapter:
@@ -19,3 +19,10 @@ def test_daily_strategy_uses_current_quote_and_stable_daily_id():
     assert first["symbol"] == "SPY"
     assert first["entry_price"] == 100.5
     assert first["decision_id"] == second["decision_id"]
+
+
+def test_broad_variant_has_an_independent_version_and_larger_universe():
+    strategy = BroadDailyTrendPullback()
+    assert strategy.name == "daily-trend-pullback-broad-equity-etf-v1"
+    assert "AMD" in strategy.universe
+    assert len(strategy.universe) > len(DailyTrendPullback().universe)

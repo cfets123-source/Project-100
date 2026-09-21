@@ -12,11 +12,12 @@ from app.brokers.alpaca_adapter import AlpacaBrokerError
 from app.runtime.alpaca_live_position_manager import manage_paper_positions, reconcile_broker_bracket_exits
 
 
-def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None):
+def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None,
+              strategy: DailyTrendPullback | None = None, state_id: str = "alpaca-paper-1"):
     """Run one guarded paper cycle with durable reference-price state."""
-    state = db.get(ExternalPaperRuntimeState, "alpaca-paper-1")
+    state = db.get(ExternalPaperRuntimeState, state_id)
     if state is None:
-        state = ExternalPaperRuntimeState(id="alpaca-paper-1", payload={"references": {}}, heartbeat=time.time(), status="waiting")
+        state = ExternalPaperRuntimeState(id=state_id, payload={"references": {}}, heartbeat=time.time(), status="waiting")
         db.add(state); db.commit()
     references = references if references is not None else dict(state.payload.get("references", {}))
     state.heartbeat = time.time(); state.status = "running"; db.commit()
@@ -49,7 +50,7 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     bracket_reconciliation = reconcile_broker_bracket_exits(db, execution_adapter, mode="paper")
     adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     if not paper: raise RuntimeError('paper worker refuses live credential')
-    strategy, entries = DailyTrendPullback(), []
+    strategy, entries = strategy or DailyTrendPullback(), []
     require_passing_validation(db, strategy.name)
     scan_day=time.strftime('%Y-%m-%d', time.gmtime())
     if state.payload.get('last_strategy_scan_day') == scan_day:
