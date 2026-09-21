@@ -8,6 +8,7 @@ from app.audit.logger import log_and_commit
 from app.models.models import ExternalPaperRuntimeState
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.research.strategy_validation import require_passing_validation
+from app.brokers.alpaca_adapter import AlpacaBrokerError
 
 
 def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None):
@@ -19,7 +20,17 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     references = references if references is not None else dict(state.payload.get("references", {}))
     state.heartbeat = time.time(); state.status = "running"; db.commit()
     log_and_commit(db, 'alpaca_paper_worker_cycle_started', {'symbols': symbols})
-    reconciliation = run_reconciliation_cycle(db, cfg, symbols)
+    try:
+        reconciliation = run_reconciliation_cycle(db, cfg, symbols)
+    except AlpacaBrokerError as exc:
+        # A broker throttle is external and temporary.  Do not restart-loop or
+        # create an entry while account/position state is unavailable.
+        state.status = 'broker_rate_limited'
+        state.payload = {**state.payload, 'references': references,
+                         'last_broker_error': type(exc).__name__}
+        db.commit()
+        log_and_commit(db, 'alpaca_paper_worker_rate_limited', {'error': type(exc).__name__})
+        return {'entries': [], 'reason': 'broker_rate_limited', 'processed_at': time.time()}
     if not reconciliation['market_open'] or not cfg.ALPACA_PAPER_EXECUTION_ENABLED:
         log_and_commit(db, 'alpaca_paper_worker_entries_blocked', {'market_open': reconciliation['market_open'], 'paper_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED})
         state.payload={**state.payload, 'references': references}; state.status='blocked'; db.commit()
