@@ -23,7 +23,8 @@ from app.audit.logger import log_and_commit
 from app.markets.capabilities import CapabilityRegistry
 from app.markets.account_capabilities import account_approval_report
 from app.markets.options_research import assess_option_chain
-from app.runtime.market_research_worker import run_scan as run_market_research_scan
+from app.runtime.market_research_worker import (run_scan as run_market_research_scan,
+                                                run_equity_scan as run_equity_research_scan)
 
 initialize_schema(engine)
 
@@ -92,6 +93,23 @@ def run_market_scan(db: Session = Depends(get_db)):
     if not paper:
         raise HTTPException(status_code=409, detail="research scanner requires paper/read-only data credential")
     return {"scan": {"ranked": run_market_research_scan(db, adapter)}}
+
+
+@app.get("/research/equity-scan", dependencies=[Depends(require_dashboard_access)])
+def latest_equity_scan(db: Session = Depends(get_db)):
+    event = (db.query(models.AuditLogEntry)
+             .filter(models.AuditLogEntry.event_type == "equity_research_scan_recorded")
+             .order_by(models.AuditLogEntry.timestamp.desc()).first())
+    return {"scan": event.payload if event else None}
+
+
+@app.post("/research/equity-scan", dependencies=[Depends(require_dashboard_access)])
+def run_equity_scan(db: Session = Depends(get_db)):
+    """Read-only liquid U.S. equity scan; it has no execution route."""
+    adapter, paper = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    if not paper:
+        raise HTTPException(status_code=409, detail="research scanner requires paper/read-only data credential")
+    return {"scan": {"ranked": run_equity_research_scan(db, adapter)}}
 
 
 @app.get("/paper/status", dependencies=[Depends(require_dashboard_access)])
