@@ -39,6 +39,10 @@ services:
 
   alpaca-monitor:
     build: .
+    # The execution worker already runs this monitor/reconciliation cycle.
+    # Keep this separate process opt-in for diagnostics so it cannot double
+    # Alpaca API traffic during autonomous paper execution.
+    profiles: ["diagnostic-monitor"]
     command: ["python", "-m", "app.runtime.alpaca_monitor_worker", "--database", "sqlite:////data/paper.db", "--symbols", "${ALPACA_MONITOR_SYMBOLS:-AAPL,MSFT}", "--interval", "${ALPACA_MONITOR_INTERVAL_SECONDS:-15}"]
     env_file: .env.host
     environment:
