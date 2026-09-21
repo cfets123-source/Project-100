@@ -24,7 +24,9 @@ services:
 
   alpaca-execution:
     build: .
-    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "SPY,QQQ,IWM,GLD,TLT", "--interval", "60"]
+    # One cycle every three minutes avoids exhausting the broker budget while
+    # a protected position is waiting for a target-exit retry.
+    command: ["python", "-m", "app.runtime.alpaca_paper_execution_worker", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--symbols", "SPY,QQQ,IWM,GLD,TLT", "--interval", "180"]
     env_file: .env.host
     environment:
       DATABASE_URL: sqlite:////data/paper.db

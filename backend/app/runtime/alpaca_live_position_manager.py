@@ -129,11 +129,11 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
                 failed.append(failure)
                 if retry is None:
                     retry = ExternalTargetExitRetry(entry_order_id=entry_id, mode=mode,
-                                                     retry_after=time.time() + 120.0, failures=1)
+                                                     retry_after=time.time() + 180.0, failures=1)
                     db.add(retry)
                 else:
                     retry.failures += 1
-                    retry.retry_after = time.time() + min(600.0, 120.0 * retry.failures)
+                    retry.retry_after = time.time() + min(900.0, 180.0 * retry.failures)
                 db.commit()
                 log_and_commit(db, f"{event_prefix}_target_exit_failed", failure)
                 continue
