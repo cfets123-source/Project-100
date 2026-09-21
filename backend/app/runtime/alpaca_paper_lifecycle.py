@@ -23,7 +23,7 @@ POLL_SECONDS = 2.0
 TIMEOUT_SECONDS = 30.0
 
 
-def run_once(db, cfg, symbol: str) -> dict:
+def run_once(db, cfg, symbol: str, strategy: str = "paper_lifecycle_verification") -> dict:
     if not cfg.ALPACA_PAPER_EXECUTION_ENABLED:
         return {"passed": False, "reason": "paper_execution_gate_disabled"}
     adapter = load_paper_execution_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, enabled=True)
@@ -37,12 +37,20 @@ def run_once(db, cfg, symbol: str) -> dict:
     if quote.ask > MAX_NOTIONAL:
         return {"passed": False, "reason": "symbol_exceeds_bounded_notional"}
 
-    decision = TradeDecisionRecord(symbol=symbol, direction="long", strategy="paper_lifecycle_verification",
+    decision = TradeDecisionRecord(symbol=symbol, direction="long", strategy=strategy,
                                    entry_price=quote.ask, stop_price=round(quote.ask * 0.98, 2),
                                    target_price=round(quote.ask * 1.01, 2), position_size=1.0,
                                    status="proposed")
     db.add(decision); db.commit()
-    result = adapter.place_order(OrderRequest(symbol=symbol, side="buy", quantity=1, order_type="market"))
+    try:
+        result = adapter.place_order(OrderRequest(symbol=symbol, side="buy", quantity=1, order_type="market"))
+    except Exception as exc:
+        decision.status = "rejected"
+        db.commit()
+        log_and_commit(db, "alpaca_paper_lifecycle_failed",
+                       {"step": "entry_submission", "error": type(exc).__name__})
+        return {"passed": False, "reason": "entry_submission_failed",
+                "error": type(exc).__name__}
     decision.order_id = result.order_id; db.commit()
     log_and_commit(db, "alpaca_paper_lifecycle_entry", {"symbol": symbol, "order_id": result.order_id})
 
