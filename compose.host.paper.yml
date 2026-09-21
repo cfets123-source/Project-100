@@ -61,7 +61,7 @@ services:
 
   alpaca-live:
     build: .
-    command: ["python", "-c", "from app.runtime.alpaca_live_worker import run_cycle; from app.db.session import SessionLocal; from app.core.config import Settings; db=SessionLocal(); print(run_cycle(db, Settings()))"]
+    command: ["python", "-m", "app.runtime.alpaca_live_worker", "--database", "sqlite:////data/paper.db", "--interval", "60"]
     profiles: ["live"]
     env_file: .env.host
     environment:

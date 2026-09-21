@@ -225,10 +225,30 @@ class ExternalPaperRuntimeState(Base):
     heartbeat = Column(Float, nullable=False)
     status = Column(String, nullable=False, default="waiting")
 
+class StrategyScheduleState(Base):
+    __tablename__ = "strategy_schedule_state"
+    id = Column(String, primary_key=True)
+    last_decision_month = Column(String, nullable=True)
+
 
 class ExternalPaperProtection(Base):
     """One broker-side stop bound to the exact filled external entry order."""
     __tablename__ = "external_paper_protections"
+    entry_order_id = Column(String, primary_key=True)
+    symbol = Column(String, nullable=False, index=True)
+    quantity = Column(Float, nullable=False)
+    stop_price = Column(Float, nullable=False)
+    protective_order_id = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class ExternalLiveProtection(Base):
+    """Live-account stop bound to the precise broker entry order.
+
+    This ledger is intentionally separate from paper evidence so an old paper
+    stop can never be mistaken for a live position's protection.
+    """
+    __tablename__ = "external_live_protections"
     entry_order_id = Column(String, primary_key=True)
     symbol = Column(String, nullable=False, index=True)
     quantity = Column(Float, nullable=False)

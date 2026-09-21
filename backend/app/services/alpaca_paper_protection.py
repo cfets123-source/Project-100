@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
-from app.models.models import ExternalPaperProtection, TradeDecisionRecord
+from app.models.models import ExternalLiveProtection, ExternalPaperProtection, TradeDecisionRecord
 from app.services.protective_order_verification import verify_protective_orders
 from app.services.state_machine import StateManager
 
@@ -37,15 +37,25 @@ def _entry_for_position(db, adapter, symbol: str, quantity: float) -> tuple[str,
     return str(decision.order_id), float(decision.stop_price)
 
 
-def ensure_protective_stops(db, adapter, cfg) -> dict:
-    """Place a sell stop for each unprotected long paper position.
+def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
+    """Place or renew a sell stop for every externally held long position.
 
     The caller must have constructed ``adapter`` through the paper-only,
     execution-gated factory.  Failure halts the system before another entry can
     be considered; this function never applies to a live credential.
     """
-    if not getattr(adapter, "paper", False):
-        raise RuntimeError("protective-stop manager refuses live adapter")
+    if mode not in {"paper", "live"}:
+        raise ValueError("protective-stop mode must be paper or live")
+    if mode == "paper" and not getattr(adapter, "paper", False):
+        raise RuntimeError("paper protective-stop manager refuses live adapter")
+    if mode == "live":
+        if getattr(adapter, "paper", True):
+            raise RuntimeError("live protective-stop manager refuses paper adapter")
+        allowed, reason = StateManager(db, cfg).live_broker_mutation_allowed()
+        if not allowed:
+            raise RuntimeError(f"live protective-stop manager blocked: {reason}")
+    ledger = ExternalPaperProtection if mode == "paper" else ExternalLiveProtection
+    event_prefix = f"alpaca_{mode}_protective_stop"
     check = verify_protective_orders(adapter)
     placed: list[dict] = []
     state = StateManager(db, cfg)
@@ -61,37 +71,39 @@ def ensure_protective_stops(db, adapter, cfg) -> dict:
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "missing_recorded_stop"}
         entry_order_id, stop_price = entry
-        recorded = db.get(ExternalPaperProtection, entry_order_id)
-        if recorded is not None:
-            # The verification result above says it is not currently protected;
-            # do not silently create a second stop for the same entry.
-            state.activate_kill_switch(f"paper recorded stop missing at broker: {symbol}")
-            log_and_commit(db, "alpaca_paper_protective_stop_failed",
-                           {"symbol": symbol, "reason": "recorded_stop_missing_at_broker",
-                            "entry_order_id": entry_order_id})
-            return {"protected": False, "placed": placed, "failed": symbol,
-                    "reason": "recorded_stop_missing_at_broker"}
+        recorded = db.get(ledger, entry_order_id)
         try:
             result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=quantity,
                                                        order_type="stop", stop_price=stop_price,
-                                                       time_in_force="gtc"))
+                                                       # Alpaca fractional stops are DAY orders; the worker
+                                                       # renews and verifies them on every market-session cycle.
+                                                       time_in_force="day"))
         except Exception as exc:  # A broker uncertainty is a halt, not a retry.
-            state.activate_kill_switch(f"paper protective stop failed: {symbol}")
-            log_and_commit(db, "alpaca_paper_protective_stop_failed",
+            state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
+            log_and_commit(db, f"{event_prefix}_failed",
                            {"symbol": symbol, "reason": type(exc).__name__})
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "broker_error"}
         if result.status not in {"new", "pending_new", "accepted", "pending", "open"} or not result.order_id:
-            state.activate_kill_switch(f"paper protective stop rejected: {symbol}")
-            log_and_commit(db, "alpaca_paper_protective_stop_failed",
+            state.activate_kill_switch(f"{mode} protective stop rejected: {symbol}")
+            log_and_commit(db, f"{event_prefix}_failed",
                            {"symbol": symbol, "reason": "rejected", "status": result.status})
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "rejected"}
-        placed.append({"symbol": symbol, "order_id": result.order_id, "stop_price": stop_price})
-        db.add(ExternalPaperProtection(entry_order_id=entry_order_id, symbol=symbol,
-                                       quantity=quantity, stop_price=stop_price,
-                                       protective_order_id=result.order_id))
+        item = {"symbol": symbol, "order_id": result.order_id, "stop_price": stop_price,
+                "entry_order_id": entry_order_id}
+        placed.append(item)
+        if recorded is None:
+            db.add(ledger(entry_order_id=entry_order_id, symbol=symbol, quantity=quantity,
+                          stop_price=stop_price, protective_order_id=result.order_id))
+            event = f"{event_prefix}_placed"
+        else:
+            # Fractional Alpaca stops are DAY orders.  After expiry, retain the
+            # exact entry binding while replacing only the broker stop id.
+            recorded.quantity, recorded.stop_price = quantity, stop_price
+            recorded.protective_order_id = result.order_id
+            event = f"{event_prefix}_renewed"
         db.commit()
-        log_and_commit(db, "alpaca_paper_protective_stop_placed", placed[-1])
+        log_and_commit(db, event, item)
     verified = verify_protective_orders(adapter)
     return {**verified, "placed": placed}

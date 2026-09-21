@@ -38,7 +38,7 @@ def test_places_alpaca_stop_for_unprotected_filled_position():
     assert result['protected'] is True
     submitted = adapter.place_order.call_args.args[0]
     assert submitted.order_type == 'stop' and submitted.stop_price == 90.0
-    assert submitted.time_in_force == 'gtc'
+    assert submitted.time_in_force == 'day'
 
 
 def test_missing_recorded_stop_halts_before_more_entries():

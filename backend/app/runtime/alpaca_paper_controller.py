@@ -18,6 +18,12 @@ def evaluate_candidate(db, cfg, designated_account_id, signal, risk_context):
     adapter = load_paper_execution_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY,
                                            enabled=cfg.ALPACA_PAPER_EXECUTION_ENABLED)
     balances = check['account']['balances']
+    # Alpaca paper accounts default to $100k. Project 100 paper validation
+    # must instead size from the configured dedicated starting capital.
+    effective_equity = min(float(balances['equity']), float(cfg.STARTING_CAPITAL))
+    # The strategy can only deploy the configured fraction of its own capital,
+    # never the broker's paper buying power.
+    effective_buying_power = min(float(balances['buying_power']), effective_equity * cfg.MAX_POSITION_PCT)
     return ExecutionGateway(db, adapter, RiskEngine(cfg), StateManager(db, cfg), designated_account_id,
                             market_data=None).submit(signal, designated_account_id, quote, risk_context,
-                                                       float(balances['equity']), float(balances['buying_power'])).__dict__
+                                                       effective_equity, effective_buying_power).__dict__
