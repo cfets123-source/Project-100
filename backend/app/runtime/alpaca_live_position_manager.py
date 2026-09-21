@@ -117,6 +117,13 @@ def manage_external_positions(db, adapter, *, mode: str,
                     db.commit()
                 continue
             retry = db.get(ExternalTargetExitRetry, entry_id)
+            # A failed fractional/simple target close is deliberately terminal
+            # for automation.  The active stop remains at the broker; the
+            # worker never hammers a second close request into a 429 window.
+            if retry is not None and retry.failures < 0:
+                legacy_disabled.append({"symbol": symbol, "entry_order_id": entry_id,
+                                        "reason": "target_exit_already_failed"})
+                continue
             if retry is not None and retry.retry_after > time.time():
                 deferred.append({"symbol": symbol, "entry_order_id": entry_id,
                                  "retry_after": retry.retry_after})
@@ -136,11 +143,11 @@ def manage_external_positions(db, adapter, *, mode: str,
                 failed.append(failure)
                 if retry is None:
                     retry = ExternalTargetExitRetry(entry_order_id=entry_id, mode=mode,
-                                                     retry_after=time.time() + 180.0, failures=1)
+                                                     retry_after=time.time(), failures=-1)
                     db.add(retry)
                 else:
-                    retry.failures += 1
-                    retry.retry_after = time.time() + min(900.0, 180.0 * retry.failures)
+                    retry.failures = -1
+                    retry.retry_after = time.time()
                 db.commit()
                 log_and_commit(db, f"{event_prefix}_target_exit_failed", failure)
                 continue
@@ -184,3 +191,33 @@ def manage_live_positions(db, adapter, *, allow_legacy_target_exit: bool = False
 def manage_paper_positions(db, adapter, *, allow_legacy_target_exit: bool = False) -> dict:
     return manage_external_positions(db, adapter, mode="paper",
                                      allow_legacy_target_exit=allow_legacy_target_exit)
+
+
+def reconcile_broker_bracket_exits(db, adapter, *, mode: str) -> dict:
+    """Close trade records from broker-owned bracket legs without a mutation.
+
+    Alpaca exposes a bracket's child orders through ``nested=true``.  The
+    target limit and stop legs are mutually exclusive at the broker, so this
+    is the authoritative source for a completed exit.
+    """
+    if mode not in {"paper", "live"}:
+        raise ValueError("mode must be paper or live")
+    orders = adapter.get_orders()
+    by_id = {str(order.get("id")): order for order in orders}
+    closed = []
+    trades = db.query(TradeDecisionRecord).filter(
+        TradeDecisionRecord.status == "open", TradeDecisionRecord.order_id.isnot(None)
+    ).all()
+    for trade in trades:
+        parent = by_id.get(str(trade.order_id), {})
+        legs = parent.get("legs") or [order for order in orders
+                                       if str(order.get("parent_order_id")) == str(trade.order_id)]
+        for leg in legs:
+            if str(leg.get("status")) not in FILLED:
+                continue
+            reason = "target_hit" if str(leg.get("type")) == "limit" else "stop_hit"
+            if _finish_trade(db, str(trade.order_id), leg, reason, mode):
+                closed.append({"symbol": trade.symbol, "entry_order_id": str(trade.order_id),
+                               "exit_order_id": str(leg.get("id")), "reason": reason})
+            break
+    return {"bracket_trades_closed": closed}

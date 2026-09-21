@@ -104,7 +104,30 @@ def test_target_exit_broker_failure_keeps_stop_and_returns_safe_result():
     assert result['target_exit_failures'][0]['error'] == 'RuntimeError'
     adapter.cancel_order.assert_not_called()
     retry = db.get(models.ExternalTargetExitRetry, 'paper-entry')
-    assert retry is not None
+    assert retry is not None and retry.failures == -1
     result = manage_paper_positions(db, adapter, allow_legacy_target_exit=True)
-    assert result['target_exit_deferred'][0]['entry_order_id'] == 'paper-entry'
+    assert result['legacy_target_management_disabled'][0]['entry_order_id'] == 'paper-entry'
     assert adapter.place_order.call_count == 1
+
+
+def test_reconciles_filled_broker_bracket_target_into_closed_trade():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    trade = TradeDecisionRecord(symbol='LCID', strategy='daily-trend-pullback-portfolio-v1',
+                                direction='long', order_id='entry-bracket', fill_price=4.2,
+                                target_price=4.3, position_size=1, risk_dollars=.1, status='open')
+    db.add(trade); db.commit()
+    adapter = MagicMock(paper=True)
+    adapter.get_orders.return_value = [{
+        'id': 'entry-bracket', 'legs': [
+            {'id': 'target-leg', 'type': 'limit', 'status': 'filled',
+             'filled_qty': '1', 'filled_avg_price': '4.3'},
+            {'id': 'stop-leg', 'type': 'stop', 'status': 'canceled'},
+        ],
+    }]
+    from app.runtime.alpaca_live_position_manager import reconcile_broker_bracket_exits
+    result = reconcile_broker_bracket_exits(db, adapter, mode='paper')
+
+    assert result['bracket_trades_closed'][0]['reason'] == 'target_hit'
+    assert trade.status == 'closed' and trade.exit_price == 4.3

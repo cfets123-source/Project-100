@@ -7,7 +7,7 @@ from app.services.state_machine import StateManager
 from app.risk.engine import RiskEngine
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.audit.logger import log_and_commit
-from app.runtime.alpaca_live_position_manager import manage_live_positions
+from app.runtime.alpaca_live_position_manager import manage_live_positions, reconcile_broker_bracket_exits
 
 LIVE_SYMBOLS=("SPY","QQQ","IWM","GLD","TLT")
 
@@ -24,17 +24,20 @@ def run_cycle(db, cfg):
     if not protection.get('protected'):
         StateManager(db,cfg).activate_kill_switch('live position lacks verified protective stop')
         return {"started": True, "entries": [], "protection": protection}
-    lifecycle = manage_live_positions(db, adapter)
+    lifecycle = manage_live_positions(db, adapter, allow_legacy_target_exit=True)
+    bracket_reconciliation = reconcile_broker_bracket_exits(db, adapter, mode="live")
     positions = adapter.get_positions()
     if positions:
         return {"started": True, "entries": [], "reason": "position_already_open",
-                "protection": protection, "lifecycle": lifecycle}
+                "protection": protection, "lifecycle": lifecycle,
+                "bracket_reconciliation": bracket_reconciliation}
     strategy=DailyTrendPullback()
     signal=strategy.portfolio_signal(adapter, LIVE_SYMBOLS)
     if not signal:
         log_and_commit(db, "alpaca_live_worker_no_qualifying_signal", {"strategy": strategy.name})
         return {"started": True, "entries": [], "reason": "no_qualifying_signal",
-                "protection": protection, "lifecycle": lifecycle}
+                "protection": protection, "lifecycle": lifecycle,
+                "bracket_reconciliation": bracket_reconciliation}
     quote=adapter.get_quotes([signal['symbol']])[0]
     balances=adapter.get_balances(); equity=min(float(balances['equity']), float(cfg.STARTING_CAPITAL))
     account_id=str(adapter.get_accounts()[0]['account_id'])
@@ -45,7 +48,8 @@ def run_cycle(db, cfg):
         equity, min(float(balances['buying_power']), equity*cfg.MAX_POSITION_PCT))
     log_and_commit(db, "alpaca_live_worker_cycle_completed", {"strategy": strategy.name,
                    "submitted": result.submitted, "reason": result.reason, "trade_id": result.trade_id})
-    return {"started": True, **result.__dict__, "protection": protection, "lifecycle": lifecycle}
+    return {"started": True, **result.__dict__, "protection": protection, "lifecycle": lifecycle,
+            "bracket_reconciliation": bracket_reconciliation}
 
 
 if __name__ == '__main__':
