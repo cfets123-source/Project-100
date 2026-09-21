@@ -80,3 +80,8 @@ def test_target_exit_broker_failure_keeps_stop_and_returns_safe_result():
 
     assert result['target_exit_failures'][0]['error'] == 'RuntimeError'
     adapter.cancel_order.assert_not_called()
+    retry = db.get(models.ExternalTargetExitRetry, 'paper-entry')
+    assert retry is not None
+    result = manage_paper_positions(db, adapter)
+    assert result['target_exit_deferred'][0]['entry_order_id'] == 'paper-entry'
+    assert adapter.place_order.call_count == 1

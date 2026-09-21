@@ -1,11 +1,12 @@
 """Broker-reconciled live position management after the final worker gate."""
 from __future__ import annotations
+import time
 
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
 from app.models.models import (ExternalLiveExit, ExternalLiveProtection,
                                ExternalPaperExit, ExternalPaperProtection,
-                               OrderIntent, RiskReservation, TradeDecisionRecord)
+                               ExternalTargetExitRetry, OrderIntent, RiskReservation, TradeDecisionRecord)
 
 OPEN = {"new", "pending_new", "accepted", "pending", "open"}
 FILLED = {"filled", "partially_filled", "partial"}
@@ -72,7 +73,7 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
     positions = {str(p.get("symbol")): p for p in adapter.get_positions()
                  if float(p.get("qty") or 0) != 0}
     orders = {str(o.get("id")): o for o in adapter.get_orders()}
-    submitted, failed, closed, cancelled = [], [], [], []
+    submitted, deferred, failed, closed, cancelled = [], [], [], [], []
     # Alpaca aggregates lots by symbol. Project 100 permits one position per
     # symbol, so only the newest still-open recorded entry can manage it.
     # Historical lifecycle evidence must never generate another exit request.
@@ -108,6 +109,11 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
                     exit_row.status = str(broker_exit.get("status"))
                     db.commit()
                 continue
+            retry = db.get(ExternalTargetExitRetry, entry_id)
+            if retry is not None and retry.retry_after > time.time():
+                deferred.append({"symbol": symbol, "entry_order_id": entry_id,
+                                 "retry_after": retry.retry_after})
+                continue
             quote = next((q for q in adapter.get_quotes([symbol]) if q.symbol == symbol), None)
             if quote is None or quote.last < float(trade.target_price):
                 continue
@@ -121,6 +127,14 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
                 failure = {"symbol": symbol, "entry_order_id": entry_id,
                            "error": type(exc).__name__}
                 failed.append(failure)
+                if retry is None:
+                    retry = ExternalTargetExitRetry(entry_order_id=entry_id, mode=mode,
+                                                     retry_after=time.time() + 120.0, failures=1)
+                    db.add(retry)
+                else:
+                    retry.failures += 1
+                    retry.retry_after = time.time() + min(600.0, 120.0 * retry.failures)
+                db.commit()
                 log_and_commit(db, f"{event_prefix}_target_exit_failed", failure)
                 continue
             if not result.order_id or result.status == "rejected":
@@ -128,6 +142,8 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
             db.add(exit_model(entry_order_id=entry_id, symbol=symbol, quantity=qty,
                                     target_price=float(trade.target_price),
                                     exit_order_id=result.order_id, status=result.status))
+            if retry is not None:
+                db.delete(retry)
             db.commit()
             submitted.append({"symbol": symbol, "entry_order_id": entry_id,
                               "exit_order_id": result.order_id, "status": result.status})
@@ -148,7 +164,7 @@ def manage_external_positions(db, adapter, *, mode: str) -> dict:
             cancelled.append({"symbol": symbol, "stop_order_id": str(protection.protective_order_id)})
             log_and_commit(db, f"{event_prefix}_protective_stop_cancelled", cancelled[-1])
     return {"positions": sorted(positions), "target_exits_submitted": submitted,
-            "target_exit_failures": failed,
+            "target_exit_deferred": deferred, "target_exit_failures": failed,
             "trades_closed": closed, "stops_cancelled": cancelled}
 
 

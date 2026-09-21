@@ -279,3 +279,13 @@ class ExternalPaperExit(Base):
     exit_order_id = Column(String, nullable=False, unique=True)
     status = Column(String, nullable=False, default="submitted")
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class ExternalTargetExitRetry(Base):
+    """Durable backoff after an unambiguous target-exit submission failure."""
+    __tablename__ = "external_target_exit_retries"
+    entry_order_id = Column(String, primary_key=True)
+    mode = Column(String, nullable=False)
+    retry_after = Column(Float, nullable=False)
+    failures = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
