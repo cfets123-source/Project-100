@@ -6,11 +6,20 @@ condition: guessing a stop from the current price would be unsafe.
 """
 from __future__ import annotations
 
+from decimal import Decimal, ROUND_DOWN
+
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
 from app.models.models import ExternalLiveProtection, ExternalPaperProtection, TradeDecisionRecord
 from app.services.protective_order_verification import verify_protective_orders
 from app.services.state_machine import StateManager
+
+
+def _sell_stop_price_for_broker(value: float) -> float:
+    """Return an Alpaca-valid sell-stop price without loosening protection."""
+    price = Decimal(str(value))
+    tick = Decimal("0.01") if price >= 1 else Decimal("0.0001")
+    return float(price.quantize(tick, rounding=ROUND_DOWN))
 
 
 def _entry_for_position(db, adapter, symbol: str, quantity: float) -> tuple[str, float] | None:
@@ -71,6 +80,7 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "missing_recorded_stop"}
         entry_order_id, stop_price = entry
+        stop_price = _sell_stop_price_for_broker(stop_price)
         recorded = db.get(ledger, entry_order_id)
         try:
             result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=quantity,

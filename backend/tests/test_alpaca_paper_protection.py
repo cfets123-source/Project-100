@@ -8,7 +8,7 @@ from app.brokers.base import OrderResult
 from app.db.session import Base
 from app.models import models  # noqa: F401
 from app.models.models import TradeDecisionRecord
-from app.services.alpaca_paper_protection import ensure_protective_stops
+from app.services.alpaca_paper_protection import ensure_protective_stops, _sell_stop_price_for_broker
 
 
 def _db():
@@ -52,3 +52,8 @@ def test_missing_recorded_stop_halts_before_more_entries():
     assert result['protected'] is False and result['reason'] == 'missing_recorded_stop'
     assert adapter.place_order.call_count == 0
     assert db.get(models.SystemStateRecord, 'current').state == 'halted'
+
+
+def test_sell_stop_price_uses_alpaca_tick_without_loosening_protection():
+    assert _sell_stop_price_for_broker(145.8249) == 145.82
+    assert _sell_stop_price_for_broker(0.98765) == 0.9876
