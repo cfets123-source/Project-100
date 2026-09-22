@@ -295,7 +295,9 @@ def robinhood_readiness(db: Session = Depends(get_db)):
 def dashboard(request: Request):
     if not dashboard_access_granted(request):
         return RedirectResponse("/login", status_code=303)
-    return HTMLResponse(DASHBOARD_HTML)
+    # The operator console is a live view.  Never let an intermediary or the
+    # browser retain an earlier dashboard shell after a deployment.
+    return HTMLResponse(DASHBOARD_HTML, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 class DashboardLogin(BaseModel):
