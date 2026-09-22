@@ -81,7 +81,7 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
         except Exception as exc:  # A broker uncertainty is a halt, not a retry.
             state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
             log_and_commit(db, f"{event_prefix}_failed",
-                           {"symbol": symbol, "reason": type(exc).__name__})
+                           {"symbol": symbol, "reason": str(exc)[:600]})
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "broker_error"}
         if result.status not in {"new", "pending_new", "accepted", "pending", "open"} or not result.order_id:

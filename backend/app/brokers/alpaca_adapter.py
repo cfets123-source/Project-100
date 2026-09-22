@@ -70,7 +70,16 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 return {}
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise AlpacaBrokerError(f"Alpaca {method} {path} failed") from exc
+            # Broker response details are essential for a safety halt.  Keep
+            # them bounded and do not include request headers or credentials.
+            status = getattr(response, "status_code", "unknown")
+            detail = ""
+            try:
+                detail = str(response.text).strip().replace("\n", " ")[:500]
+            except Exception:
+                pass
+            suffix = f": {detail}" if detail else ""
+            raise AlpacaBrokerError(f"Alpaca {method} {path} failed ({status}){suffix}") from exc
 
     def authenticate(self) -> bool:
         account = self._request("GET", "/v2/account")
