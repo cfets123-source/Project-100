@@ -1,3 +1,5 @@
+import time
+
 from app.strategies.daily_trend_pullback import BroadDailyTrendPullback, DailyTrendPullback
 
 
@@ -8,7 +10,13 @@ class _Adapter:
         rows[-1]["close"] = 100.01
         return rows
     def get_quotes(self, symbols):
-        class Quote: symbol = "SPY"; last = 100.5
+        class Quote:
+            symbol = "SPY"
+            last = 100.5
+            bid = 100.4
+            ask = 100.6
+            timestamp = time.time()
+            age_seconds = 0.0
         return [Quote()]
 
 

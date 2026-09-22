@@ -12,6 +12,13 @@ class Response:
     def json(self): return self.payload
 
 
+class RateLimitedResponse(Response):
+    def __init__(self, payload, *, status_code=200, headers=None):
+        super().__init__(payload)
+        self.status_code = status_code
+        self.headers = headers or {}
+
+
 class Client:
     def __init__(self): self.calls = []
     def request(self, method, url, **kwargs):
@@ -95,3 +102,23 @@ def test_cancel_accepts_alpaca_empty_success_response():
     method, url, _ = client.calls[-1]
     assert method == 'DELETE'
     assert url.endswith('/v2/orders/order-1')
+
+
+def test_get_honors_rate_limit_reset_before_retrying(monkeypatch):
+    class ThrottledClient:
+        def __init__(self): self.calls = 0
+        def request(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return RateLimitedResponse({}, status_code=429, headers={
+                    'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '105',
+                })
+            return RateLimitedResponse({'id': 'acct', 'status': 'ACTIVE'})
+    sleeps = []
+    monkeypatch.setattr('app.brokers.alpaca_adapter.time.time', lambda: 100.0)
+    monkeypatch.setattr('app.brokers.alpaca_adapter.time.sleep', sleeps.append)
+    client = ThrottledClient()
+    adapter = AlpacaBrokerAdapter('key', 'secret', client=client)
+    assert adapter.authenticate() is True
+    assert client.calls == 2
+    assert sleeps == [5.1]

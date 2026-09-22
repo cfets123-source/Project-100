@@ -53,7 +53,8 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     strategy, entries = strategy or DailyTrendPullback(), []
     require_passing_validation(db, strategy.name)
     scan_day=time.strftime('%Y-%m-%d', time.gmtime())
-    if state.payload.get('last_strategy_scan_day') == scan_day:
+    retry_after = float(state.payload.get('strategy_retry_after', 0) or 0)
+    if state.payload.get('last_strategy_scan_day') == scan_day or time.time() < retry_after:
         state.status='daily_scan_already_recorded'; db.commit()
         return {**reconciliation, 'entries': [], 'reason': 'daily_scan_already_recorded', 'lifecycle': lifecycle,
                 'bracket_reconciliation': bracket_reconciliation}
@@ -73,7 +74,16 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
         log_and_commit(db, 'alpaca_paper_worker_no_qualifying_signal', {
             'strategy': strategy.name, 'symbols': list(symbols), 'scan_day': scan_day,
         })
-    state.payload={**state.payload, 'references': references, 'last_strategy_scan_day': scan_day}
+    # A rejected entry is not a completed strategy decision.  Keep its audit
+    # trail, then allow a bounded later retry because live spreads can normalize
+    # during the session.  A submitted entry remains once-per-day.
+    submitted = any(entry.get('submitted') for entry in entries)
+    state.payload = {
+        **state.payload,
+        'references': references,
+        **({'last_strategy_scan_day': scan_day, 'strategy_retry_after': 0} if submitted
+           else {'strategy_retry_after': time.time() + 300}),
+    }
     log_and_commit(db, 'alpaca_paper_worker_cycle_completed', {'entry_count': len(entries)})
     state.status='healthy'; db.commit()
     return {**reconciliation, 'paper_execution_gate': cfg.ALPACA_PAPER_EXECUTION_ENABLED,

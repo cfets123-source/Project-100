@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import time
 import uuid
 
 from app.research.daily_trend_portfolio import (
@@ -38,20 +39,32 @@ class DailyTrendPullback:
                 candidates.append((pullback, symbol))
         if not candidates:
             return None
-        _, symbol = min(candidates)
-        quote = next((item for item in adapter.get_quotes([symbol]) if item.symbol == symbol), None)
-        if quote is None or quote.last <= 0:
-            return None
-        entry = quote.last
-        day = dt.datetime.now(dt.UTC).date().isoformat()
-        return {
-            "symbol": symbol, "direction": "long", "strategy": self.name,
-            "decision_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{self.name}:{day}:{symbol}")),
-            "entry_price": entry, "stop_price": round(entry * (1 - STOP_LOSS), 4),
-            "target_price": round(entry * (1 + TAKE_PROFIT), 4),
-            "thesis": "daily trend pullback above 50-day trend",
-            "ai_confidence": None,
-        }
+        # The strongest pullback can temporarily have a stale broker quote.
+        # Skip it rather than returning a non-executable signal and preventing
+        # the portfolio selector from considering the next valid candidate.
+        for _, symbol in sorted(candidates):
+            quote = next((item for item in adapter.get_quotes([symbol]) if item.symbol == symbol), None)
+            if quote is None or quote.last <= 0:
+                continue
+            quote_age = max(float(quote.age_seconds), time.time() - float(quote.timestamp))
+            if quote_age > 15.0:
+                continue
+            if quote.bid <= 0 or quote.ask <= 0:
+                continue
+            mid = (quote.bid + quote.ask) / 2
+            if mid <= 0 or (quote.ask - quote.bid) / mid > 0.01:
+                continue
+            entry = quote.last
+            day = dt.datetime.now(dt.UTC).date().isoformat()
+            return {
+                "symbol": symbol, "direction": "long", "strategy": self.name,
+                "decision_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{self.name}:{day}:{symbol}")),
+                "entry_price": entry, "stop_price": round(entry * (1 - STOP_LOSS), 4),
+                "target_price": round(entry * (1 + TAKE_PROFIT), 4),
+                "thesis": "daily trend pullback above 50-day trend",
+                "ai_confidence": None,
+            }
+        return None
 
 
 class BroadDailyTrendPullback(DailyTrendPullback):

@@ -42,12 +42,25 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         url = (self.DATA_BASE_URL if data_api else self.base_url) + path
         response = None
         # A transient read throttling response must not turn into an order retry.
-        # Only idempotent GETs are retried, with a bounded delay.
+        # Only idempotent GETs are retried, honoring broker reset guidance.
         for attempt in range(3):
             response = self.client.request(method, url, headers=self.headers, params=params, json=json)
-            if method.upper() != "GET" or getattr(response, "status_code", None) != 429:
+            if method.upper() != "GET":
                 break
-            time.sleep(1.0 * (attempt + 1))
+            status = getattr(response, "status_code", None)
+            headers = getattr(response, "headers", {}) or {}
+            remaining = headers.get("X-RateLimit-Remaining")
+            if status != 429 and remaining != "0":
+                break
+            if attempt == 2:
+                break
+            try:
+                reset_delay = float(headers.get("X-RateLimit-Reset", "0")) - time.time()
+            except (TypeError, ValueError):
+                reset_delay = 0.0
+            # Never busy-loop. The cap keeps a worker responsive; a remaining
+            # 429 is recorded by its caller and retried on the next cycle.
+            time.sleep(min(30.0, max(1.0 * (attempt + 1), reset_delay + 0.1)))
         try:
             response.raise_for_status()
             # Alpaca returns an empty successful response for DELETE /v2/orders.
