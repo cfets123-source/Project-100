@@ -159,6 +159,15 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
                 for item in bars]
 
+    def get_intraday_bars(self, symbol: str, start: str, end: str, *, timeframe: str = "5Min") -> list[dict]:
+        """Read-only intraday research bars; never used to submit an order."""
+        raw = self._request("GET", f"/v2/stocks/{symbol.upper()}/bars", data_api=True, params={
+            "timeframe": timeframe, "start": start, "end": end, "adjustment": "all", "feed": "iex", "limit": 10000,
+        })
+        return [{"timestamp": item["t"], "open": float(item["o"]), "high": float(item["h"]),
+                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
+                for item in raw.get("bars", [])]
+
     def get_daily_bars_many(self, symbols: list[str], start: str, end: str) -> dict[str, list[dict]]:
         """Fetch daily bars for a bounded research batch in one data request.
 
