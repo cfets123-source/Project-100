@@ -45,7 +45,9 @@ def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=
         from datetime import datetime, timedelta, timezone
         end = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
         start = (datetime.now(timezone.utc) - timedelta(days=75)).strftime("%Y-%m-%dT00:00:00Z")
-        return {"symbol": symbol, "quote": {"bid": quote.bid, "ask": quote.ask, "last": quote.last},
+        return {"symbol": symbol, "quote": {"bid": quote.bid, "ask": quote.ask,
+                "last": quote.last if quote.bid > 0 and quote.ask > 0 else None,
+                "age_seconds": quote.age_seconds, "provider": quote.provider},
                 "bars": adapter.get_daily_bars(symbol, start, end)[-45:]}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"market data unavailable: {type(exc).__name__}") from exc

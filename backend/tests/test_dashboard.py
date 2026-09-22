@@ -9,8 +9,10 @@ def test_dashboard_is_read_only_and_identifies_operator_console():
         page = client.get('/dashboard')
         assert page.status_code == 200
         assert 'Veloikos Trading' in page.text
-        assert 'Live positions' in page.text
-        assert '/paper/activity' in page.text
+        assert 'Open positions' in page.text
+        assert '/live/activity' in page.text
+        assert 'Checking execution state' in page.text
+        assert "fetch('/system/state')" in page.text
         broker = client.get('/brokers/robinhood/status').json()
         assert broker['connected'] is False
         assert broker['execution_enabled'] is False
