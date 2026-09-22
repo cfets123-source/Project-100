@@ -177,7 +177,8 @@ class ExecutionGateway:
             return GatewayResult(submitted=False, reason="shadow_mode_no_broker_call",
                                   trade_id=rec.trade_id, risk_decision=decision)
 
-        if state == PAPER:
+        external_paper = isinstance(self.broker, AlpacaBrokerAdapter) and self.broker.paper
+        if state == PAPER or external_paper:
             # A connected broker can only be used for paper execution when its
             # own simulated environment and the separate config gate are both
             # explicit. Default behavior remains simulator-only.
@@ -186,7 +187,7 @@ class ExecutionGateway:
                 cancel_unsubmitted("rejected")
                 raise RuntimeError(f"PAPER execution refused: {paper_why}")
 
-        if state == LIVE:
+        if state == LIVE and not external_paper:
             live_ok, live_why = self.state_manager.live_broker_mutation_allowed()
             if not live_ok:
                 cancel_unsubmitted("rejected")

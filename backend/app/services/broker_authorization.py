@@ -26,6 +26,11 @@ def mutation_allowed(state_manager, broker, *, defensive=False):
         if not isinstance(broker, PaperBrokerAdapter):
             return False, "defensive_real_broker_not_supported"
         return True, ""
+    # An external Alpaca paper credential remains paper-only even when the
+    # separate live worker has set the global system state to LIVE. Its own
+    # credential and paper gate define the mutation boundary.
+    if _external_paper_allowed(state_manager, broker):
+        return True, ""
     if state == PAPER:
         if isinstance(broker, PaperBrokerAdapter) or _external_paper_allowed(state_manager, broker):
             return True, ""
