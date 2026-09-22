@@ -449,7 +449,8 @@ def alpaca_live_portfolio(db: Session = Depends(get_db)):
 def live_activity(limit: int = Query(default=80, ge=1, le=200), db: Session = Depends(get_db)):
     """Recent live-worker audit events; contains no credentials or order authority."""
     events = (db.query(models.AuditLogEntry)
-              .filter(models.AuditLogEntry.event_type.like("alpaca_live%"))
+              .filter((models.AuditLogEntry.event_type.like("alpaca_live%")) |
+                      (models.AuditLogEntry.event_type == "risk_decision"))
               .order_by(models.AuditLogEntry.timestamp.desc(), models.AuditLogEntry.id.desc())
               .limit(limit).all())
     return {"events": [{"id": event.id, "timestamp": event.timestamp,
