@@ -46,6 +46,27 @@ def _entry_for_position(db, adapter, symbol: str, quantity: float) -> tuple[str,
     return str(decision.order_id), float(decision.stop_price)
 
 
+def _emergency_close_unprotected_position(db, adapter, *, symbol: str, quantity: float,
+                                          mode: str, reason: str) -> dict:
+    """Submit one protective exit when a filled position cannot be protected.
+
+    The kill switch prevents entries first.  The already-created broker adapter
+    is then used for one market exit only; failures are recorded, never retried.
+    """
+    prefix = f"alpaca_{mode}_unprotected_exit"
+    try:
+        result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=quantity))
+    except Exception as exc:  # noqa: BLE001 - preserve bounded broker evidence
+        detail = f"{type(exc).__name__}: {exc}"[:600]
+        log_and_commit(db, f"{prefix}_failed", {"symbol": symbol, "reason": reason,
+                                                  "broker_error": detail})
+        return {"submitted": False, "reason": reason, "broker_error": detail}
+    payload = {"symbol": symbol, "quantity": quantity, "reason": reason,
+               "order_id": result.order_id, "status": result.status}
+    log_and_commit(db, f"{prefix}_submitted", payload)
+    return {"submitted": True, **payload}
+
+
 def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
     """Place or renew a sell stop for every externally held long position.
 
@@ -74,11 +95,14 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
         quantity = abs(float(position.get("qty") or 0))
         entry = _entry_for_position(db, adapter, symbol, quantity)
         if quantity <= 0 or entry is None:
-            state.activate_kill_switch(f"paper position without recorded protective stop: {symbol}")
-            log_and_commit(db, "alpaca_paper_protective_stop_failed",
+            state.activate_kill_switch(f"{mode} position without recorded protective stop: {symbol}")
+            emergency_exit = _emergency_close_unprotected_position(
+                db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="missing_recorded_stop"
+            )
+            log_and_commit(db, f"{event_prefix}_failed",
                            {"symbol": symbol, "reason": "missing_recorded_stop"})
             return {"protected": False, "placed": placed, "failed": symbol,
-                    "reason": "missing_recorded_stop"}
+                    "reason": "missing_recorded_stop", "emergency_exit": emergency_exit}
         entry_order_id, stop_price = entry
         stop_price = _sell_stop_price_for_broker(stop_price)
         recorded = db.get(ledger, entry_order_id)
@@ -90,16 +114,23 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
                                                        time_in_force="day"))
         except Exception as exc:  # A broker uncertainty is a halt, not a retry.
             state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
+            detail = f"{type(exc).__name__}: {exc}"[:600]
+            emergency_exit = _emergency_close_unprotected_position(
+                db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="protective_stop_broker_error"
+            )
             log_and_commit(db, f"{event_prefix}_failed",
-                           {"symbol": symbol, "reason": str(exc)[:600]})
+                           {"symbol": symbol, "reason": detail})
             return {"protected": False, "placed": placed, "failed": symbol,
-                    "reason": "broker_error"}
+                    "reason": "broker_error", "emergency_exit": emergency_exit}
         if result.status not in {"new", "pending_new", "accepted", "pending", "open"} or not result.order_id:
             state.activate_kill_switch(f"{mode} protective stop rejected: {symbol}")
+            emergency_exit = _emergency_close_unprotected_position(
+                db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="protective_stop_rejected"
+            )
             log_and_commit(db, f"{event_prefix}_failed",
                            {"symbol": symbol, "reason": "rejected", "status": result.status})
             return {"protected": False, "placed": placed, "failed": symbol,
-                    "reason": "rejected"}
+                    "reason": "rejected", "emergency_exit": emergency_exit}
         item = {"symbol": symbol, "order_id": result.order_id, "stop_price": stop_price,
                 "entry_order_id": entry_order_id}
         placed.append(item)

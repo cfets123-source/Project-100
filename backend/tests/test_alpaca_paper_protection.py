@@ -50,8 +50,31 @@ def test_missing_recorded_stop_halts_before_more_entries():
     result = ensure_protective_stops(db, adapter, SimpleNamespace())
 
     assert result['protected'] is False and result['reason'] == 'missing_recorded_stop'
-    assert adapter.place_order.call_count == 0
+    assert result['emergency_exit']['submitted'] is True
+    submitted = adapter.place_order.call_args.args[0]
+    assert submitted.symbol == 'AAPL' and submitted.side == 'sell' and submitted.quantity == 1.0
     assert db.get(models.SystemStateRecord, 'current').state == 'halted'
+
+
+def test_stop_submission_failure_submits_one_emergency_exit():
+    db = _db()
+    db.add(TradeDecisionRecord(symbol='AAPL', direction='long', strategy='test',
+                               order_id='entry-1', stop_price=90.0, position_size=1.0))
+    db.commit()
+    adapter = MagicMock(paper=True)
+    adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '1'}]
+    adapter.get_orders.side_effect = [
+        [{'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'}],
+        [{'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'}],
+    ]
+    adapter.place_order.side_effect = [RuntimeError('broker declined stop'),
+                                       OrderResult(order_id='exit-1', status='accepted')]
+
+    result = ensure_protective_stops(db, adapter, SimpleNamespace())
+
+    assert result['protected'] is False and result['reason'] == 'broker_error'
+    assert result['emergency_exit']['submitted'] is True
+    assert adapter.place_order.call_args_list[1].args[0].side == 'sell'
 
 
 def test_sell_stop_price_uses_alpaca_tick_without_loosening_protection():
