@@ -1,6 +1,8 @@
 import time
 
-from app.strategies.daily_trend_pullback import BroadDailyTrendPullback, DailyTrendPullback
+from app.strategies.daily_trend_pullback import (
+    BroadDailyTrendPullback, BroadDailyTrendPullbackPortfolioV2, DailyTrendPullback,
+)
 
 
 class _Adapter:
@@ -34,3 +36,17 @@ def test_broad_variant_has_an_independent_version_and_larger_universe():
     assert strategy.name == "daily-trend-pullback-broad-equity-etf-v1"
     assert "AMD" in strategy.universe
     assert len(strategy.universe) > len(DailyTrendPullback().universe)
+
+
+def test_portfolio_v2_returns_two_distinct_qualified_candidates():
+    class PortfolioAdapter(_Adapter):
+        def get_quotes(self, symbols):
+            symbol = symbols[0]
+            return [type("Quote", (), {"symbol": symbol, "last": 100.5, "bid": 100.4,
+                                         "ask": 100.6, "timestamp": time.time(), "age_seconds": 0.0})()]
+
+    signals = BroadDailyTrendPullbackPortfolioV2().portfolio_signals(
+        PortfolioAdapter(), ["SPY", "QQQ"], limit=2,
+    )
+    assert [signal["symbol"] for signal in signals] == ["SPY", "QQQ"]
+    assert len({signal["decision_id"] for signal in signals}) == 2
