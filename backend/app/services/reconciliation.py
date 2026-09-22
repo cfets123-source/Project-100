@@ -10,7 +10,11 @@ from app.models.models import OrderIntent
 from app.brokers.base import BrokerAdapter
 from app.audit.logger import log_and_commit
 
-RESOLVABLE_STATUSES = {"pending", "submitted", "accepted", "partial", "unknown"}
+# Alpaca may return ``pending_new`` immediately after a submission.  It is a
+# broker-pending state, not a terminal state; omitting it leaves a real fill
+# stranded in the local ledger and prevents a completed paper lifecycle from
+# being proved.
+RESOLVABLE_STATUSES = {"pending", "pending_new", "submitted", "accepted", "partial", "unknown"}
 
 
 def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) -> str:

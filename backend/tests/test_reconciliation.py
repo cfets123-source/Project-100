@@ -86,3 +86,10 @@ def test_reconcile_all_pending_only_touches_resolvable_statuses(db):
     results = reconcile_all_pending(db, broker)
     assert len(results) == 1  # the already-filled one is untouched
     assert broker.get_order_status.call_count == 1
+
+
+def test_pending_new_order_is_reconciled_when_alpaca_reports_a_fill(db):
+    make_intent(db, broker_order_id="a", status="pending_new")
+    broker = MagicMock()
+    broker.get_order_status.return_value = {"status": "filled", "filled_qty": 10.0, "fill_price": 10.0}
+    assert reconcile_all_pending(db, broker) == ["filled"]
