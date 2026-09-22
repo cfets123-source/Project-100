@@ -8,6 +8,7 @@ import uuid
 from app.research.daily_trend_portfolio import (
     STOP_LOSS, STRATEGY_VERSION, TAKE_PROFIT, UNIVERSE, WARMUP_BARS,
 )
+from app.runtime.market_research_worker import EXPANDED_LIQUID_EQUITY_UNIVERSE
 
 BROAD_STRATEGY_VERSION = "daily-trend-pullback-broad-equity-etf-v1"
 BROAD_UNIVERSE = UNIVERSE + (
@@ -71,6 +72,15 @@ class BroadDailyTrendPullback(DailyTrendPullback):
     """The independently validated broad liquid-equity and ETF variant."""
     name = BROAD_STRATEGY_VERSION
     universe = BROAD_UNIVERSE
+
+
+EXPANDED_STRATEGY_VERSION = "daily-trend-pullback-expanded-equity-etf-v1"
+
+
+class ExpandedDailyTrendPullback(BroadDailyTrendPullback):
+    """Paper-only strategy matching the separately evaluated 79-name universe."""
+    name = EXPANDED_STRATEGY_VERSION
+    universe = UNIVERSE + EXPANDED_LIQUID_EQUITY_UNIVERSE
 
 
 PORTFOLIO_BROAD_STRATEGY_VERSION = "daily-trend-pullback-broad-portfolio-v2"

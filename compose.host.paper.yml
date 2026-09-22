@@ -56,6 +56,23 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  alpaca-expanded-paper:
+    build: .
+    profiles: ["expanded-paper"]
+    command: ["python", "-m", "app.runtime.alpaca_expanded_paper_worker", "--database", "sqlite:////data/paper.db", "--interval", "180"]
+    env_file: .env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: paper
+      LIVE_TRADING_ENABLED: "false"
+      ALPACA_PAPER_EXECUTION_ENABLED: "${ALPACA_EXPANDED_PAPER_EXECUTION_ENABLED:-false}"
+    volumes: ["paper-data:/data"]
+    restart: "on-failure:3"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
   alpaca-monitor:
     build: .
     # The execution worker already runs this monitor/reconciliation cycle.
