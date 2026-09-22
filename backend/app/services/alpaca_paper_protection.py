@@ -62,7 +62,7 @@ def _emergency_close_unprotected_position(db, adapter, *, symbol: str, quantity:
                                                   "broker_error": detail})
         return {"submitted": False, "reason": reason, "broker_error": detail}
     payload = {"symbol": symbol, "quantity": quantity, "reason": reason,
-               "order_id": result.order_id, "status": result.status}
+               "order_id": str(result.order_id), "status": str(result.status)}
     log_and_commit(db, f"{prefix}_submitted", payload)
     return {"submitted": True, **payload}
 
