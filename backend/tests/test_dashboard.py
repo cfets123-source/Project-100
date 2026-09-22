@@ -17,6 +17,7 @@ def test_dashboard_is_read_only_and_identifies_operator_console():
         assert '/live/activity' in page.text
         assert 'Checking execution state' in page.text
         assert "fetch('/system/state')" in page.text
+        assert 'Connect Robinhood Agentic account' in page.text
         broker = client.get('/brokers/robinhood/status').json()
         assert broker['connected'] is False
         assert broker['execution_enabled'] is False
