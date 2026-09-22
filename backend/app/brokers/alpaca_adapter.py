@@ -107,6 +107,24 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             "options_trading_level": account.get("options_trading_level"),
         }
 
+    def list_active_assets(self, *, asset_class: str = "us_equity") -> list[dict]:
+        """Read Alpaca's instrument catalog; this endpoint cannot trade.
+
+        Catalog availability is deliberately kept separate from the execution
+        universe.  A symbol becoming discoverable must never make it eligible
+        for an order without the strategy and paper-evidence gates.
+        """
+        raw = self._request("GET", "/v2/assets", params={
+            "status": "active", "asset_class": asset_class,
+        })
+        return [{
+            "id": item.get("id"), "symbol": item.get("symbol"),
+            "name": item.get("name"), "asset_class": item.get("asset_class"),
+            "exchange": item.get("exchange"), "tradable": bool(item.get("tradable")),
+            "fractionable": bool(item.get("fractionable")),
+            "shortable": bool(item.get("shortable")),
+        } for item in raw if item.get("tradable") and item.get("symbol")]
+
     def get_buying_power(self) -> float:
         return self.get_balances()["buying_power"]
 

@@ -86,6 +86,25 @@ def test_orders_request_includes_nested_bracket_legs():
     assert client.calls[-1][2]['params'] == {'status': 'all', 'limit': 500, 'nested': 'true'}
 
 
+def test_asset_catalog_is_read_only_and_filters_to_tradable_symbols():
+    class CatalogClient(Client):
+        def request(self, method, url, **kwargs):
+            self.calls.append((method, url, kwargs))
+            if url.endswith('/v2/assets'):
+                return Response([
+                    {'id': 'a', 'symbol': 'AAPL', 'name': 'Apple', 'asset_class': 'us_equity',
+                     'exchange': 'NASDAQ', 'tradable': True, 'fractionable': True, 'shortable': True},
+                    {'id': 'b', 'symbol': 'OLD', 'tradable': False},
+                ])
+            return super().request(method, url, **kwargs)
+    client = CatalogClient()
+    assets = AlpacaBrokerAdapter('key', 'secret', client=client).list_active_assets()
+    assert assets == [{'id': 'a', 'symbol': 'AAPL', 'name': 'Apple', 'asset_class': 'us_equity',
+                       'exchange': 'NASDAQ', 'tradable': True, 'fractionable': True, 'shortable': True}]
+    assert client.calls[-1][0] == 'GET'
+    assert client.calls[-1][2]['params'] == {'status': 'active', 'asset_class': 'us_equity'}
+
+
 def test_stop_submission_uses_alpaca_stop_price_and_gtc():
     client = Client()
     adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)

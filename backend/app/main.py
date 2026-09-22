@@ -62,6 +62,26 @@ def market_capabilities():
     return {"capabilities": CapabilityRegistry().report()}
 
 
+@app.get("/markets/catalog", dependencies=[Depends(require_dashboard_access)])
+def market_catalog(asset_class: str = Query(default="us_equity", pattern="^(us_equity|crypto)$"),
+                   db: Session = Depends(get_db)):
+    """Expose broker-discoverable instruments as research coverage only.
+
+    This route is read-only and deliberately reports ``research_only`` for
+    every catalog result.  Broker availability is not execution authority.
+    """
+    try:
+        adapter, _ = alpaca_connection.load_read_only_adapter(
+            db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False
+        )
+        assets = adapter.list_active_assets(asset_class=asset_class)
+        return {"asset_class": asset_class, "count": len(assets),
+                "execution_status": "research_only",
+                "assets": assets}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"market catalog unavailable: {type(exc).__name__}") from exc
+
+
 @app.get("/market-capabilities/live-account", dependencies=[Depends(require_dashboard_access)])
 def live_account_market_capabilities(db: Session = Depends(get_db)):
     """Read broker permissions without changing an execution gate."""
