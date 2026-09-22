@@ -12,6 +12,38 @@ OPEN = {"new", "pending_new", "accepted", "pending", "open"}
 FILLED = {"filled", "partially_filled", "partial"}
 
 
+def release_flat_account_reservations(db, adapter, account_id: str) -> list[str]:
+    """Release reservations only after broker reconciliation proves flatness.
+
+    An emergency exit can fill after its original entry intent was reserved.
+    Do not leave that historical reservation consuming buying power when there
+    are no positions and no outstanding broker order for the same intent.
+    """
+    if any(float(position.get("qty") or 0) != 0 for position in adapter.get_positions()):
+        return []
+    active_ids = {str(order.get("id")) for order in adapter.get_orders()
+                  if str(order.get("status")) in OPEN}
+    released: list[str] = []
+    reservations = db.query(RiskReservation).filter(
+        RiskReservation.account_id == account_id,
+        RiskReservation.status == "active",
+    ).all()
+    for reservation in reservations:
+        intent = (db.query(OrderIntent).filter(
+                  OrderIntent.account_id == account_id,
+                  OrderIntent.decision_id == reservation.decision_id)
+                  .order_by(OrderIntent.updated_at.desc()).first())
+        if intent is not None and str(intent.broker_order_id or "") in active_ids:
+            continue
+        reservation.status = "released"
+        released.append(str(reservation.id))
+    if released:
+        db.commit()
+        log_and_commit(db, "live_risk_reservations_released_after_flat_reconciliation",
+                       {"reservation_ids": released})
+    return released
+
+
 def _trade(db, entry_order_id: str):
     return (db.query(TradeDecisionRecord)
             .filter(TradeDecisionRecord.order_id == entry_order_id)

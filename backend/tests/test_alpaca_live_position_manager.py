@@ -6,8 +6,36 @@ from sqlalchemy.orm import sessionmaker
 from app.brokers.base import OrderResult, Quote
 from app.db.session import Base
 from app.models import models  # noqa: F401
-from app.models.models import ExternalLiveProtection, TradeDecisionRecord
-from app.runtime.alpaca_live_position_manager import manage_live_positions, manage_paper_positions
+from app.models.models import ExternalLiveProtection, TradeDecisionRecord, OrderIntent, RiskReservation
+from app.runtime.alpaca_live_position_manager import (
+    manage_live_positions, manage_paper_positions, release_flat_account_reservations,
+)
+
+
+def test_flat_broker_account_releases_only_non_pending_reservations():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add_all([
+        RiskReservation(id='release-me', account_id='acct', decision_id='closed', risk_dollars=1,
+                        notional=50, status='active'),
+        RiskReservation(id='keep-me', account_id='acct', decision_id='pending', risk_dollars=1,
+                        notional=50, status='active'),
+        OrderIntent(intent_key='closed', account_id='acct', decision_id='closed', symbol='SPY',
+                    side='buy', quantity=.5, status='filled', broker_order_id='closed-order'),
+        OrderIntent(intent_key='pending', account_id='acct', decision_id='pending', symbol='QQQ',
+                    side='buy', quantity=.5, status='pending', broker_order_id='pending-order'),
+    ])
+    db.commit()
+    adapter = MagicMock(paper=False)
+    adapter.get_positions.return_value = []
+    adapter.get_orders.return_value = [{'id': 'pending-order', 'status': 'accepted'}]
+
+    released = release_flat_account_reservations(db, adapter, 'acct')
+
+    assert released == ['release-me']
+    assert db.get(RiskReservation, 'release-me').status == 'released'
+    assert db.get(RiskReservation, 'keep-me').status == 'active'
 
 
 def test_target_exit_is_submitted_once_and_keeps_stop_while_position_open():

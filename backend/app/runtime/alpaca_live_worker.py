@@ -7,7 +7,9 @@ from app.services.state_machine import StateManager
 from app.risk.engine import RiskEngine
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.audit.logger import log_and_commit
-from app.runtime.alpaca_live_position_manager import manage_live_positions, reconcile_broker_bracket_exits
+from app.runtime.alpaca_live_position_manager import (
+    manage_live_positions, reconcile_broker_bracket_exits, release_flat_account_reservations,
+)
 from app.brokers.alpaca_adapter import AlpacaBrokerError
 
 LIVE_SYMBOLS=("SPY","QQQ","IWM","GLD","TLT")
@@ -37,6 +39,8 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
     """One guarded live cycle; disabled gates fail before any broker mutation."""
     strategy = strategy or DailyTrendPullback()
     adapter=start_live_worker(db,cfg,strategy)
+    account_id=str(adapter.get_accounts()[0]['account_id'])
+    released_reservations = release_flat_account_reservations(db, adapter, account_id)
     protection=ensure_protective_stops(db, adapter, cfg, mode="live")
     if not protection.get('protected'):
         StateManager(db,cfg).activate_kill_switch('live position lacks verified protective stop')
@@ -47,7 +51,8 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
     if positions:
         return {"started": True, "entries": [], "reason": "position_already_open",
                 "protection": protection, "lifecycle": lifecycle,
-                "bracket_reconciliation": bracket_reconciliation}
+                "bracket_reconciliation": bracket_reconciliation,
+                "released_reservations": released_reservations}
     signal=strategy.portfolio_signal(adapter, symbols)
     if not signal:
         log_and_commit(db, "alpaca_live_worker_no_qualifying_signal", {"strategy": strategy.name})
@@ -56,7 +61,6 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
                 "bracket_reconciliation": bracket_reconciliation}
     quote=adapter.get_quotes([signal['symbol']])[0]
     balances=adapter.get_balances(); equity=allocated_live_equity(balances, cfg)
-    account_id=str(adapter.get_accounts()[0]['account_id'])
     result=ExecutionGateway(db,adapter,RiskEngine(cfg),StateManager(db,cfg),account_id).submit(
         signal, account_id, quote,
         {'avg_dollar_volume':5_000_000,'sector':'unclassified','open_position_count':0,
@@ -65,7 +69,8 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
     log_and_commit(db, "alpaca_live_worker_cycle_completed", {"strategy": strategy.name,
                    "submitted": result.submitted, "reason": result.reason, "trade_id": result.trade_id})
     return {"started": True, **result.__dict__, "protection": protection, "lifecycle": lifecycle,
-            "bracket_reconciliation": bracket_reconciliation}
+            "bracket_reconciliation": bracket_reconciliation,
+            "released_reservations": released_reservations}
 
 
 if __name__ == '__main__':
