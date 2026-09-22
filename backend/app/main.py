@@ -26,6 +26,7 @@ from app.markets.options_research import assess_option_chain
 from app.runtime.market_research_worker import (run_scan as run_market_research_scan,
                                                 run_equity_scan as run_equity_research_scan,
                                                 run_expanded_equity_scan)
+from app.strategies.daily_trend_pullback import DailyTrendPullback, BroadDailyTrendPullback
 
 initialize_schema(engine)
 
@@ -502,7 +503,9 @@ def live_activity(limit: int = Query(default=80, ge=1, le=200), db: Session = De
 def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depends(get_db)):
     """Read-only live trade ledger for the operator terminal."""
     rows = (db.query(models.TradeDecisionRecord)
-            .filter(models.TradeDecisionRecord.order_id.isnot(None))
+            .filter(models.TradeDecisionRecord.order_id.isnot(None),
+                    models.TradeDecisionRecord.strategy.in_((DailyTrendPullback.name,
+                                                             BroadDailyTrendPullback.name)))
             .order_by(models.TradeDecisionRecord.timestamp.desc())
             .limit(limit).all())
     return {"trades": [{

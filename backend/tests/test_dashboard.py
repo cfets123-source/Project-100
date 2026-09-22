@@ -1,7 +1,11 @@
 from fastapi.testclient import TestClient
 import base64
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from app.main import app
+from app.main import app, live_trades
+from app.db.session import Base
+from app.models.models import TradeDecisionRecord
 
 
 def test_dashboard_is_read_only_and_identifies_operator_console():
@@ -25,6 +29,21 @@ def test_activity_feed_is_bounded_and_read_only():
         body = response.json()
         assert body['simulated'] is True
         assert len(body['events']) <= 1
+
+
+def test_live_trade_feed_excludes_paper_executions():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add_all([
+            TradeDecisionRecord(symbol='ORCL', strategy='daily-trend-pullback-broad-equity-etf-v1',
+                                direction='long', order_id='live-1', status='open'),
+            TradeDecisionRecord(symbol='COP', strategy='daily-trend-pullback-expanded-equity-etf-v1',
+                                direction='long', order_id='paper-1', status='open'),
+        ])
+        db.commit()
+        trades = live_trades(limit=20, db=db)['trades']
+    assert [row['symbol'] for row in trades] == ['ORCL']
 
 
 def test_dashboard_requires_password_when_configured(monkeypatch):
