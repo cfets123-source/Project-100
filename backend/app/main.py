@@ -456,3 +456,19 @@ def live_activity(limit: int = Query(default=80, ge=1, le=200), db: Session = De
     return {"events": [{"id": event.id, "timestamp": event.timestamp,
                         "type": event.event_type, "actor": event.actor,
                         "payload": event.payload} for event in events]}
+
+
+@app.get("/live/trades", dependencies=[Depends(require_dashboard_access)])
+def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depends(get_db)):
+    """Read-only live trade ledger for the operator terminal."""
+    rows = (db.query(models.TradeDecisionRecord)
+            .filter(models.TradeDecisionRecord.order_id.isnot(None))
+            .order_by(models.TradeDecisionRecord.timestamp.desc())
+            .limit(limit).all())
+    return {"trades": [{
+        "trade_id": row.trade_id, "timestamp": row.timestamp, "symbol": row.symbol,
+        "strategy": row.strategy, "status": row.status, "quantity": row.position_size,
+        "entry_price": row.fill_price or row.entry_price, "stop_price": row.stop_price,
+        "target_price": row.target_price, "exit_price": row.exit_price,
+        "exit_reason": row.exit_reason, "pnl": row.pnl,
+    } for row in rows]}
