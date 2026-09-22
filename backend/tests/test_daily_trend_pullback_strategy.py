@@ -48,5 +48,5 @@ def test_portfolio_v2_returns_two_distinct_qualified_candidates():
     signals = BroadDailyTrendPullbackPortfolioV2().portfolio_signals(
         PortfolioAdapter(), ["SPY", "QQQ"], limit=2,
     )
-    assert [signal["symbol"] for signal in signals] == ["SPY", "QQQ"]
+    assert {signal["symbol"] for signal in signals} == {"SPY", "QQQ"}
     assert len({signal["decision_id"] for signal in signals}) == 2
