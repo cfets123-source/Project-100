@@ -105,6 +105,20 @@ def test_asset_catalog_is_read_only_and_filters_to_tradable_symbols():
     assert client.calls[-1][2]['params'] == {'status': 'active', 'asset_class': 'us_equity'}
 
 
+def test_batched_daily_bars_use_one_read_only_market_data_request():
+    class BarsClient(Client):
+        def request(self, method, url, **kwargs):
+            self.calls.append((method, url, kwargs))
+            if 'stocks/bars' in url:
+                now = datetime.now(timezone.utc).isoformat()
+                return Response({'bars': {'AAPL': [{'t': now, 'o': 1, 'h': 2, 'l': 1, 'c': 2, 'v': 3}], 'MSFT': []}})
+            return super().request(method, url, **kwargs)
+    client = BarsClient()
+    bars = AlpacaBrokerAdapter('key', 'secret', client=client).get_daily_bars_many(['AAPL', 'MSFT'], 'a', 'b')
+    assert bars['AAPL'][0]['close'] == 2 and bars['MSFT'] == []
+    assert client.calls[-1][2]['params']['symbols'] == 'AAPL,MSFT'
+
+
 def test_stop_submission_uses_alpaca_stop_price_and_gtc():
     client = Client()
     adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)

@@ -159,6 +159,26 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
                 for item in bars]
 
+    def get_daily_bars_many(self, symbols: list[str], start: str, end: str) -> dict[str, list[dict]]:
+        """Fetch daily bars for a bounded research batch in one data request.
+
+        This is intentionally research-only.  Batching avoids treating a broad
+        universe scan as hundreds of individual API requests, which could starve
+        order reconciliation or trigger avoidable broker throttling.
+        """
+        clean = list(dict.fromkeys(symbol.upper() for symbol in symbols if symbol))
+        if not clean:
+            return {}
+        raw = self._request("GET", "/v2/stocks/bars", data_api=True, params={
+            "symbols": ",".join(clean), "timeframe": "1Day", "start": start, "end": end,
+            "adjustment": "all", "feed": "iex", "limit": 10000,
+        })
+        return {symbol: [{"timestamp": item["t"], "open": float(item["o"]),
+                          "high": float(item["h"]), "low": float(item["l"]),
+                          "close": float(item["c"]), "volume": float(item["v"])}
+                         for item in raw.get("bars", {}).get(symbol, [])]
+                for symbol in clean}
+
     def get_option_chain(self, underlying_symbol: str, *, limit: int = 100,
                          feed: str = "indicative") -> dict:
         """Read an option chain with an explicitly selected Alpaca data feed.
