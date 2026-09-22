@@ -29,6 +29,9 @@ def test_daily_strategy_uses_current_quote_and_stable_daily_id():
     assert first["symbol"] == "SPY"
     assert first["entry_price"] == 100.5
     assert first["decision_id"] == second["decision_id"]
+    assert first["technical_conditions"]["close"] == 100.01
+    assert first["technical_conditions"]["five_day_high"] == 105.0
+    assert first["technical_conditions"]["pullback_pct"] < -1.5
 
 
 def test_broad_variant_has_an_independent_version_and_larger_universe():

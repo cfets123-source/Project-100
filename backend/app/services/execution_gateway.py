@@ -104,7 +104,8 @@ class ExecutionGateway:
         if not decision.approved:
             self.db.add(TradeDecisionRecord(
                 symbol=signal.symbol, strategy=signal.strategy, direction=signal.direction,
-                entry_thesis=signal.thesis, entry_price=signal.entry_price, stop_price=signal.stop_price,
+                entry_thesis=signal.thesis, technical_conditions=signal.technical_conditions,
+                entry_price=signal.entry_price, stop_price=signal.stop_price,
                 ai_confidence=signal.ai_confidence,
                 risk_engine_result={"approved": False, "reasons": decision.reasons}, status="rejected",
             ))
@@ -157,7 +158,8 @@ class ExecutionGateway:
 
         rec = TradeDecisionRecord(
             symbol=signal.symbol, strategy=signal.strategy, direction=signal.direction,
-            entry_thesis=signal.thesis, entry_price=signal.entry_price, stop_price=signal.stop_price,
+            entry_thesis=signal.thesis, technical_conditions=signal.technical_conditions,
+            entry_price=signal.entry_price, stop_price=signal.stop_price,
             target_price=signal.target_price, position_size=decision.position_size,
             risk_dollars=decision.risk_dollars, ai_confidence=signal.ai_confidence,
             risk_engine_result={"approved": True, "reasons": []}, status="open",

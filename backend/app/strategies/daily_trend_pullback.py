@@ -27,7 +27,7 @@ class DailyTrendPullback:
         symbols = tuple(symbols or self.universe)
         end = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT00:00:00Z")
         start = (dt.datetime.now(dt.UTC) - dt.timedelta(days=180)).strftime("%Y-%m-%dT00:00:00Z")
-        candidates: list[tuple[float, str]] = []
+        candidates: list[tuple[float, str, float, float, float]] = []
         for symbol in symbols:
             bars = adapter.get_daily_bars(symbol, start, end)
             if len(bars) < WARMUP_BARS:
@@ -37,13 +37,13 @@ class DailyTrendPullback:
             high5 = max(float(row["high"]) for row in bars[-5:])
             pullback = close / high5 - 1
             if close > sma50 and pullback <= -0.015:
-                candidates.append((pullback, symbol))
+                candidates.append((pullback, symbol, close, sma50, high5))
         if not candidates:
             return None
         # The strongest pullback can temporarily have a stale broker quote.
         # Skip it rather than returning a non-executable signal and preventing
         # the portfolio selector from considering the next valid candidate.
-        for _, symbol in sorted(candidates):
+        for pullback, symbol, close, sma50, high5 in sorted(candidates):
             quote = next((item for item in adapter.get_quotes([symbol]) if item.symbol == symbol), None)
             if quote is None or quote.last <= 0:
                 continue
@@ -63,6 +63,10 @@ class DailyTrendPullback:
                 "entry_price": entry, "stop_price": round(entry * (1 - STOP_LOSS), 4),
                 "target_price": round(entry * (1 + TAKE_PROFIT), 4),
                 "thesis": "daily trend pullback above 50-day trend",
+                "technical_conditions": {"close": close, "sma50": sma50,
+                                         "five_day_high": high5, "pullback_pct": pullback * 100,
+                                         "quote_age_seconds": quote_age,
+                                         "spread_pct": (quote.ask - quote.bid) / mid * 100},
                 "ai_confidence": None,
             }
         return None

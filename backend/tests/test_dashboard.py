@@ -3,9 +3,9 @@ import base64
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.main import app, live_trades
+from app.main import app, live_decision_context, live_trades
 from app.db.session import Base
-from app.models.models import TradeDecisionRecord
+from app.models.models import AuditLogEntry, StrategyValidationRecord, TradeDecisionRecord
 
 
 def test_dashboard_is_read_only_and_identifies_operator_console():
@@ -37,13 +37,38 @@ def test_live_trade_feed_excludes_paper_executions():
     with Session(engine) as db:
         db.add_all([
             TradeDecisionRecord(symbol='ORCL', strategy='daily-trend-pullback-broad-equity-etf-v1',
-                                direction='long', order_id='live-1', status='open'),
+                                direction='long', order_id='live-1', status='open', trade_id='live-trade'),
+            AuditLogEntry(event_type='alpaca_live_worker_cycle_completed', payload={'trade_id': 'live-trade'}),
             TradeDecisionRecord(symbol='COP', strategy='daily-trend-pullback-expanded-equity-etf-v1',
                                 direction='long', order_id='paper-1', status='open'),
+            TradeDecisionRecord(symbol='AAPL', strategy='daily-trend-pullback-broad-equity-etf-v1',
+                                direction='long', order_id='paper-broad-1', status='open'),
         ])
         db.commit()
         trades = live_trades(limit=20, db=db)['trades']
     assert [row['symbol'] for row in trades] == ['ORCL']
+
+
+def test_decision_context_only_explains_audited_live_trade():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add_all([
+            TradeDecisionRecord(symbol='ORCL', strategy='daily-trend-pullback-broad-equity-etf-v1',
+                                direction='long', order_id='live-1', trade_id='live-trade', status='open',
+                                entry_thesis='daily trend pullback', stop_price=90, target_price=110,
+                                risk_engine_result={'approved': True, 'reasons': []}),
+            AuditLogEntry(event_type='alpaca_live_worker_cycle_completed', payload={'trade_id': 'live-trade'}),
+            StrategyValidationRecord(strategy='daily-trend-pullback-broad-equity-etf-v1',
+                                     methodology_version='test', trades=103, win_rate=.5,
+                                     total_return=.136, max_drawdown=-.105, passed=True),
+        ])
+        db.commit()
+        context = live_decision_context(db=db)
+    assert context['latest_trade']['symbol'] == 'ORCL'
+    assert context['latest_trade']['entry_thesis'] == 'daily trend pullback'
+    assert context['live_validation']['trades'] == 103
+    assert context['live_strategy']['maximum_open_positions_in_worker'] == 1
 
 
 def test_dashboard_requires_password_when_configured(monkeypatch):

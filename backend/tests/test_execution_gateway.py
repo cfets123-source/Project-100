@@ -81,6 +81,16 @@ def test_same_decision_id_retried_is_suppressed_regardless_of_time():
     assert r2.reason == "duplicate_intent_suppressed"
 
 
+def test_submitted_trade_keeps_the_exact_indicator_snapshot(db):
+    gw, _, _ = make_gateway(db)
+    signal = good_signal()
+    signal["technical_conditions"] = {"close": 10.0, "sma50": 9.4, "pullback_pct": -1.8}
+    result = submit(gw, signal)
+    assert result.submitted
+    trade = db.get(models.TradeDecisionRecord, result.trade_id)
+    assert trade.technical_conditions == signal["technical_conditions"]
+
+
 def test_distinct_decisions_for_same_symbol_are_not_suppressed(db):
     gw, broker, sm = make_gateway(db)
     r1 = submit(gw, good_signal(decision_id="decision-A"))

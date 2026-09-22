@@ -19,6 +19,7 @@ class SignalSchema(BaseModel):
     stop_price: float
     target_price: float | None = None
     thesis: str | None = None
+    technical_conditions: dict[str, float] | None = None
     ai_confidence: float | None = None
 
     @field_validator("direction")

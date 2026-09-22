@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -27,11 +28,13 @@ from app.runtime.market_research_worker import (run_scan as run_market_research_
                                                 run_equity_scan as run_equity_research_scan,
                                                 run_expanded_equity_scan)
 from app.strategies.daily_trend_pullback import DailyTrendPullback, BroadDailyTrendPullback
+from app.research.daily_trend_portfolio import STOP_LOSS, TAKE_PROFIT
+from app.research.intraday_trend_pullback import STRATEGY_VERSION as INTRADAY_RESEARCH_VERSION
 
 initialize_schema(engine)
 
 app = FastAPI(title="Veloikos Trading", version="1.0.0")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
 
 @app.get("/terminal/market", dependencies=[Depends(require_dashboard_access)])
@@ -502,8 +505,12 @@ def live_activity(limit: int = Query(default=80, ge=1, le=200), db: Session = De
 @app.get("/live/trades", dependencies=[Depends(require_dashboard_access)])
 def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depends(get_db)):
     """Read-only live trade ledger for the operator terminal."""
+    live_ids = _audited_live_trade_ids(db)
+    if not live_ids:
+        return {"trades": []}
     rows = (db.query(models.TradeDecisionRecord)
-            .filter(models.TradeDecisionRecord.order_id.isnot(None),
+            .filter(models.TradeDecisionRecord.trade_id.in_(live_ids),
+                    models.TradeDecisionRecord.order_id.isnot(None),
                     models.TradeDecisionRecord.strategy.in_((DailyTrendPullback.name,
                                                              BroadDailyTrendPullback.name)))
             .order_by(models.TradeDecisionRecord.timestamp.desc())
@@ -515,3 +522,60 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
         "target_price": row.target_price, "exit_price": row.exit_price,
         "exit_reason": row.exit_reason, "pnl": row.pnl,
     } for row in rows]}
+
+
+def _audited_live_trade_ids(db: Session) -> set[str]:
+    """Use the live worker audit trail to avoid presenting paper fills as live."""
+    events = (db.query(models.AuditLogEntry)
+              .filter(models.AuditLogEntry.event_type.in_((
+                  "alpaca_live_worker_cycle_completed", "alpaca_live_trade_closed"))).all())
+    return {str(event.payload["trade_id"]) for event in events
+            if isinstance(event.payload, dict) and event.payload.get("trade_id")}
+
+
+@app.get("/live/decision-context", dependencies=[Depends(require_dashboard_access)])
+def live_decision_context(db: Session = Depends(get_db)):
+    """Recorded live decisions and validation evidence, with no broker calls."""
+    live_ids = _audited_live_trade_ids(db)
+    trade = (db.query(models.TradeDecisionRecord)
+             .filter(models.TradeDecisionRecord.trade_id.in_(live_ids))
+             .order_by(models.TradeDecisionRecord.timestamp.desc()).first()) if live_ids else None
+    validation = db.get(models.StrategyValidationRecord, BroadDailyTrendPullback.name)
+    intraday = db.get(models.StrategyValidationRecord, INTRADAY_RESEARCH_VERSION)
+    state = db.get(models.SystemStateRecord, "current")
+    last_scan = (db.query(models.AuditLogEntry)
+                 .filter(models.AuditLogEntry.event_type.in_((
+                     "alpaca_live_worker_cycle_completed", "alpaca_live_worker_no_qualifying_signal",
+                     "alpaca_broad_live_worker_rate_limited")))
+                 .order_by(models.AuditLogEntry.timestamp.desc()).first())
+    def evidence(row):
+        return None if row is None else {"passed": row.passed, "trades": row.trades,
+            "win_rate": row.win_rate, "total_return": row.total_return,
+            "max_drawdown": row.max_drawdown, "evaluated_at": row.evaluated_at,
+            "sample_start": row.sample_start, "sample_end": row.sample_end,
+            "methodology_version": row.methodology_version, "reasons": row.reasons}
+    return {
+        "state": {"value": state.state, "reason": state.reason} if state else None,
+        "live_strategy": {"version": BroadDailyTrendPullback.name,
+            "universe": list(BroadDailyTrendPullback.universe),
+            "entry_rules": {"above_50_day_average": True, "five_day_pullback_at_least_pct": 1.5,
+                            "maximum_quote_age_seconds": 15, "maximum_spread_pct": 1.0},
+            "initial_stop_pct": STOP_LOSS * 100, "target_pct": TAKE_PROFIT * 100,
+            "maximum_open_positions_in_worker": 1,
+            "decision_frequency": "at most one submitted decision per symbol per day"},
+        "live_validation": evidence(validation),
+        "intraday_research": {"version": INTRADAY_RESEARCH_VERSION, "evidence": evidence(intraday),
+                              "execution_enabled": False},
+        "latest_trade": None if trade is None else {"trade_id": trade.trade_id,
+            "timestamp": trade.timestamp, "symbol": trade.symbol, "strategy": trade.strategy,
+            "status": trade.status, "entry_thesis": trade.entry_thesis,
+            "technical_conditions": trade.technical_conditions,
+            "risk_engine_result": trade.risk_engine_result,
+            "quantity": trade.position_size, "entry_price": trade.fill_price or trade.entry_price,
+            "stop_price": trade.stop_price, "target_price": trade.target_price,
+            "risk_dollars": trade.risk_dollars, "exit_price": trade.exit_price,
+            "exit_reason": trade.exit_reason, "pnl": trade.pnl},
+        "last_worker_event": None if last_scan is None else {"type": last_scan.event_type,
+            "timestamp": last_scan.timestamp, "payload": last_scan.payload},
+        "capabilities": CapabilityRegistry().report(),
+    }
