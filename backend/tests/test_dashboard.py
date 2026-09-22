@@ -4,11 +4,12 @@ import base64
 from app.main import app
 
 
-def test_dashboard_is_read_only_and_identifies_simulation():
+def test_dashboard_is_read_only_and_identifies_operator_console():
     with TestClient(app) as client:
         page = client.get('/dashboard')
         assert page.status_code == 200
-        assert 'paper simulation only' in page.text
+        assert 'Veloikos Trading' in page.text
+        assert 'Live positions' in page.text
         assert '/paper/activity' in page.text
         broker = client.get('/brokers/robinhood/status').json()
         assert broker['connected'] is False
@@ -28,7 +29,7 @@ def test_dashboard_requires_password_when_configured(monkeypatch):
     from app.core.config import settings
     monkeypatch.setattr(settings, "DASHBOARD_PASSWORD", "test-password")
     with TestClient(app) as client:
-        assert client.get('/dashboard').status_code == 401
+        assert client.get('/dashboard', follow_redirects=False).status_code == 303
         token = base64.b64encode(b"operator:test-password").decode()
         assert client.get('/dashboard', headers={"Authorization": f"Basic {token}"}).status_code == 200
         assert client.get('/brokers/robinhood/connect').status_code == 401
