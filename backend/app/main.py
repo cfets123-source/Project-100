@@ -31,6 +31,24 @@ initialize_schema(engine)
 app = FastAPI(title="Veloikos Trading", version="1.0.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+
+@app.get("/terminal/market", dependencies=[Depends(require_dashboard_access)])
+def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=10), db: Session = Depends(get_db)):
+    """Read-only quote and daily candles for the trading terminal."""
+    symbol = symbol.upper()
+    if not symbol.replace(".", "").isalpha():
+        raise HTTPException(status_code=400, detail="invalid symbol")
+    try:
+        adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
+        quote = next(q for q in adapter.get_quotes([symbol]) if q.symbol == symbol)
+        from datetime import datetime, timedelta, timezone
+        end = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
+        start = (datetime.now(timezone.utc) - timedelta(days=75)).strftime("%Y-%m-%dT00:00:00Z")
+        return {"symbol": symbol, "quote": {"bid": quote.bid, "ask": quote.ask, "last": quote.last},
+                "bars": adapter.get_daily_bars(symbol, start, end)[-45:]}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"market data unavailable: {type(exc).__name__}") from exc
+
 # The browser refreshes its display every second, but Alpaca account endpoints
 # must not be called at browser-poll frequency.  This short process-local cache
 # keeps the display live while reserving API capacity for the execution worker.
