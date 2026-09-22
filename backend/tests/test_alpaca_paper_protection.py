@@ -41,8 +41,10 @@ def test_places_alpaca_stop_for_unprotected_filled_position():
     assert submitted.time_in_force == 'day'
 
 
-def test_missing_recorded_stop_halts_before_more_entries():
+def test_missing_recorded_paper_stop_does_not_halt_live_state():
     db = _db()
+    db.add(models.SystemStateRecord(id='current', state='live', reason='active'))
+    db.commit()
     adapter = MagicMock(paper=True)
     adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '1'}]
     adapter.get_orders.return_value = []
@@ -53,7 +55,35 @@ def test_missing_recorded_stop_halts_before_more_entries():
     assert result['emergency_exit']['submitted'] is True
     submitted = adapter.place_order.call_args.args[0]
     assert submitted.symbol == 'AAPL' and submitted.side == 'sell' and submitted.quantity == 1.0
+    assert db.get(models.SystemStateRecord, 'current').state == 'live'
+
+
+def test_missing_recorded_live_stop_still_halts():
+    db = _db()
+    db.add(models.SystemStateRecord(id='current', state='live', reason='active'))
+    db.commit()
+    adapter = MagicMock(paper=False)
+    adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '1'}]
+    adapter.get_orders.return_value = []
+
+    result = ensure_protective_stops(db, adapter, SimpleNamespace(LIVE_TRADING_ENABLED=True), mode='live')
+
+    assert result['protected'] is False
     assert db.get(models.SystemStateRecord, 'current').state == 'halted'
+
+
+def test_pending_exit_never_submits_duplicate_sell():
+    db = _db()
+    adapter = MagicMock(paper=True)
+    adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '1'}]
+    adapter.get_orders.return_value = [{'id': 'exit-1', 'symbol': 'AAPL', 'side': 'sell',
+                                        'type': 'market', 'status': 'accepted'}]
+
+    result = ensure_protective_stops(db, adapter, SimpleNamespace())
+
+    assert result['reason'] == 'exit_pending'
+    assert result['protected'] is False
+    adapter.place_order.assert_not_called()
 
 
 def test_stop_submission_failure_submits_one_emergency_exit():

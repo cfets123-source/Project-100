@@ -1,8 +1,7 @@
-"""Create broker-side stops for external Alpaca paper positions.
+"""Create broker-side stops for external Alpaca paper or live positions.
 
-This is deliberately limited to the explicitly enabled *paper* execution
-adapter.  A position without a recorded Project 100 stop price is a halt
-condition: guessing a stop from the current price would be unsafe.
+A live position without a recorded stop price halts live trading. A paper
+failure blocks the paper worker without changing the live state.
 """
 from __future__ import annotations
 
@@ -70,9 +69,9 @@ def _emergency_close_unprotected_position(db, adapter, *, symbol: str, quantity:
 def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
     """Place or renew a sell stop for every externally held long position.
 
-    The caller must have constructed ``adapter`` through the paper-only,
-    execution-gated factory.  Failure halts the system before another entry can
-    be considered; this function never applies to a live credential.
+    The caller must supply the separately gated adapter for the selected mode.
+    A missing stop blocks another entry; only live failures trip the global
+    kill switch.
     """
     if mode not in {"paper", "live"}:
         raise ValueError("protective-stop mode must be paper or live")
@@ -93,9 +92,16 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
     for symbol in check["uncovered_positions"]:
         position = positions[symbol]
         quantity = abs(float(position.get("qty") or 0))
+        if symbol in check["pending_exit_symbols"]:
+            if mode == "live":
+                state.activate_kill_switch(f"live unprotected position has pending exit: {symbol}")
+            log_and_commit(db, f"{event_prefix}_exit_pending", {"symbol": symbol})
+            return {"protected": False, "placed": placed, "failed": symbol,
+                    "reason": "exit_pending", "emergency_exit": {"submitted": False}}
         entry = _entry_for_position(db, adapter, symbol, quantity)
         if quantity <= 0 or entry is None:
-            state.activate_kill_switch(f"{mode} position without recorded protective stop: {symbol}")
+            if mode == "live":
+                state.activate_kill_switch(f"{mode} position without recorded protective stop: {symbol}")
             emergency_exit = _emergency_close_unprotected_position(
                 db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="missing_recorded_stop"
             )
@@ -113,7 +119,8 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
                                                        # renews and verifies them on every market-session cycle.
                                                        time_in_force="day"))
         except Exception as exc:  # A broker uncertainty is a halt, not a retry.
-            state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
+            if mode == "live":
+                state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
             detail = f"{type(exc).__name__}: {exc}"[:600]
             emergency_exit = _emergency_close_unprotected_position(
                 db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="protective_stop_broker_error"
@@ -123,7 +130,8 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "broker_error", "emergency_exit": emergency_exit}
         if result.status not in {"new", "pending_new", "accepted", "pending", "open"} or not result.order_id:
-            state.activate_kill_switch(f"{mode} protective stop rejected: {symbol}")
+            if mode == "live":
+                state.activate_kill_switch(f"{mode} protective stop rejected: {symbol}")
             emergency_exit = _emergency_close_unprotected_position(
                 db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="protective_stop_rejected"
             )

@@ -1,3 +1,4 @@
+import datetime as dt
 from types import SimpleNamespace
 
 import pytest
@@ -5,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db.session import Base
-from app.models.models import SystemStateRecord
+from app.models.models import AuditLogEntry, SystemStateRecord, TradeDecisionRecord
 from app.runtime import alpaca_live_emergency_exit as emergency
 
 
@@ -58,3 +59,31 @@ def test_emergency_path_refuses_when_system_is_not_halted(monkeypatch):
                         lambda *args, **kwargs: pytest.fail("broker must not be reached"))
     with pytest.raises(RuntimeError, match="requires halted state"):
         emergency.emergency_exit(db, SimpleNamespace(BROKER_TOKEN_ENCRYPTION_KEY="unused"), "ORCL")
+
+
+def test_reconcile_emergency_exit_only_after_broker_fill_and_flat(monkeypatch):
+    db = database()
+    opened_at = dt.datetime.utcnow() - dt.timedelta(minutes=2)
+    trade = TradeDecisionRecord(symbol="ORCL", direction="long", strategy="daily-trend-pullback-broad-equity-etf-v1",
+                                order_id="entry-1", status="open", fill_price=100,
+                                position_size=0.2, timestamp=opened_at)
+    db.add(trade)
+    db.add(AuditLogEntry(event_type="alpaca_live_halted_emergency_exit_submitted",
+                         payload={"symbol": "ORCL", "order_id": "exit-1", "quantity": 0.2}))
+    db.commit()
+    state = {"positions": [{"symbol": "ORCL", "qty": "0.2"}], "status": "accepted"}
+    reader = SimpleNamespace(paper=False, get_positions=lambda: state["positions"],
+                             get_orders=lambda: [{"id": "entry-1", "symbol": "ORCL",
+                                                  "side": "buy", "status": "filled"}],
+                             get_order_status=lambda order_id: {"id": order_id, "symbol": "ORCL",
+                                 "side": "sell", "status": state["status"],
+                                 "filled_qty": "0.2", "filled_avg_price": "101"})
+    monkeypatch.setattr(emergency, "load_read_only_adapter", lambda *args, **kwargs: (reader, False))
+    cfg = SimpleNamespace(BROKER_TOKEN_ENCRYPTION_KEY="unused")
+    pending = emergency.reconcile_emergency_exits(db, cfg)
+    assert len(pending["pending"]) == 1 and trade.status == "open"
+    state.update(positions=[], status="filled")
+    done = emergency.reconcile_emergency_exits(db, cfg)
+    assert len(done["closed"]) == 1 and trade.status == "closed"
+    assert trade.exit_price == 101 and round(trade.pnl, 2) == 0.2
+    assert emergency.reconcile_emergency_exits(db, cfg)["closed"] == []
