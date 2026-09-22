@@ -127,9 +127,17 @@ class ExecutionGateway:
         key = _intent_key(account_id, signal.decision_id)
         existing = self.db.get(OrderIntent, key)
         if existing is not None:
-            risk_budget.release(self.db, reservation.reservation_id)  # don't double-hold budget
-            log_and_commit(self.db, "duplicate_intent_blocked", {"intent_key": key, "status": existing.status})
-            return GatewayResult(submitted=False, reason="duplicate_intent_suppressed")
+            # A terminal local rejection without a broker id cannot create
+            # market exposure. Clear only that stale intent so a later fresh
+            # quote can retry the same daily decision. Unknown/pending/filled
+            # intents remain strictly idempotent.
+            if existing.status in {"rejected", "canceled"} and not existing.broker_order_id:
+                self.db.delete(existing)
+                persist(self.db)
+            else:
+                risk_budget.release(self.db, reservation.reservation_id)  # don't double-hold budget
+                log_and_commit(self.db, "duplicate_intent_blocked", {"intent_key": key, "status": existing.status})
+                return GatewayResult(submitted=False, reason="duplicate_intent_suppressed")
 
         intent = OrderIntent(intent_key=key, decision_id=signal.decision_id, account_id=account_id,
                               symbol=signal.symbol, side="buy" if signal.direction == "long" else "sell",
