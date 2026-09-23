@@ -21,6 +21,7 @@ from app.security.dashboard import (require_dashboard_access, dashboard_access_g
                                     issue_dashboard_session)
 from app.dashboard_html import DASHBOARD_HTML
 from app.services.live_readiness import report as live_readiness_report
+from app.services.state_machine import StateManager
 from app.audit.logger import log_and_commit
 from app.markets.capabilities import CapabilityRegistry
 from app.markets.account_capabilities import account_approval_report
@@ -529,6 +530,7 @@ def live_readiness(db: Session = Depends(get_db)):
     report = live_readiness_report(
         settings, broker, market_open=False,
         external_paper_lifecycle_verified=evidence is not None,
+        current_state=StateManager(db, settings).get_state(),
     )
     report["external_paper_lifecycle_evidence"] = evidence.payload if evidence else None
     return report
