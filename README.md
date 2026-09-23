@@ -1,10 +1,14 @@
 # Veloikos Trading
 
-Experimental autonomous-trading software under development. Current behavior is
-simulated; a persistent paper worker is available, but no real broker integration is present.
-Live execution is disabled by default and must remain disabled while the remaining
-safety and deployment work is completed. Capital milestones are aspirational,
-not expected or guaranteed returns.
+Experimental autonomous-trading software under development. The repository now
+contains Alpaca broker adapters and paper/live worker paths alongside research
+code. The state of any deployed worker or broker account must be checked in
+that environment; source code alone does not prove that a route is active.
+Live execution is off by default in local configuration. The project objective
+and the rules for stage-specific strategy work are in [Project 100 working
+instructions](AGENTS.md). The account-equity ladder starts at **$100 → $500 →
+$1,000** and continues to $1,000,000 within a year. This is an aggressive
+research objective, not an expected or guaranteed return.
 
 ## Local tests
 
@@ -19,8 +23,9 @@ cd backend
 python -m pytest tests/ -q
 ```
 
-The persistent-runtime validation run passed 153 tests. Tests use simulated data and broker
-doubles, not real accounts. Some development dependencies emit deprecation warnings.
+The backend suite includes simulated-data and broker-double tests; run it for
+the current count rather than relying on an older README number. Tests alone
+do not verify a live broker account. Some dependencies emit deprecation warnings.
 
 See [architecture](docs/ARCHITECTURE.md) and [safety limits](docs/THREAT_MODEL.md).
 Never commit credentials, account databases, or private trading records.
