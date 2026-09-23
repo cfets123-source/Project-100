@@ -276,6 +276,19 @@ class RobinhoodTradeLifecycle(Base):
                         nullable=False)
 
 
+class RobinhoodEmergencyExit(Base):
+    """Durable, one-per-trade emergency sell after protection fails."""
+    __tablename__ = "robinhood_emergency_exits"
+    trade_id = Column(String, primary_key=True)
+    ref_id = Column(String, nullable=False, unique=True)
+    order_id = Column(String, nullable=True, unique=True)
+    status = Column(String, nullable=False)
+    reason = Column(String, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow,
+                        nullable=False)
+
+
 class RobinhoodStrategyReadiness(Base):
     """Asset-specific simulated lifecycle and explicit entry authorization."""
     __tablename__ = "robinhood_strategy_readiness"

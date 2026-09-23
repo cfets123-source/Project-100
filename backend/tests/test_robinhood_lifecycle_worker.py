@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 from app.core.config import Settings, TradingMode, AutonomyLevel
 from app.db.session import Base
 from app.models import models  # noqa: F401
-from app.models.models import OrderIntent, RiskReservation, TradeDecisionRecord
+from app.models.models import (OrderIntent, RiskReservation, RobinhoodTradeLifecycle,
+                               SystemStateRecord, TradeDecisionRecord)
 from app.runtime.robinhood_lifecycle_worker import run_cycle
 
 
@@ -54,4 +55,26 @@ def test_stale_preparing_intent_releases_only_its_reservation(monkeypatch):
     assert run_cycle(db, cfg)["status"] == "idle"
     assert db.get(OrderIntent, "old").status == "canceled"
     assert db.get(RiskReservation, "r1").status == "released"
+    db.close()
+
+
+def test_pending_emergency_exit_halts_new_entries_but_keeps_lifecycle_running(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(RobinhoodTradeLifecycle(trade_id="t1", account_id="agentic", asset_class="equity",
+                                   symbol="F", quantity=1, stop_price=9, entry_order_id="entry-1",
+                                   stop_ref_id="11111111-1111-1111-1111-111111111111",
+                                   status="emergency_pending"))
+    db.commit()
+    monkeypatch.setattr("app.runtime.robinhood_lifecycle_worker.load_agentic_order_transport",
+                        lambda *_: object())
+    monkeypatch.setattr("app.runtime.robinhood_lifecycle_worker.reconcile_trade",
+                        lambda *_: {"status": "emergency_pending", "reason": "stop_preview_rejected",
+                                    "trade_id": "t1"})
+    cfg = Settings(TRADING_MODE=TradingMode.LIVE,
+                   AUTONOMY_LEVEL=AutonomyLevel.LEVEL_4_LIVE_AUTONOMOUS,
+                   LIVE_TRADING_ENABLED=True, ROBINHOOD_EQUITY_EXECUTION_ENABLED=True)
+    assert run_cycle(db, cfg)["outcomes"][0]["status"] == "emergency_pending"
+    assert db.get(SystemStateRecord, "current").state == "halted"
     db.close()

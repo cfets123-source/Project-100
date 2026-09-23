@@ -104,3 +104,16 @@ def test_factory_requires_live_and_separate_broker_gates(monkeypatch):
     assert client.allow_crypto is False
     cfg.LIVE_TRADING_ENABLED = False
     assert load_agentic_order_transport(object(), "key", cfg).allow_equity is False
+
+
+def test_emergency_sell_scan_requires_broker_order_list(monkeypatch):
+    client, calls = transport(monkeypatch)
+    assert client.active_sell_orders("equity", "F") == []
+    assert calls[-1] == ("get_equity_orders", {"account_number": "equity-6395"})
+    monkeypatch.setattr(client.adapter, "_tool", lambda name, args: {"orders": None})
+    with pytest.raises(RobinhoodMcpError, match="order history"):
+        client.active_sell_orders("equity", "F")
+    monkeypatch.setattr(client.adapter, "_tool", lambda name, args: {"orders": [
+        {"id": "unclear", "symbol": "F", "side": "sell", "state": "new_broker_state"},
+        {"id": "done", "symbol": "F", "side": "sell", "state": "filled"}]})
+    assert [row["id"] for row in client.active_sell_orders("equity", "F")] == ["unclear"]

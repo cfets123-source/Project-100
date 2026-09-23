@@ -140,7 +140,10 @@ class RobinhoodOrderTransport:
                 "rhs_account_number": self.adapter._crypto_account()}
         else:
             raise RobinhoodMcpError("Unsupported asset class")
-        rows = self.adapter._tool(tool, args).get(key)
+        response = self.adapter._tool(tool, args)
+        if response.get("has_more") or response.get("next") or response.get("next_cursor"):
+            raise RobinhoodMcpError("Broker order history is incomplete")
+        rows = response.get(key)
         if not isinstance(rows, list):
             raise RobinhoodMcpError("Broker order history is unavailable")
         matches = [row for row in rows if isinstance(row, dict)
@@ -148,6 +151,28 @@ class RobinhoodOrderTransport:
         if len(matches) > 1:
             raise RobinhoodMcpError("Duplicate broker reference in order history")
         return matches[0] if matches else None
+
+    def active_sell_orders(self, asset_class: str, symbol: str) -> list[dict]:
+        """Check the bound account for sells that could conflict with an emergency exit."""
+        if asset_class == "equity":
+            tool, key, args = "get_equity_orders", "orders", {
+                "account_number": self.adapter.designated_account_id}
+        elif asset_class == "crypto":
+            tool, key, args = "get_crypto_orders", "results", {
+                "rhs_account_number": self.adapter._crypto_account()}
+        else:
+            raise RobinhoodMcpError("Unsupported asset class")
+        response = self.adapter._tool(tool, args)
+        if response.get("has_more") or response.get("next") or response.get("next_cursor"):
+            raise RobinhoodMcpError("Broker order history is incomplete")
+        rows = response.get(key)
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Broker order history is unavailable")
+        terminal = {"filled", "completed", "rejected", "canceled", "cancelled", "expired"}
+        return [row for row in rows if isinstance(row, dict)
+                and str(row.get("symbol") or "").upper().replace("-", "") == symbol
+                and str(row.get("side") or "").lower() == "sell"
+                and str(row.get("state") or row.get("status") or "").lower() not in terminal]
 
     def _owned_order(self, tool: str, rows_key: str, account_key: str,
                      account_id: str, order_id: str) -> dict:

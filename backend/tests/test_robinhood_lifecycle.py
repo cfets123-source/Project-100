@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.session import Base
 from app.models import models  # noqa: F401
-from app.models.models import (OrderIntent, RiskReservation, RobinhoodStrategyReadiness,
+from app.models.models import (OrderIntent, RiskReservation, RobinhoodEmergencyExit, RobinhoodStrategyReadiness,
                                RobinhoodTradeLifecycle,
                                StrategyValidationRecord, TradeDecisionRecord)
 from app.services.robinhood_lifecycle import record_entry, reconcile_trade, RobinhoodLifecycleError
@@ -64,6 +64,7 @@ def fake_transport(asset_class="equity", quantity=1.0):
     broker.submit_crypto.return_value = {"id": "stop-1"}
     broker.preview_equity.return_value = {}
     broker.preview_crypto.return_value = {}
+    broker.active_sell_orders.return_value = []
     return broker
 
 
@@ -107,21 +108,65 @@ def test_uncertain_crypto_stop_is_not_submitted_twice(db):
     broker.submit_crypto.assert_called_once()
 
 
-def test_rejected_stop_and_position_mismatch_block_completion(db):
+def test_rejected_stop_triggers_one_emergency_exit_and_reconciles_flat(db):
     trade, row = prepared(db)
     broker = fake_transport()
     broker.adapter.get_positions.return_value = []
     assert reconcile_trade(db, broker, trade.trade_id)["reason"] == "entry_position_mismatch"
     broker.submit_equity.assert_not_called()
     broker.adapter.get_positions.return_value = [{"symbol": "F", "qty": 1}]
+    broker.submit_equity.side_effect = [{"id": "stop-1"}, {"id": "exit-1"}]
     broker.get_equity_order.side_effect = lambda order_id: (
         {"id": "entry-1", "state": "filled", "filled_qty": 1,
          "filled_avg_price": 100} if order_id == "entry-1" else
         {"id": "stop-1", "state": "rejected", "symbol": "F",
-         "side": "sell", "quantity": 1, "stop_price": 90})
-    assert reconcile_trade(db, broker, trade.trade_id)["reason"] == "protective_stop_inactive"
+         "side": "sell", "quantity": 1, "stop_price": 90} if order_id == "stop-1" else
+        {"id": "exit-1", "state": "accepted", "symbol": "F", "side": "sell"})
+    assert reconcile_trade(db, broker, trade.trade_id)["status"] == "emergency_pending"
+    assert broker.submit_equity.call_count == 2
+    assert reconcile_trade(db, broker, trade.trade_id)["status"] == "emergency_pending"
+    assert broker.submit_equity.call_count == 2
     assert trade.status == "open"
     assert db.get(RiskReservation, "reservation-1").status == "active"
+    broker.get_equity_order.side_effect = lambda order_id: (
+        {"id": "entry-1", "state": "filled", "filled_qty": 1,
+         "filled_avg_price": 100} if order_id == "entry-1" else
+        {"id": "exit-1", "state": "filled", "symbol": "F", "side": "sell",
+         "filled_qty": 1, "filled_avg_price": 98})
+    broker.adapter.get_positions.return_value = []
+    assert reconcile_trade(db, broker, trade.trade_id)["status"] == "closed"
+    assert trade.exit_reason == "emergency_unprotected_exit" and trade.pnl == -2
+    assert db.get(RiskReservation, "reservation-1").status == "released"
+
+
+def test_uncertain_emergency_submission_never_retries_blindly(db):
+    trade, _ = prepared(db, "crypto")
+    broker = fake_transport("crypto", .001)
+    broker.preview_crypto.side_effect = [{"rejected": True}, {}]
+    broker.submit_crypto.side_effect = TimeoutError("after send")
+    assert reconcile_trade(db, broker, trade.trade_id)["reason"] == "emergency_submission_uncertain"
+    exit_row = db.get(RobinhoodEmergencyExit, trade.trade_id)
+    assert exit_row.status == "unknown"
+    broker.find_order_by_ref.return_value = None
+    assert reconcile_trade(db, broker, trade.trade_id)["reason"] == "emergency_submission_unresolved"
+    broker.submit_crypto.assert_called_once()
+    broker.find_order_by_ref.return_value = {"id": "exit-1"}
+    broker.get_crypto_order.side_effect = lambda order_id: (
+        {"id": "entry-1", "state": "filled", "filled_qty": .001,
+         "filled_avg_price": 100} if order_id == "entry-1" else
+        {"id": "exit-1", "state": "accepted", "symbol": "BTCUSD", "side": "sell"})
+    assert reconcile_trade(db, broker, trade.trade_id)["status"] == "emergency_pending"
+    broker.submit_crypto.assert_called_once()
+
+
+def test_other_active_sell_blocks_emergency(db):
+    trade, _ = prepared(db)
+    broker = fake_transport()
+    broker.preview_equity.return_value = {"rejected": True}
+    broker.active_sell_orders.return_value = [{"id": "other", "side": "sell"}]
+    assert reconcile_trade(db, broker, trade.trade_id)["reason"] == "other_active_sell_order"
+    broker.submit_equity.assert_not_called()
+    assert db.get(RobinhoodEmergencyExit, trade.trade_id) is None
 
 
 def test_record_entry_requires_matching_validation_and_risk(db):

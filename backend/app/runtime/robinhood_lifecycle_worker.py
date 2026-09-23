@@ -69,6 +69,10 @@ def run_cycle(db, cfg: Settings) -> dict:
     for row in rows:
         result = reconcile_trade(db, transport, row.trade_id)
         outcomes.append(result)
+        if result["status"] == "emergency_pending":
+            StateManager(db, cfg).activate_kill_switch(
+                f"Robinhood emergency exit pending: {result['reason']}")
+            log_and_commit(db, "robinhood_emergency_exit_pending", result)
         if result["status"] == "safety_failure":
             StateManager(db, cfg).activate_kill_switch(
                 f"Robinhood lifecycle safety failure: {result['reason']}")

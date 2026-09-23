@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from app.audit.logger import log_and_commit
 from app.brokers.robinhood_execution import RobinhoodOrderTransport
-from app.models.models import (OrderIntent, RobinhoodStrategyReadiness,
+from app.models.models import (OrderIntent, RobinhoodEmergencyExit, RobinhoodStrategyReadiness,
                                RobinhoodTradeLifecycle, RiskReservation,
                                StrategyValidationRecord, TradeDecisionRecord)
 
@@ -60,6 +60,105 @@ def _position_quantity(transport: RobinhoodOrderTransport, asset_class: str, sym
     if len(matches) > 1:
         raise RobinhoodLifecycleError("Duplicate broker position")
     return _number(matches[0], "quantity", "qty") if matches else 0.0
+
+
+def _emergency_exit(db, transport: RobinhoodOrderTransport, row: RobinhoodTradeLifecycle,
+                    trade: TradeDecisionRecord, entry_price: float, reason: str,
+                    position_qty: float) -> dict:
+    """Sell an unprotected confirmed fill once, then reconcile the broker fill."""
+    result = lambda status, why: {"status": status, "reason": why, "trade_id": row.trade_id}
+    existing_exit = db.get(RobinhoodEmergencyExit, row.trade_id)
+    if (existing_exit is None or existing_exit.status == "preparing") and \
+            abs(position_qty - row.quantity) > 1e-8:
+        return result("safety_failure", "emergency_position_mismatch")
+    if row.asset_class == "equity":
+        preview, submit, get_order = (transport.preview_equity, transport.submit_equity,
+                                      transport.get_equity_order)
+    else:
+        preview, submit, get_order = (transport.preview_crypto, transport.submit_crypto,
+                                      transport.get_crypto_order)
+    exit_row = existing_exit
+    if exit_row is None:
+        # A separate active sell could overclose the position. Broker order-list
+        # availability is required before creating the one durable exit intent.
+        if transport.active_sell_orders(row.asset_class, row.symbol):
+            return result("safety_failure", "other_active_sell_order")
+        exit_row = RobinhoodEmergencyExit(trade_id=row.trade_id, ref_id=str(uuid4()),
+                                          status="preparing", reason=reason)
+        db.add(exit_row)
+        row.status = "emergency_preparing"
+        db.commit()
+    order = {"symbol": row.symbol, "side": "sell", "quantity": row.quantity,
+             "order_type": "market"}
+    if exit_row.order_id is None:
+        if exit_row.status in {"submitting", "unknown"}:
+            found = transport.find_order_by_ref(row.asset_class, exit_row.ref_id)
+            if found is None:
+                return result("safety_failure", "emergency_submission_unresolved")
+            exit_row.order_id = _order_id(found)
+            exit_row.status = "submitted"
+            db.commit()
+        elif exit_row.status == "preparing":
+            reviewed = preview(**order)
+            if not isinstance(reviewed, dict) or reviewed.get("errors") or reviewed.get("rejected"):
+                return result("safety_failure", "emergency_preview_rejected")
+            exit_row.status = "submitting"
+            row.status = "emergency_submitting"
+            db.commit()
+            try:
+                placed = submit(ref_id=exit_row.ref_id, **order)
+                exit_row.order_id = _order_id(placed)
+                exit_row.status = "submitted"
+                row.status = "emergency_submitted"
+                db.commit()
+            except Exception as exc:
+                exit_row.status = "unknown"
+                row.status = "emergency_unknown"
+                row.last_error = type(exc).__name__
+                db.commit()
+                return result("safety_failure", "emergency_submission_uncertain")
+        else:
+            return result("safety_failure", "emergency_state_invalid")
+    broker_exit = get_order(exit_row.order_id)
+    state = _state(broker_exit)
+    if str(broker_exit.get("symbol") or "").upper().replace("-", "") != row.symbol or \
+            str(broker_exit.get("side") or "").lower() != "sell":
+        return result("safety_failure", "emergency_order_mismatch")
+    if state in {"rejected", "canceled", "cancelled", "expired"}:
+        exit_row.status = "failed"
+        db.commit()
+        return result("safety_failure", "emergency_order_inactive")
+    if state in {"filled", "completed"}:
+        if _position_quantity(transport, row.asset_class, row.symbol) != 0:
+            return result("safety_failure", "emergency_fill_position_not_flat")
+        filled_qty = _number(broker_exit, "filled_quantity", "filled_qty", "cumulative_quantity")
+        exit_price = _number(broker_exit, "average_price", "filled_avg_price", "fill_price")
+        if abs(filled_qty - row.quantity) > 1e-8 or exit_price <= 0:
+            return result("safety_failure", "emergency_fill_incomplete")
+        intent = db.query(OrderIntent).filter_by(trade_id=row.trade_id, account_id=row.account_id,
+                                                 broker_order_id=row.entry_order_id).one_or_none()
+        if intent is None:
+            return result("safety_failure", "entry_intent_missing")
+        trade.status = "closed"
+        trade.exit_price = exit_price
+        trade.exit_reason = "emergency_unprotected_exit"
+        trade.pnl = (exit_price - entry_price) * row.quantity
+        trade.r_multiple = trade.pnl / trade.risk_dollars if trade.risk_dollars else None
+        row.status = "closed"
+        exit_row.status = "filled"
+        db.query(RiskReservation).filter_by(account_id=row.account_id,
+                                            decision_id=intent.decision_id,
+                                            status="active").update({"status": "released"})
+        db.commit()
+        log_and_commit(db, "robinhood_emergency_exit_reconciled", {
+            "trade_id": row.trade_id, "order_id": exit_row.order_id,
+            "reason": reason, "realized_pnl": trade.pnl})
+        return {"status": "closed", "trade_id": row.trade_id, "realized_pnl": trade.pnl}
+    if state not in {"new", "pending", "queued", "confirmed", "accepted", "open", "partially_filled"}:
+        return result("safety_failure", "emergency_status_unknown")
+    row.status = "emergency_pending"
+    db.commit()
+    return result("emergency_pending", reason)
 
 
 def record_entry(db, *, trade_id: str, account_id: str, asset_class: str,
@@ -159,6 +258,9 @@ def reconcile_trade(db, transport: RobinhoodOrderTransport, trade_id: str) -> di
         return {"status": "safety_failure", "reason": "entry_fill_price_missing", "trade_id": trade_id}
     trade.fill_price = price
     position_qty = _position_quantity(transport, row.asset_class, row.symbol)
+    emergency = db.get(RobinhoodEmergencyExit, row.trade_id)
+    if emergency is not None:
+        return _emergency_exit(db, transport, row, trade, price, emergency.reason, position_qty)
     if row.stop_order_id is None and abs(position_qty - row.quantity) > 1e-8:
         return {"status": "safety_failure", "reason": "entry_position_mismatch", "trade_id": trade_id}
 
@@ -180,7 +282,8 @@ def reconcile_trade(db, transport: RobinhoodOrderTransport, trade_id: str) -> di
                     "order_type": stop_type, "stop_price": row.stop_price}
             preview_result = preview(**stop)
             if not isinstance(preview_result, dict) or preview_result.get("errors") or preview_result.get("rejected"):
-                return {"status": "safety_failure", "reason": "stop_preview_rejected", "trade_id": trade_id}
+                return _emergency_exit(db, transport, row, trade, price,
+                                       "stop_preview_rejected", position_qty)
             row.status = "stop_submitting"
             db.commit()
             try:
@@ -203,7 +306,8 @@ def reconcile_trade(db, transport: RobinhoodOrderTransport, trade_id: str) -> di
     if stop_state in {"rejected", "canceled", "cancelled", "expired"}:
         row.status = "stop_failed"
         db.commit()
-        return {"status": "safety_failure", "reason": "protective_stop_inactive", "trade_id": trade_id}
+        return _emergency_exit(db, transport, row, trade, price,
+                               "protective_stop_inactive", position_qty)
     if stop_state in {"filled", "completed"}:
         if position_qty != 0:
             return {"status": "safety_failure", "reason": "stop_filled_position_not_flat", "trade_id": trade_id}
