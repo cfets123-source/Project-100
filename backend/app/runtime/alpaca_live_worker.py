@@ -88,20 +88,22 @@ if __name__ == '__main__':
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from app.core.config import Settings
+    from app.runtime.alpaca_live_worker_lock import exclusive_live_worker
     parser=argparse.ArgumentParser(); parser.add_argument('--database', required=True); parser.add_argument('--once', action='store_true'); parser.add_argument('--interval', type=float, default=60.0)
     args=parser.parse_args(); cfg=Settings(); engine=create_engine(args.database)
-    while True:
-        with Session(engine) as db:
-            # Read throttling is an external, temporary condition.  Never let
-            # it terminate the supervised live worker or turn into an order
-            # retry; record it and wait for the next normal cycle instead.
-            try:
-                result = run_cycle(db, cfg)
-            except AlpacaBrokerError as exc:
-                log_and_commit(db, "alpaca_live_worker_rate_limited", {
-                    "error": type(exc).__name__,
-                })
-                result = {"started": True, "entries": [], "reason": "broker_rate_limited"}
-            print(result, flush=True)
-        if args.once: break
-        time.sleep(max(5.0, args.interval))
+    with exclusive_live_worker(args.database):
+        while True:
+            with Session(engine) as db:
+                # Read throttling is an external, temporary condition.  Never let
+                # it terminate the supervised live worker or turn into an order
+                # retry; record it and wait for the next normal cycle instead.
+                try:
+                    result = run_cycle(db, cfg)
+                except AlpacaBrokerError as exc:
+                    log_and_commit(db, "alpaca_live_worker_rate_limited", {
+                        "error": type(exc).__name__,
+                    })
+                    result = {"started": True, "entries": [], "reason": "broker_rate_limited"}
+                print(result, flush=True)
+            if args.once: break
+            time.sleep(max(5.0, args.interval))

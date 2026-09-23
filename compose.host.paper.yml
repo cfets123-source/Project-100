@@ -134,6 +134,24 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  alpaca-expanded-live:
+    build: .
+    profiles: ["expanded-live"]
+    command: ["python", "-m", "app.runtime.alpaca_expanded_live_worker", "--database", "sqlite:////data/paper.db", "--interval", "60"]
+    env_file: .env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: live
+      AUTONOMY_LEVEL: "4"
+      AUTO_EXECUTION: "true"
+      LIVE_TRADING_ENABLED: "${EXPANDED_LIVE_TRADING_ENABLED:-false}"
+    volumes: ["paper-data:/data"]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
   alpaca-live-reconciliation:
     build: .
     command: ["python", "-m", "app.runtime.alpaca_live_reconciliation_worker", "--database", "sqlite:////data/paper.db", "--interval", "300"]
