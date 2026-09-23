@@ -76,7 +76,7 @@ def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str, mode: 
     trade.status, trade.exit_price, trade.exit_reason = "closed", price, reason
     trade.pnl = pnl
     trade.r_multiple = pnl / trade.risk_dollars if trade.risk_dollars else None
-    trade.post_trade_analysis = {"mode": "live", "broker_reconciled": True,
+    trade.post_trade_analysis = {"mode": mode, "broker_reconciled": True,
                                  "entry_order_id": entry_order_id,
                                  "exit_order_id": str(exit_order.get("id")),
                                  "reason": reason}

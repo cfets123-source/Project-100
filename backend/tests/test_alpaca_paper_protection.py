@@ -88,6 +88,7 @@ def test_pending_exit_never_submits_duplicate_sell():
 
 def test_stop_submission_failure_submits_one_emergency_exit():
     db = _db()
+    db.add(models.SystemStateRecord(id='current', state='live', reason='active'))
     db.add(TradeDecisionRecord(symbol='AAPL', direction='long', strategy='test',
                                order_id='entry-1', stop_price=90.0, position_size=1.0))
     db.commit()
@@ -105,6 +106,7 @@ def test_stop_submission_failure_submits_one_emergency_exit():
     assert result['protected'] is False and result['reason'] == 'broker_error'
     assert result['emergency_exit']['submitted'] is True
     assert adapter.place_order.call_args_list[1].args[0].side == 'sell'
+    assert db.get(models.SystemStateRecord, 'current').state == 'live'
 
 
 def test_sell_stop_price_uses_alpaca_tick_without_loosening_protection():

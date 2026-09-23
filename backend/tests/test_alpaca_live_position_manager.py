@@ -8,8 +8,26 @@ from app.db.session import Base
 from app.models import models  # noqa: F401
 from app.models.models import ExternalLiveProtection, TradeDecisionRecord, OrderIntent, RiskReservation
 from app.runtime.alpaca_live_position_manager import (
-    manage_live_positions, manage_paper_positions, release_flat_account_reservations,
+    _finish_trade, manage_live_positions, manage_paper_positions, release_flat_account_reservations,
 )
+
+
+def test_paper_emergency_fill_records_paper_mode_and_realized_pnl():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    trade = TradeDecisionRecord(symbol='COP', strategy='paper-test', direction='long',
+                                order_id='entry-1', entry_price=126.554, position_size=.25,
+                                status='open')
+    db.add(trade)
+    db.commit()
+
+    assert _finish_trade(db, 'entry-1', {'id': 'exit-1', 'filled_qty': '.25',
+                                        'filled_avg_price': '128.268'},
+                         'emergency_unprotected_exit', 'paper')
+    assert trade.status == 'closed' and trade.exit_price == 128.268
+    assert round(trade.pnl, 4) == 0.4285
+    assert trade.post_trade_analysis['mode'] == 'paper'
 
 
 def test_flat_broker_account_releases_only_non_pending_reservations():

@@ -117,6 +117,8 @@ services:
   alpaca-broad-live:
     build: .
     profiles: ["broad-live"]
+    # Activation must use `docker compose --env-file .env.host ...` so this
+    # separate final flag is interpolated from the host-only file.
     command: ["python", "-m", "app.runtime.alpaca_broad_live_worker", "--database", "sqlite:////data/paper.db", "--interval", "60"]
     env_file: .env.host
     environment:
@@ -126,6 +128,7 @@ services:
       AUTO_EXECUTION: "true"
       LIVE_TRADING_ENABLED: "${BROAD_LIVE_TRADING_ENABLED:-false}"
     volumes: ["paper-data:/data"]
+    restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     read_only: true
