@@ -105,6 +105,62 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
             raise RobinhoodMcpError("Robinhood returned malformed orders")
         return [row for row in rows if isinstance(row, dict)]
 
+    def get_equity_tradability(self, symbols: list[str]) -> list[dict]:
+        if not symbols or len(symbols) > 10:
+            raise RobinhoodMcpError("Tradability check requires 1 to 10 symbols")
+        rows = self._tool("get_equity_tradability", {
+            "account_number": self.designated_account_id, "symbols": symbols,
+        }).get("results")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed equity tradability")
+        return [row for row in rows if isinstance(row, dict)]
+
+    def get_crypto_positions(self) -> list[dict]:
+        rows = self._tool("get_crypto_positions", {
+            "rhs_account_number": self.designated_account_id,
+        }).get("results")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed crypto positions")
+        return [row for row in rows if isinstance(row, dict)]
+
+    def get_crypto_orders(self) -> list[dict]:
+        rows = self._tool("get_crypto_orders", {
+            "rhs_account_number": self.designated_account_id, "state_group": "open",
+        }).get("results")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed crypto orders")
+        return [row for row in rows if isinstance(row, dict)]
+
+    def get_crypto_quotes(self, symbols: list[str], *, max_age_seconds: float = 5) -> list[dict]:
+        """Return broker-routed crypto quotes with an explicit execution-quality flag."""
+        if not symbols:
+            raise RobinhoodMcpError("Crypto quote symbols are required")
+        rows = self._tool("get_crypto_quotes", {
+            "rhs_account_number": self.designated_account_id,
+            "symbols": symbols, "timezone": "America/New_York",
+        }).get("results")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed crypto quotes")
+        requested = {symbol.upper().replace("-", "") for symbol in symbols}
+        quotes = []
+        for row in rows:
+            if not isinstance(row, dict) or str(row.get("symbol", "")).upper() not in requested:
+                raise RobinhoodMcpError("Robinhood returned an unexpected crypto symbol")
+            try:
+                bid, ask, mark = (float(row[key]) for key in ("bid_price", "ask_price", "mark_price"))
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00"))).total_seconds()
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RobinhoodMcpError("Robinhood returned invalid crypto quote data") from exc
+            spread = (ask - bid) / ((ask + bid) / 2) if bid > 0 and ask > 0 else None
+            quality = bid > 0 and ask >= bid and mark > 0 and 0 <= age <= max_age_seconds and spread is not None and spread <= 0.01
+            quotes.append({"symbol": row["symbol"], "bid": bid, "ask": ask, "mark": mark,
+                           "age_seconds": max(0, age), "spread_pct": spread,
+                           "routing": row.get("routing"), "as_of": row["updated_at"],
+                           "valid_for_execution": quality})
+        if len(quotes) != len(symbols):
+            raise RobinhoodMcpError("Robinhood omitted a requested crypto quote")
+        return quotes
+
     def preview_order(self, order: OrderRequest) -> dict:
         raise RobinhoodMcpError("Order preview is disabled until live readiness is verified")
 
@@ -121,20 +177,31 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
         return matches[0]
 
 
+def load_agentic_read_only_adapter(db, encryption_key: str) -> tuple[RobinhoodMcpReadOnlyAdapter, dict]:
+    """Bind to exactly one active Agentic account; never fall back to a personal account."""
+    from app.brokers.robinhood_mcp import _access_token
+
+    adapter = RobinhoodMcpReadOnlyAdapter(_access_token(db, encryption_key), designated_account_id="")
+    accounts = adapter.get_accounts()
+    matches = [a for a in accounts if a.get("agentic_allowed") is True and a.get("state") == "active"
+               and not a.get("deactivated") and not a.get("permanently_deactivated")]
+    if len(matches) != 1:
+        raise RobinhoodMcpError("Expected exactly one active Agentic account")
+    adapter.designated_account_id = str(matches[0]["account_id"])
+    return adapter, matches[0]
+
+
 def verify_agentic_readiness(db, encryption_key: str) -> dict:
     """Run the complete read-only broker gate for the one Agentic account.
 
     No account identifier is accepted from a caller: the adapter selects exactly
     one active account explicitly marked as usable by the authenticated agent.
     """
-    from app.brokers.robinhood_mcp import _access_token
     from app.services.broker_readiness import verify_read_only_connection
 
-    adapter = RobinhoodMcpReadOnlyAdapter(_access_token(db, encryption_key), designated_account_id="")
-    accounts = adapter.get_accounts()
-    matches = [a for a in accounts if a.get("agentic_allowed") is True and a.get("state") == "active"]
-    if len(matches) != 1:
+    try:
+        adapter, account = load_agentic_read_only_adapter(db, encryption_key)
+    except RobinhoodMcpError:
         return {"connected": False, "read_only_ready": False, "execution_enabled": False,
                 "reasons": ["expected exactly one active Agentic account"]}
-    adapter.designated_account_id = str(matches[0]["account_id"])
-    return verify_read_only_connection(adapter, adapter.designated_account_id)
+    return verify_read_only_connection(adapter, str(account["account_id"]))

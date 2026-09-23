@@ -1,5 +1,6 @@
 from app.brokers.robinhood_adapter import RobinhoodMcpReadOnlyAdapter
 from app.brokers.robinhood_mcp import RobinhoodMcpError
+from datetime import datetime, timezone
 
 
 def adapter(monkeypatch):
@@ -59,3 +60,30 @@ def test_readiness_selects_only_active_agentic_account(monkeypatch):
     assert result['read_only_ready'] is True
     assert result['execution_enabled'] is False
     assert result['expected_account_id'] == 'agentic'
+
+
+def test_crypto_quotes_reject_crossed_or_stale_markets(monkeypatch):
+    a = adapter(monkeypatch)
+    now = datetime.now(timezone.utc).isoformat()
+    rows = [
+        {'symbol': 'BTCUSD', 'bid_price': '100', 'ask_price': '99', 'mark_price': '99.5', 'updated_at': now},
+        {'symbol': 'ETHUSD', 'bid_price': '200', 'ask_price': '201', 'mark_price': '200.5', 'updated_at': now},
+    ]
+    monkeypatch.setattr(a, '_tool', lambda name, arguments=None: {'results': rows})
+    quotes = a.get_crypto_quotes(['BTC-USD', 'ETH-USD'])
+    assert quotes[0]['valid_for_execution'] is False
+    assert quotes[1]['valid_for_execution'] is True
+    rows[1]['updated_at'] = '2025-01-01T00:00:00Z'
+    assert a.get_crypto_quotes(['BTC-USD', 'ETH-USD'])[1]['valid_for_execution'] is False
+
+
+def test_crypto_reads_use_only_designated_agentic_account(monkeypatch):
+    a = adapter(monkeypatch)
+    calls = []
+    def tool(name, arguments=None):
+        calls.append((name, arguments))
+        return {'results': []}
+    monkeypatch.setattr(a, '_tool', tool)
+    assert a.get_crypto_positions() == []
+    assert a.get_crypto_orders() == []
+    assert all(arguments['rhs_account_number'] == 'agentic-1' for _, arguments in calls)

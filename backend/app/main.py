@@ -1,4 +1,5 @@
 import time
+import copy
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -15,7 +16,7 @@ from app.analytics.performance import account_performance
 from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connection_status,
     finish_connection, start_connection)
 from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
-from app.brokers.robinhood_adapter import verify_agentic_readiness
+from app.brokers.robinhood_adapter import verify_agentic_readiness, load_agentic_read_only_adapter
 from app.brokers import alpaca_connection
 from app.security.dashboard import (require_dashboard_access, dashboard_access_granted,
                                     issue_dashboard_session)
@@ -435,6 +436,51 @@ def robinhood_readiness(db: Session = Depends(get_db)):
         return report
     except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+_robinhood_market_cache: dict[str, object] = {"expires_at": 0.0, "payload": None}
+
+
+@app.get("/brokers/robinhood/market-access", dependencies=[Depends(require_dashboard_access)])
+def robinhood_market_access(db: Session = Depends(get_db)):
+    """Read-only ETF and crypto evidence for the dedicated Agentic account."""
+    if time.monotonic() < _robinhood_market_cache["expires_at"] and _robinhood_market_cache["payload"] is not None:
+        # Quote quality expires even when the broker-status response is cached.
+        payload = copy.deepcopy(_robinhood_market_cache["payload"])
+        for quote in payload["crypto"]["quotes"]:
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(quote["as_of"].replace("Z", "+00:00"))).total_seconds()
+                quote["age_seconds"] = max(0, age)
+                quote["valid_for_execution"] = bool(quote["valid_for_execution"] and 0 <= age <= 5)
+            except (KeyError, TypeError, ValueError):
+                quote["valid_for_execution"] = False
+        return payload
+    try:
+        adapter, account = load_agentic_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        portfolio = adapter._portfolio()
+        etfs = adapter.get_equity_tradability(["SPY", "QQQ", "IWM", "GLD", "TLT"])
+        linked_crypto = bool(account.get("rhc_account_number"))
+        crypto = {"linked_account": linked_crypto, "buying_power": None, "quotes": [],
+                  "open_positions": None, "open_orders": None, "data_error": None,
+                  "execution_enabled": False}
+        if linked_crypto:
+            try:
+                crypto["buying_power"] = float(portfolio["crypto_buying_power"]["buying_power"])
+                crypto["quotes"] = adapter.get_crypto_quotes(["BTC-USD", "ETH-USD"])
+                crypto["open_positions"] = len(adapter.get_crypto_positions())
+                crypto["open_orders"] = len(adapter.get_crypto_orders())
+            except (RobinhoodMcpError, KeyError, TypeError, ValueError) as exc:
+                crypto["data_error"] = type(exc).__name__
+        payload = {"broker": "robinhood_agentic_trading", "account_last4": str(account["account_id"])[-4:],
+                   "etfs": [{"symbol": row.get("symbol"), "tradable": row.get("tradeable") is True
+                             and row.get("state") == "active",
+                             "fractional": row.get("fractional_tradability") == "tradable"}
+                            for row in etfs], "crypto": crypto, "execution_enabled": False,
+                   "as_of": datetime.now(timezone.utc).isoformat()}
+        _robinhood_market_cache.update(expires_at=time.monotonic() + 60, payload=payload)
+        return payload
+    except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
