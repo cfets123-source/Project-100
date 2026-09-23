@@ -119,6 +119,20 @@ def test_batched_daily_bars_use_one_read_only_market_data_request():
     assert client.calls[-1][2]['params']['symbols'] == 'AAPL,MSFT'
 
 
+def test_whole_share_research_can_request_unadjusted_historical_prices():
+    class BarsClient(Client):
+        def request(self, method, url, **kwargs):
+            self.calls.append((method, url, kwargs))
+            return Response({'bars': {'NFLX': []}})
+
+    client = BarsClient()
+    adapter = AlpacaBrokerAdapter('key', 'secret', client=client)
+    assert adapter.get_daily_bars_many(['NFLX'], 'a', 'b', adjustment='raw') == {'NFLX': []}
+    assert client.calls[-1][2]['params']['adjustment'] == 'raw'
+    with pytest.raises(ValueError, match='adjustment'):
+        adapter.get_daily_bars_many(['NFLX'], 'a', 'b', adjustment='invalid')
+
+
 def test_historical_bars_follow_partial_pages_for_single_and_multiple_symbols():
     bar = {'t': '2025-04-01T13:30:00Z', 'o': 1, 'h': 2, 'l': 1, 'c': 2, 'v': 3}
 

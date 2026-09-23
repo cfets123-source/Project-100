@@ -188,7 +188,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             seen.add(token)
         raise AlpacaBrokerError("Alpaca stock-bars pagination exceeded safety bound")
 
-    def get_daily_bars_many(self, symbols: list[str], start: str, end: str) -> dict[str, list[dict]]:
+    def get_daily_bars_many(self, symbols: list[str], start: str, end: str,
+                            *, adjustment: str = "all") -> dict[str, list[dict]]:
         """Fetch daily bars for a bounded research batch in one data request.
 
         This is intentionally research-only.  Batching avoids treating a broad
@@ -198,9 +199,11 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         clean = list(dict.fromkeys(symbol.upper() for symbol in symbols if symbol))
         if not clean:
             return {}
+        if adjustment not in {"all", "raw"}:
+            raise ValueError("daily-bar adjustment must be 'all' or 'raw'")
         params = {
             "symbols": ",".join(clean), "timeframe": "1Day", "start": start, "end": end,
-            "adjustment": "all", "feed": "iex", "limit": 10000,
+            "adjustment": adjustment, "feed": "iex", "limit": 10000,
         }
         bars = {symbol: [] for symbol in clean}
         for page in self._stock_bar_pages("/v2/stocks/bars", params):
