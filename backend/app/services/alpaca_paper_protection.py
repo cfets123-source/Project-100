@@ -45,6 +45,26 @@ def _entry_for_position(db, adapter, symbol: str, quantity: float) -> tuple[str,
     return str(decision.order_id), float(decision.stop_price)
 
 
+def _orders_after_submission_error(adapter, symbol: str, quantity: float) -> tuple[dict | None, bool]:
+    """Resolve an uncertain POST against broker state before considering an exit.
+
+    A timeout can occur after Alpaca accepts an order. Sending a market sell
+    without this read can leave both the stop and exit active for one position.
+    """
+    active = {"new", "pending_new", "accepted", "pending", "open", "partially_filled"}
+    recovered = None
+    pending_exit = False
+    for order in adapter.get_orders():
+        if (str(order.get("symbol")) == symbol and str(order.get("side")) == "sell"
+                and str(order.get("status")) in active):
+            if str(order.get("type")) in {"stop", "stop_limit", "trailing_stop"}:
+                if float(order.get("qty") or 0) >= quantity - 1e-9:
+                    recovered = order
+            else:
+                pending_exit = True
+    return recovered, pending_exit
+
+
 def _emergency_close_unprotected_position(db, adapter, *, symbol: str, quantity: float,
                                           mode: str, reason: str) -> dict:
     """Submit one protective exit when a filled position cannot be protected.
@@ -118,10 +138,40 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
                                                        # Alpaca fractional stops are DAY orders; the worker
                                                        # renews and verifies them on every market-session cycle.
                                                        time_in_force="day"))
-        except Exception as exc:  # A broker uncertainty is a halt, not a retry.
-            if mode == "live":
-                state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
+        except Exception as exc:  # Never retry an uncertain non-idempotent POST.
             detail = f"{type(exc).__name__}: {exc}"[:600]
+            try:
+                recovered, pending_exit = _orders_after_submission_error(adapter, symbol, quantity)
+                if recovered is not None:
+                    item = {"symbol": symbol, "order_id": str(recovered["id"]),
+                            "stop_price": stop_price, "entry_order_id": entry_order_id}
+                    if recorded is None:
+                        db.add(ledger(entry_order_id=entry_order_id, symbol=symbol,
+                                      quantity=quantity, stop_price=stop_price,
+                                      protective_order_id=item["order_id"]))
+                    else:
+                        recorded.quantity, recorded.stop_price = quantity, stop_price
+                        recorded.protective_order_id = item["order_id"]
+                    db.commit()
+                    log_and_commit(db, f"{event_prefix}_recovered", {**item, "error": detail})
+                    placed.append(item)
+                    continue
+                # Only a successful broker read can establish that no stop exists.
+                if mode == "live":
+                    state.activate_kill_switch(f"{mode} protective stop failed: {symbol}")
+                if pending_exit:
+                    log_and_commit(db, f"{event_prefix}_exit_pending", {"symbol": symbol,
+                                                                       "error": detail})
+                    return {"protected": False, "placed": placed, "failed": symbol,
+                            "reason": "exit_pending", "emergency_exit": {"submitted": False}}
+            except Exception as read_exc:
+                if mode == "live":
+                    state.activate_kill_switch(f"{mode} protective stop state unknown: {symbol}")
+                read_detail = f"{type(read_exc).__name__}: {read_exc}"[:600]
+                log_and_commit(db, f"{event_prefix}_broker_state_unknown",
+                               {"symbol": symbol, "error": detail, "read_error": read_detail})
+                return {"protected": False, "placed": placed, "failed": symbol,
+                        "reason": "broker_state_unknown", "emergency_exit": {"submitted": False}}
             emergency_exit = _emergency_close_unprotected_position(
                 db, adapter, symbol=symbol, quantity=quantity, mode=mode, reason="protective_stop_broker_error"
             )

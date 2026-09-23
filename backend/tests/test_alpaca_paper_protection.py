@@ -58,6 +58,45 @@ def test_missing_recorded_paper_stop_does_not_halt_live_state():
     assert db.get(models.SystemStateRecord, 'current').state == 'live'
 
 
+def test_stop_timeout_recovers_broker_accepted_stop_without_emergency_sell():
+    db = _db()
+    db.add(TradeDecisionRecord(symbol='AAPL', direction='long', strategy='test',
+                               order_id='entry-1', stop_price=90.0, position_size=1.0))
+    db.commit()
+    adapter = MagicMock(paper=True)
+    adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '1'}]
+    entry = {'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'}
+    stop = {'id': 'stop-1', 'symbol': 'AAPL', 'side': 'sell', 'type': 'stop',
+            'status': 'accepted', 'qty': '1'}
+    adapter.get_orders.side_effect = [[entry], [entry], [entry, stop], [entry, stop]]
+    adapter.place_order.side_effect = RuntimeError('timeout after broker accepted stop')
+
+    result = ensure_protective_stops(db, adapter, SimpleNamespace())
+
+    assert result['protected'] is True
+    assert result['placed'][0]['order_id'] == 'stop-1'
+    assert adapter.place_order.call_count == 1
+    assert db.get(models.ExternalPaperProtection, 'entry-1').protective_order_id == 'stop-1'
+
+
+def test_stop_timeout_with_unreadable_broker_state_does_not_send_second_sell():
+    db = _db()
+    db.add(TradeDecisionRecord(symbol='AAPL', direction='long', strategy='test',
+                               order_id='entry-1', stop_price=90.0, position_size=1.0))
+    db.commit()
+    adapter = MagicMock(paper=True)
+    adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '1'}]
+    entry = {'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'}
+    adapter.get_orders.side_effect = [[entry], [entry], RuntimeError('broker read unavailable')]
+    adapter.place_order.side_effect = RuntimeError('timeout')
+
+    result = ensure_protective_stops(db, adapter, SimpleNamespace())
+
+    assert result['reason'] == 'broker_state_unknown'
+    assert result['emergency_exit']['submitted'] is False
+    assert adapter.place_order.call_count == 1
+
+
 def test_missing_recorded_live_stop_still_halts():
     db = _db()
     db.add(models.SystemStateRecord(id='current', state='live', reason='active'))
@@ -97,6 +136,7 @@ def test_stop_submission_failure_submits_one_emergency_exit():
     adapter.get_orders.side_effect = [
         [{'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'}],
         [{'id': 'entry-1', 'symbol': 'AAPL', 'side': 'buy', 'status': 'filled', 'filled_qty': '1'}],
+        [], [],
     ]
     adapter.place_order.side_effect = [RuntimeError('broker declined stop'),
                                        OrderResult(order_id='exit-1', status='accepted')]
