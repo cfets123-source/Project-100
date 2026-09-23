@@ -1,0 +1,9 @@
+# Evaluate a milestone across wins, losses, and quiet days
+
+The target is a sequence of capital stages. A candidate is evaluated for the **specific stage and time budget** it is designed to serve. A losing day or a few winning trades is not a verdict. Conversely, simply increasing trade count does not create a positive net edge.
+
+`app.research.stage_distribution.assess_stage_distribution` accepts the frozen strategy's **daily account returns after all estimated trading costs**, including days with no trade as zero returns. It first reports the observed milestone hit day, ending equity, and maximum drawdown. It then resamples five-day blocks, preserving short runs of gains and losses, and reports the fraction of sampled paths that reach the stage target, the fraction that fall below a stated capital floor, and the 10th/50th/90th percentile ending equity. The floor is a reporting threshold, not an automatic trading halt. A seed makes the descriptive calculation reproducible.
+
+This is one uncertainty view, **not a probability forecast or a promotion gate**. It cannot invent unobserved market regimes, repair biased quotes, account for a rule selected after seeing test data, or validate a broker execution path. Results from different strategies must not be pooled as if they were repeated trials of one rule. Freeze the rule, gather more market regimes and forward results, report negative periods, then apply the stage-specific cost and broker checks. The previously recorded 223-trade confirmation and 938/954-trade annual exploratory runs are materially larger than a few trading days, but cover limited market history and exact rule versions.
+
+Method references: [block resampling of time series](https://www.tandfonline.com/doi/abs/10.1080/01621459.1994.10476870) and [multiple-testing bias in backtests](https://www.nber.org/papers/w21329).
