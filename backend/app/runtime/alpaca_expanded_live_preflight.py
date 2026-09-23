@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.brokers.alpaca_connection import load_read_only_adapter
 from app.core.config import Settings
-from app.models.models import (ExternalPaperExit, ExternalPaperProtection, OrderIntent,
+from app.models.models import (ExternalLiveExit, ExternalLiveProtection,
+                               ExternalPaperExit, ExternalPaperProtection, OrderIntent,
                                RiskReservation, StrategyValidationRecord,
                                SystemStateRecord, TradeDecisionRecord)
 from app.strategies.daily_trend_pullback import EXPANDED_STRATEGY_VERSION
@@ -36,6 +37,12 @@ def report(db, cfg) -> dict:
     live, live_is_paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
     if not is_paper or live_is_paper:
         blockers.append("paper and live credentials are not isolated")
+    paper_accounts, live_accounts = paper.get_accounts(), live.get_accounts()
+    if (len(paper_accounts) != 1 or len(live_accounts) != 1
+            or not paper_accounts[0].get("account_id") or not live_accounts[0].get("account_id")
+            or paper_accounts[0]["account_id"] == live_accounts[0]["account_id"]):
+        blockers.append("paper and live accounts are not distinct and identifiable")
+    live_account_id = str(live_accounts[0]["account_id"]) if len(live_accounts) == 1 else None
     for label, adapter in (("paper", paper), ("live", live)):
         capabilities = adapter.get_account_capabilities()
         if capabilities.get("status") != "ACTIVE" or any(
@@ -53,6 +60,39 @@ def report(db, cfg) -> dict:
         blockers.append("paper broker still has an active order")
     if any(str(o.get("status")) in ACTIVE for o in live_orders):
         blockers.append("live broker still has an active order")
+    if live_account_id and db.query(RiskReservation).filter(
+        RiskReservation.account_id == live_account_id,
+        RiskReservation.status == "active",
+    ).first():
+        blockers.append("live risk reservation is still active")
+
+    live_protection = (db.query(ExternalLiveProtection)
+                       .order_by(ExternalLiveProtection.created_at.desc()).first())
+    live_evidence = None
+    if live_protection is not None:
+        live_trade = (db.query(TradeDecisionRecord)
+                      .filter(TradeDecisionRecord.order_id == live_protection.entry_order_id)
+                      .order_by(TradeDecisionRecord.timestamp.desc()).first())
+        live_stop = next((o for o in live_orders
+                          if str(o.get("id")) == str(live_protection.protective_order_id)), None)
+        live_exit_row = db.get(ExternalLiveExit, live_protection.entry_order_id)
+        live_exit = next((o for o in live_orders
+                          if str(o.get("id")) == str(live_exit_row.exit_order_id)), None) if live_exit_row else live_stop
+        if not (live_trade and live_trade.status == "closed"
+                and (live_trade.post_trade_analysis or {}).get("broker_reconciled") is True
+                and live_trade.exit_price is not None and live_trade.pnl is not None):
+            blockers.append("latest live trade ledger has not reconciled closed")
+        if not (live_stop and str(live_stop.get("status")) in TERMINAL_STOP):
+            blockers.append("latest live protective stop is not terminal")
+        if not (live_exit and str(live_exit.get("status")) == "filled"
+                and float(live_exit.get("filled_qty") or 0) > 0
+                and float(live_exit.get("filled_avg_price") or 0) > 0):
+            blockers.append("latest live exit fill is not verified")
+        live_evidence = {"symbol": live_protection.symbol,
+                         "entry_order_id": live_protection.entry_order_id,
+                         "exit_order_id": str(live_exit.get("id")) if live_exit else None,
+                         "stop_order_id": str(live_stop.get("id")) if live_stop else None,
+                         "realized_pnl": live_trade.pnl if live_trade else None}
 
     trade = (db.query(TradeDecisionRecord)
              .filter(TradeDecisionRecord.strategy == EXPANDED_STRATEGY_VERSION)
@@ -92,6 +132,7 @@ def report(db, cfg) -> dict:
                     "exit_reason": trade.exit_reason, "realized_pnl": trade.pnl}
     return {"ready": not blockers, "strategy": EXPANDED_STRATEGY_VERSION,
             "blockers": blockers, "paper_lifecycle": evidence,
+            "live_lifecycle": live_evidence,
             "requires_worker_handoff": True, "order_submission": False}
 
 
