@@ -1,0 +1,7 @@
+# Intraday opening-range v1: locked evaluation plan
+
+This hypothesis is frozen before viewing its independent Alpaca IEX five-minute test window: January 2 through March 31, 2025. The previous intraday pullback candidate used the recent 2026 60-day window. This historical window is a separate test of this new signal, but it is still weaker than future forward paper evidence.
+
+The evaluator watches 20 liquid U.S. equities and ETFs. After the first 30 minutes, it buys on the next five-minute bar open when a completed bar closes at least 0.1% above that session's opening high and above cumulative VWAP, with volume at least 1.2 times the median of the preceding six bars. It takes only the first qualifying breakout per symbol per day, opens at most two 50%-equity positions at once, and makes at most six entries per day. A 3% position stop, 4.5% target, 0.1% round-trip trading cost, 5% realized daily-loss cutoff, and 3:45 p.m. ET session exit are fixed before the test. If stop and target touch within one bar, the stop wins; a gap through the stop fills at the worse opening price.
+
+The candidate passes the research screen only if it has at least 30 completed test trades, positive modeled account return, and no more than 15% maximum drawdown. A pass would authorize paper implementation and a separate broker lifecycle test, not live capital. The code path, parameters, and test window must not be changed after seeing the result and then described as out-of-sample.
