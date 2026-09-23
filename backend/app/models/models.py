@@ -276,6 +276,17 @@ class RobinhoodTradeLifecycle(Base):
                         nullable=False)
 
 
+class RobinhoodStrategyReadiness(Base):
+    """Asset-specific simulated lifecycle and explicit entry authorization."""
+    __tablename__ = "robinhood_strategy_readiness"
+    strategy = Column(String, primary_key=True)
+    asset_class = Column(String, nullable=False)
+    simulated_lifecycle_passed = Column(Boolean, nullable=False, default=False)
+    enabled = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow,
+                        nullable=False)
+
+
 class ExternalLiveExit(Base):
     """Idempotent live target-exit request tied to one original entry."""
     __tablename__ = "external_live_exits"

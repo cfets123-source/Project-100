@@ -9,7 +9,8 @@ from uuid import uuid4
 
 from app.audit.logger import log_and_commit
 from app.brokers.robinhood_execution import RobinhoodOrderTransport
-from app.models.models import (OrderIntent, RobinhoodTradeLifecycle, RiskReservation,
+from app.models.models import (OrderIntent, RobinhoodStrategyReadiness,
+                               RobinhoodTradeLifecycle, RiskReservation,
                                StrategyValidationRecord, TradeDecisionRecord)
 
 
@@ -69,10 +70,14 @@ def record_entry(db, *, trade_id: str, account_id: str, asset_class: str,
                                              broker_order_id=entry_order_id).one_or_none()
     validation = (db.get(StrategyValidationRecord, trade.strategy)
                   if trade is not None else None)
+    readiness = (db.get(RobinhoodStrategyReadiness, trade.strategy)
+                 if trade is not None else None)
     if (trade is None or trade.status != "open" or
             not isinstance(trade.risk_engine_result, dict) or
             trade.risk_engine_result.get("approved") is not True or
             validation is None or validation.passed is not True or intent is None or
+            readiness is None or readiness.asset_class != asset_class or
+            readiness.simulated_lifecycle_passed is not True or readiness.enabled is not True or
             not str(trade.strategy or "").startswith(f"robinhood-{asset_class}-") or
             intent.side != "buy" or abs(float(intent.quantity or 0) - quantity) > 1e-8 or
             db.query(RiskReservation).filter_by(account_id=account_id,

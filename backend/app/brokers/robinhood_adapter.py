@@ -73,6 +73,13 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
         except (KeyError, TypeError, ValueError) as exc:
             raise RobinhoodMcpError("Robinhood returned invalid buying power") from exc
 
+    def get_crypto_buying_power(self) -> float:
+        self._crypto_account()
+        try:
+            return float(self._portfolio()["crypto_buying_power"]["buying_power"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RobinhoodMcpError("Robinhood returned invalid crypto buying power") from exc
+
     def get_positions(self) -> list[dict]:
         rows = self._tool("get_equity_positions", {"account_number": self.designated_account_id}).get("positions")
         if not isinstance(rows, list):

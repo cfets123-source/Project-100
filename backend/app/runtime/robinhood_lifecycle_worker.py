@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -10,7 +11,8 @@ from app.audit.logger import log_and_commit
 from app.brokers.robinhood_execution import load_agentic_order_transport
 from app.core.config import Settings
 from app.db.session import initialize_schema
-from app.models.models import RobinhoodTradeLifecycle
+from app.models.models import OrderIntent, RiskReservation, RobinhoodTradeLifecycle, TradeDecisionRecord
+from app.services.robinhood_entry import recover_uncertain_entry
 from app.services.robinhood_lifecycle import reconcile_trade
 from app.services.state_machine import StateManager
 
@@ -19,12 +21,51 @@ def run_cycle(db, cfg: Settings) -> dict:
     if not (cfg.LIVE_TRADING_ENABLED and
             (cfg.ROBINHOOD_EQUITY_EXECUTION_ENABLED or cfg.ROBINHOOD_CRYPTO_EXECUTION_ENABLED)):
         return {"status": "disabled", "processed": 0}
+    # A persisted preparing intent is provably before the broker-send boundary.
+    # Expire it only after network preview timeouts have long passed. The entry
+    # path claims the same status conditionally before any send.
+    cutoff = datetime.utcnow() - timedelta(minutes=2)
+    preparing = db.query(OrderIntent).filter(OrderIntent.status == "preparing",
+                                              OrderIntent.created_at < cutoff).all()
+    for intent in preparing:
+        trade = db.get(TradeDecisionRecord, intent.trade_id)
+        if trade is None or not str(trade.strategy or "").startswith("robinhood-"):
+            continue
+        claimed = db.query(OrderIntent).filter(OrderIntent.intent_key == intent.intent_key,
+                                               OrderIntent.status == "preparing").update(
+            {"status": "canceled"}, synchronize_session=False)
+        if claimed == 1:
+            trade.status = "rejected"
+            db.query(RiskReservation).filter_by(account_id=intent.account_id,
+                                                decision_id=intent.decision_id,
+                                                status="active").update({"status": "released"})
+            db.commit()
     rows = db.query(RobinhoodTradeLifecycle).filter(
         RobinhoodTradeLifecycle.status.notin_(["closed", "entry_failed"])).all()
-    if not rows:
+    uncertain = db.query(OrderIntent).filter(OrderIntent.status.in_(["submitting", "unknown", "submitted"])).all()
+    uncertain = [intent for intent in uncertain
+                 if db.get(TradeDecisionRecord, intent.trade_id) is not None and
+                 str(db.get(TradeDecisionRecord, intent.trade_id).strategy or "").startswith("robinhood-") and
+                 db.get(RobinhoodTradeLifecycle, intent.trade_id) is None]
+    if not rows and not uncertain:
         return {"status": "idle", "processed": 0}
     transport = load_agentic_order_transport(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, cfg)
     outcomes = []
+    for intent in uncertain:
+        recovery = recover_uncertain_entry(db, transport, intent.intent_key)
+        outcomes.append(recovery.__dict__)
+        if recovery.status == "unknown":
+            # A delayed broker response is unresolved, so no new entries may
+            # pass the local-intent gate; do not submit a replacement order.
+            return {"status": "entry_unresolved", "processed": len(outcomes),
+                    "outcomes": outcomes}
+        if recovery.status != "submitted":
+            StateManager(db, cfg).activate_kill_switch(
+                f"Robinhood entry recovery failed: {recovery.reason}")
+            return {"status": "safety_failure", "processed": len(outcomes),
+                    "outcomes": outcomes}
+    rows = db.query(RobinhoodTradeLifecycle).filter(
+        RobinhoodTradeLifecycle.status.notin_(["closed", "entry_failed"])).all()
     for row in rows:
         result = reconcile_trade(db, transport, row.trade_id)
         outcomes.append(result)

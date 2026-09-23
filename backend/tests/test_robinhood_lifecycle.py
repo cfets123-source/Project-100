@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.session import Base
 from app.models import models  # noqa: F401
-from app.models.models import (OrderIntent, RiskReservation, RobinhoodTradeLifecycle,
+from app.models.models import (OrderIntent, RiskReservation, RobinhoodStrategyReadiness,
+                               RobinhoodTradeLifecycle,
                                StrategyValidationRecord, TradeDecisionRecord)
 from app.services.robinhood_lifecycle import record_entry, reconcile_trade, RobinhoodLifecycleError
 
@@ -31,6 +32,8 @@ def prepared(db, asset_class="equity"):
     db.add(StrategyValidationRecord(strategy=strategy, methodology_version="test",
                                     trades=20, win_rate=.5, total_return=.1,
                                     max_drawdown=.05, passed=True, reasons=[]))
+    db.add(RobinhoodStrategyReadiness(strategy=strategy, asset_class=asset_class,
+                                      simulated_lifecycle_passed=True, enabled=True))
     db.commit()
     db.add(OrderIntent(intent_key="intent-1", decision_id="decision-1", trade_id=trade.trade_id,
                        account_id="agentic", symbol=symbol, side="buy", quantity=quantity,

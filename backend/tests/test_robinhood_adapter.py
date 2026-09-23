@@ -7,7 +7,9 @@ def adapter(monkeypatch):
     a = RobinhoodMcpReadOnlyAdapter('token', 'agentic-1', 'crypto-1')
     data = {
         'get_accounts': {'accounts': [{'account_number': 'agentic-1', 'agentic_allowed': True, 'type': 'limited_margin'}]},
-        'get_portfolio': {'cash': '100.00', 'total_value': '100.00', 'buying_power': {'buying_power': '100.00'}},
+        'get_portfolio': {'cash': '100.00', 'total_value': '100.00',
+                          'buying_power': {'buying_power': '100.00'},
+                          'crypto_buying_power': {'buying_power': '50.00'}},
         'get_equity_positions': {'positions': []},
         'get_equity_orders': {'orders': []},
         'get_equity_quotes': {'results': [{'quote': {'symbol': 'TST', 'bid_price': '9.99', 'ask_price': '10.01', 'last_trade_price': '10.00', 'venue_last_trade_time': '2025-01-01T15:00:00Z'}}]},
@@ -22,6 +24,7 @@ def test_read_only_adapter_maps_verified_broker_reads(monkeypatch):
     assert a.get_accounts()[0]['account_id'] == 'agentic-1'
     assert a.get_balances() == {'cash': 100.0, 'equity': 100.0}
     assert a.get_buying_power() == 100.0
+    assert a.get_crypto_buying_power() == 50.0
     assert a.get_positions() == []
     assert a.get_orders() == []
     assert a.get_quotes(['TST'])[0].symbol == 'TST'
