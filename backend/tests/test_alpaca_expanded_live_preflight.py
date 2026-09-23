@@ -93,7 +93,8 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
                                     target_price=0, exit_order_id="live-exit", status="filled"))
             db.commit()
             ready = report(db, cfg)
-            assert ready["ready"] is True
+            assert ready["ready"] is False
+            assert "strategy_execution_horizon_mismatch_fractional_day_stop" in ready["blockers"]
             assert ready["paper_lifecycle"]["exit_order_id"] == "exit-1"
             assert ready["live_lifecycle"]["exit_order_id"] == "live-exit"
             assert ready["order_submission"] is False

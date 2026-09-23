@@ -13,6 +13,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.brokers.alpaca_connection import load_read_only_adapter
+from app.runtime.alpaca_live_execution import (
+    SESSION_MISMATCHED_STRATEGIES, SESSION_MISMATCH_REASON,
+)
 from app.core.config import Settings
 from app.models.models import (ExternalLiveExit, ExternalLiveProtection,
                                ExternalPaperExit, ExternalPaperProtection, OrderIntent,
@@ -29,6 +32,8 @@ def report(db, cfg) -> dict:
     validation = db.get(StrategyValidationRecord, EXPANDED_STRATEGY_VERSION)
     if validation is None or not validation.passed:
         blockers.append("expanded strategy validation has not passed")
+    if EXPANDED_STRATEGY_VERSION in SESSION_MISMATCHED_STRATEGIES:
+        blockers.append(SESSION_MISMATCH_REASON)
     state = db.get(SystemStateRecord, "current")
     if state is None or state.state != "live":
         blockers.append("system is not in live state")
