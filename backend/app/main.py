@@ -38,23 +38,50 @@ initialize_schema(engine)
 app = FastAPI(title="Veloikos Trading", version="1.0.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
+MARKET_CONTEXT_ETFS = ("FXI", "EWU")  # US-listed China/UK exposure, not local exchange quotes.
+CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD")  # Read-only data; account crypto trading is inactive.
+
 
 @app.get("/terminal/market", dependencies=[Depends(require_dashboard_access)])
-def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=10), db: Session = Depends(get_db)):
-    """Read-only quote and daily candles for the trading terminal."""
+def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=10),
+                    timeframe: str = Query(default="5Min", pattern="^(1Min|5Min|15Min|1Day)$"),
+                    db: Session = Depends(get_db)):
+    """Read-only IEX quote and bounded intraday or daily candles for the terminal."""
     symbol = symbol.upper()
-    if not symbol.replace(".", "").isalpha():
+    if symbol not in CRYPTO_CONTEXT and not symbol.replace(".", "").isalpha():
         raise HTTPException(status_code=400, detail="invalid symbol")
     try:
         adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
-        quote = next(q for q in adapter.get_quotes([symbol]) if q.symbol == symbol)
-        from datetime import datetime, timedelta, timezone
-        end = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
-        start = (datetime.now(timezone.utc) - timedelta(days=75)).strftime("%Y-%m-%dT00:00:00Z")
-        return {"symbol": symbol, "quote": {"bid": quote.bid, "ask": quote.ask,
-                "last": quote.last if quote.bid > 0 and quote.ask > 0 else None,
-                "age_seconds": quote.age_seconds, "provider": quote.provider},
-                "bars": adapter.get_daily_bars(symbol, start, end)[-45:]}
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        end = now.isoformat().replace("+00:00", "Z")
+        days = {"1Min": 1, "5Min": 3, "15Min": 7, "1Day": 90}[timeframe]
+        start = (now - timedelta(days=days)).isoformat().replace("+00:00", "Z")
+        if symbol in CRYPTO_CONTEXT:
+            snapshot = adapter._request("GET", "/v1beta3/crypto/us/snapshots", data_api=True,
+                                        params={"symbols": symbol}).get("snapshots", {}).get(symbol, {})
+            item = snapshot.get("latestQuote") or {}
+            trade = snapshot.get("latestTrade") or {}
+            age = max(0, (now - datetime.fromisoformat(item["t"].replace("Z", "+00:00"))).total_seconds())
+            raw = adapter._request("GET", "/v1beta3/crypto/us/bars", data_api=True, params={
+                "symbols": symbol, "timeframe": timeframe, "start": start, "end": end, "limit": 10000,
+            })
+            bars = [{"timestamp": row["t"], "open": float(row["o"]), "high": float(row["h"]),
+                     "low": float(row["l"]), "close": float(row["c"]), "volume": float(row["v"])}
+                    for row in raw.get("bars", {}).get(symbol, [])]
+            quote = {"bid": float(item["bp"]), "ask": float(item["ap"]),
+                     "last": float(trade["p"]) if trade.get("p") is not None else None,
+                     "age_seconds": age, "provider": "alpaca_crypto_us"}
+        else:
+            broker_quote = next(q for q in adapter.get_quotes([symbol]) if q.symbol == symbol)
+            quote = {"bid": broker_quote.bid, "ask": broker_quote.ask,
+                     "last": broker_quote.last if broker_quote.bid > 0 and broker_quote.ask > 0 else None,
+                     "age_seconds": broker_quote.age_seconds, "provider": broker_quote.provider}
+            bars = (adapter.get_daily_bars(symbol, start, end) if timeframe == "1Day"
+                    else adapter.get_intraday_bars(symbol, start, end, timeframe=timeframe))
+        return {"symbol": symbol, "quote": quote,
+                "timeframe": timeframe, "source": "Alpaca Crypto US" if symbol in CRYPTO_CONTEXT else "Alpaca IEX", "as_of": end,
+                "bars": bars[-120:]}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"market data unavailable: {type(exc).__name__}") from exc
 
@@ -70,10 +97,10 @@ def terminal_ticker(db: Session = Depends(get_db)):
     try:
         adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
         raw = adapter._request("GET", "/v2/stocks/snapshots", data_api=True,
-                               params={"symbols": ",".join(BROAD_UNIVERSE), "feed": "iex"})
+                               params={"symbols": ",".join(BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
         now = datetime.now(timezone.utc)
         items = []
-        for symbol in BROAD_UNIVERSE:
+        for symbol in BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
             snap = raw.get(symbol) or {}
             quote, trade = snap.get("latestQuote") or {}, snap.get("latestTrade") or {}
             previous = snap.get("prevDailyBar") or {}
@@ -85,13 +112,36 @@ def terminal_ticker(db: Session = Depends(get_db)):
                 trade_age = max(0, (now - datetime.fromisoformat(trade["t"].replace("Z", "+00:00"))).total_seconds()) if trade.get("t") else None
             except (KeyError, TypeError, ValueError):
                 quote_age = trade_age = None
-            items.append({"symbol": symbol, "asset_class": "ETF" if symbol in BROAD_UNIVERSE[:5] else "stock",
+            items.append({"symbol": symbol, "asset_class": "ETF" if symbol in BROAD_UNIVERSE[:5] + MARKET_CONTEXT_ETFS else "stock",
+                          "in_strategy_universe": symbol in BROAD_UNIVERSE, "source": "Alpaca IEX",
                           "price": price, "previous_close": previous_close,
                           "change_pct": round((price / previous_close - 1) * 100, 2)
                                         if price is not None and previous_close and previous_close > 0 else None,
                           "bid": quote.get("bp"), "ask": quote.get("ap"),
                           "quote_age_seconds": quote_age, "trade_age_seconds": trade_age})
-        payload = {"source": "Alpaca IEX", "as_of": now.isoformat(),
+        try:
+            crypto = adapter._request("GET", "/v1beta3/crypto/us/snapshots", data_api=True,
+                                      params={"symbols": ",".join(CRYPTO_CONTEXT)}).get("snapshots", {})
+        except Exception:
+            crypto = {}  # Equity ticker remains usable if the crypto feed fails.
+        for symbol in CRYPTO_CONTEXT:
+            snap = crypto.get(symbol) or {}
+            quote, trade = snap.get("latestQuote") or {}, snap.get("latestTrade") or {}
+            previous = snap.get("prevDailyBar") or {}
+            price = float(trade["p"]) if trade.get("p") is not None else None
+            previous_close = float(previous["c"]) if previous.get("c") is not None else None
+            try:
+                quote_age = max(0, (now - datetime.fromisoformat(quote["t"].replace("Z", "+00:00"))).total_seconds())
+                trade_age = max(0, (now - datetime.fromisoformat(trade["t"].replace("Z", "+00:00"))).total_seconds())
+            except (KeyError, TypeError, ValueError):
+                quote_age = trade_age = None
+            items.append({"symbol": symbol, "asset_class": "crypto", "in_strategy_universe": False,
+                          "source": "Alpaca Crypto US", "price": price, "previous_close": previous_close,
+                          "change_pct": round((price / previous_close - 1) * 100, 2)
+                                        if price is not None and previous_close and previous_close > 0 else None,
+                          "bid": quote.get("bp"), "ask": quote.get("ap"),
+                          "quote_age_seconds": quote_age, "trade_age_seconds": trade_age})
+        payload = {"source": "Alpaca IEX + Crypto US", "as_of": now.isoformat(),
                    "universe": "daily-trend-pullback-broad-equity-etf-v1", "items": items}
         _ticker_cache.update(expires_at=time.time() + 20, payload=payload)
         return payload

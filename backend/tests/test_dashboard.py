@@ -3,7 +3,7 @@ import base64
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.main import app, live_decision_context, live_trades, terminal_ticker
+from app.main import app, live_decision_context, live_trades, terminal_market, terminal_ticker
 from app.db.session import Base
 from app.models.models import AuditLogEntry, StrategyValidationRecord, TradeDecisionRecord
 
@@ -31,22 +31,71 @@ def test_ticker_uses_one_bounded_iex_snapshot_batch(monkeypatch):
     class Adapter:
         def _request(self, method, path, *, data_api, params):
             calls.append((method, path, data_api, params))
+            if path == '/v1beta3/crypto/us/snapshots':
+                return {'snapshots': {'BTC/USD': {
+                    'latestQuote': {'t': '2026-09-22T20:00:00Z', 'bp': 100, 'ap': 101},
+                    'latestTrade': {'t': '2026-09-22T20:00:00Z', 'p': 100.5},
+                    'prevDailyBar': {'c': 100}}}}
             return {'SPY': {'latestQuote': {'t': '2026-09-22T20:00:00Z', 'bp': 10, 'ap': 10.02},
                             'latestTrade': {'t': '2026-09-22T20:00:00Z', 'p': 10},
                             'prevDailyBar': {'c': 9}}}
     monkeypatch.setattr(main.alpaca_connection, 'load_read_only_adapter', lambda *a, **k: (Adapter(), False))
     main._ticker_cache.update(expires_at=0, payload=None)
     result = terminal_ticker(db=object())
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert calls[0][1] == '/v2/stocks/snapshots'
     assert calls[0][3]['feed'] == 'iex'
-    assert result['source'] == 'Alpaca IEX'
+    assert result['source'] == 'Alpaca IEX + Crypto US'
     assert result['items'][0]['symbol'] == 'SPY'
     assert result['items'][0]['change_pct'] == 11.11
     assert result['items'][1]['price'] is None
+    assert next(x for x in result['items'] if x['symbol'] == 'BTC/USD')['price'] == 100.5
+    assert next(x for x in result['items'] if x['symbol'] == 'BTC/USD')['in_strategy_universe'] is False
     assert terminal_ticker(db=object()) is result
-    assert len(calls) == 1
+    assert len(calls) == 2
     main._ticker_cache.update(expires_at=0, payload=None)
+
+
+def test_terminal_market_supports_intraday_candles(monkeypatch):
+    import app.main as main
+    calls = []
+    class Adapter:
+        def get_quotes(self, symbols):
+            from types import SimpleNamespace
+            return [SimpleNamespace(symbol='SPY', bid=100, ask=100.1, last=100.05,
+                                    age_seconds=2, provider='alpaca')]
+        def get_intraday_bars(self, symbol, start, end, *, timeframe):
+            calls.append((symbol, timeframe, start, end))
+            return [{'timestamp': '2026-09-22T19:00:00Z', 'open': 100,
+                     'high': 101, 'low': 99, 'close': 100.5, 'volume': 1234}]
+        def get_daily_bars(self, *args):
+            raise AssertionError('daily bars should not be used for 5Min')
+    monkeypatch.setattr(main.alpaca_connection, 'load_read_only_adapter', lambda *a, **k: (Adapter(), False))
+    result = terminal_market(symbol='SPY', timeframe='5Min', db=object())
+    assert result['timeframe'] == '5Min'
+    assert result['source'] == 'Alpaca IEX'
+    assert result['bars'][0]['close'] == 100.5
+    assert calls[0][:2] == ('SPY', '5Min')
+
+
+def test_terminal_market_crypto_is_read_only(monkeypatch):
+    import app.main as main
+    paths = []
+    class Adapter:
+        def _request(self, method, path, *, data_api, params):
+            assert method == 'GET' and data_api is True
+            paths.append(path)
+            if path.endswith('/snapshots'):
+                return {'snapshots': {'BTC/USD': {
+                    'latestQuote': {'t': '2026-09-22T20:00:00Z', 'bp': 100, 'ap': 101},
+                    'latestTrade': {'p': 100.5}}}}
+            return {'bars': {'BTC/USD': [{'t': '2026-09-22T19:00:00Z', 'o': 99,
+                                         'h': 101, 'l': 98, 'c': 100, 'v': 1234}]}}
+    monkeypatch.setattr(main.alpaca_connection, 'load_read_only_adapter', lambda *a, **k: (Adapter(), False))
+    result = terminal_market(symbol='BTC/USD', timeframe='5Min', db=object())
+    assert result['source'] == 'Alpaca Crypto US'
+    assert result['bars'][0]['close'] == 100
+    assert paths == ['/v1beta3/crypto/us/snapshots', '/v1beta3/crypto/us/bars']
 
 
 def test_activity_feed_is_bounded_and_read_only():
