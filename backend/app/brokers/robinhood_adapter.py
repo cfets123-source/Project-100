@@ -152,11 +152,21 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
             except (KeyError, TypeError, ValueError) as exc:
                 raise RobinhoodMcpError("Robinhood returned invalid crypto quote data") from exc
             spread = (ask - bid) / ((ask + bid) / 2) if bid > 0 and ask > 0 else None
-            quality = bid > 0 and ask >= bid and mark > 0 and 0 <= age <= max_age_seconds and spread is not None and spread <= 0.01
+            if bid <= 0 or ask <= 0 or mark <= 0:
+                quality_reason = "missing_price"
+            elif ask < bid:
+                quality_reason = "crossed_market"
+            elif age < 0 or age > max_age_seconds:
+                quality_reason = "stale_quote"
+            elif spread is None or spread > 0.01:
+                quality_reason = "wide_spread"
+            else:
+                quality_reason = "current"
             quotes.append({"symbol": row["symbol"], "bid": bid, "ask": ask, "mark": mark,
                            "age_seconds": max(0, age), "spread_pct": spread,
                            "routing": row.get("routing"), "as_of": row["updated_at"],
-                           "valid_for_execution": quality})
+                           "valid_for_execution": quality_reason == "current",
+                           "quality_reason": quality_reason})
         if len(quotes) != len(symbols):
             raise RobinhoodMcpError("Robinhood omitted a requested crypto quote")
         return quotes

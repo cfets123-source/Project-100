@@ -72,9 +72,12 @@ def test_crypto_quotes_reject_crossed_or_stale_markets(monkeypatch):
     monkeypatch.setattr(a, '_tool', lambda name, arguments=None: {'results': rows})
     quotes = a.get_crypto_quotes(['BTC-USD', 'ETH-USD'])
     assert quotes[0]['valid_for_execution'] is False
+    assert quotes[0]['quality_reason'] == 'crossed_market'
     assert quotes[1]['valid_for_execution'] is True
+    assert quotes[1]['quality_reason'] == 'current'
     rows[1]['updated_at'] = '2025-01-01T00:00:00Z'
     assert a.get_crypto_quotes(['BTC-USD', 'ETH-USD'])[1]['valid_for_execution'] is False
+    assert a.get_crypto_quotes(['BTC-USD', 'ETH-USD'])[1]['quality_reason'] == 'stale_quote'
 
 
 def test_crypto_reads_use_only_designated_agentic_account(monkeypatch):

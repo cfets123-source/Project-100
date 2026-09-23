@@ -452,8 +452,11 @@ def robinhood_market_access(db: Session = Depends(get_db)):
                 age = (datetime.now(timezone.utc) - datetime.fromisoformat(quote["as_of"].replace("Z", "+00:00"))).total_seconds()
                 quote["age_seconds"] = max(0, age)
                 quote["valid_for_execution"] = bool(quote["valid_for_execution"] and 0 <= age <= 5)
+                if age > 5 and quote.get("quality_reason") == "current":
+                    quote["quality_reason"] = "stale_quote"
             except (KeyError, TypeError, ValueError):
                 quote["valid_for_execution"] = False
+                quote["quality_reason"] = "invalid_timestamp"
         return payload
     try:
         adapter, account = load_agentic_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
@@ -477,7 +480,9 @@ def robinhood_market_access(db: Session = Depends(get_db)):
                              "fractional": row.get("fractional_tradability") == "tradable"}
                             for row in etfs], "crypto": crypto, "execution_enabled": False,
                    "as_of": datetime.now(timezone.utc).isoformat()}
-        _robinhood_market_cache.update(expires_at=time.monotonic() + 60, payload=payload)
+        # Execution-quality crypto quotes expire after five seconds. A longer
+        # cache made a fresh broker quote look stale on a quick page reload.
+        _robinhood_market_cache.update(expires_at=time.monotonic() + 4, payload=payload)
         return payload
     except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
