@@ -1,5 +1,7 @@
 import time
 import copy
+import html
+import json
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -17,6 +19,8 @@ from app.brokers.robinhood_oauth import (BrokerOAuthConfigurationError, connecti
     finish_connection, start_connection)
 from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
 from app.brokers.robinhood_adapter import verify_agentic_readiness, load_agentic_read_only_adapter
+from app.brokers import etrade_connection
+from app.brokers.etrade_adapter import ETradeError
 from app.brokers import alpaca_connection
 from app.security.dashboard import (require_dashboard_access, dashboard_access_granted,
                                     issue_dashboard_session)
@@ -379,6 +383,69 @@ def alpaca_readiness(db: Session = Depends(get_db)):
         return alpaca_connection.verify_read_only(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
     except (BrokerOAuthConfigurationError, AlpacaBrokerError) as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/brokers/etrade/status", dependencies=[Depends(require_dashboard_access)])
+def etrade_status(db: Session = Depends(get_db)):
+    return etrade_connection.status(db)
+
+
+@app.get("/brokers/etrade/connect", response_class=HTMLResponse,
+         dependencies=[Depends(require_dashboard_access)])
+def etrade_connect(db: Session = Depends(get_db)):
+    """Show a one-time broker authorization link and verifier form."""
+    if not etrade_connection.status(db)["api_key_configured"]:
+        return HTMLResponse('<h1>E*TRADE API key needed</h1><p>Complete the '
+            '<a href="https://developer.etrade.com/getting-started">E*TRADE Individual live API key application</a> '
+            'and configure the key and secret securely on the server. Do not paste credentials into the dashboard.</p>',
+            status_code=503, headers={"Cache-Control": "no-store"})
+    try:
+        url, token = etrade_connection.begin(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except ETradeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    page = ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Connect E*TRADE</title><style>body{font:18px system-ui;background:#101820;color:#fff;'
+            'max-width:620px;margin:48px auto;padding:18px}a,button{color:#fff;background:#146b5b;'
+            'padding:12px;border:0;border-radius:8px}input{font:inherit;padding:12px;width:100%;'
+            'box-sizing:border-box;margin:16px 0}</style></head><body><h1>Connect E*TRADE</h1>'
+            '<p>Open E*TRADE in a new tab, approve access, then enter its one-time verification code here.</p>'
+            '<p><a target="_blank" rel="noopener noreferrer" href="' + html.escape(url, quote=True) + '">Open E*TRADE authorization</a></p>'
+            '<form id="verify"><label>Verification code<input id="code" required autocomplete="off"></label>'
+            '<button>Finish read-only connection</button></form><p id="result" role="status"></p>'
+            '<script>document.getElementById("verify").onsubmit=async e=>{e.preventDefault();'
+            'const r=await fetch("/brokers/etrade/complete",{method:"POST",headers:{"Content-Type":"application/json"},'
+            'body:JSON.stringify({request_token:' + json.dumps(token).replace("<", "\\u003c") + ',verifier:document.getElementById("code").value.trim()})});'
+            'document.getElementById("result").textContent=r.ok?"Connected read-only. You may return to the dashboard.":'
+            '"Connection failed or expired. Open a new connection page and retry.";};</script></body></html>')
+    return HTMLResponse(page, headers={"Cache-Control": "no-store"})
+
+
+class ETradeVerifier(BaseModel):
+    request_token: str
+    verifier: str
+
+
+@app.post("/brokers/etrade/complete", dependencies=[Depends(require_dashboard_access)])
+def etrade_complete(body: ETradeVerifier, db: Session = Depends(get_db)):
+    try:
+        return etrade_connection.finish(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
+                                        body.request_token, body.verifier)
+    except ETradeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/brokers/etrade/accounts", dependencies=[Depends(require_dashboard_access)])
+def etrade_accounts(db: Session = Depends(get_db)):
+    try:
+        adapter = etrade_connection.reader(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        return {"broker": "etrade_personal", "accounts": [
+            {"last4": a["account_last4"], "status": a["status"],
+             "type": a["account_type"],
+             "balance": adapter.account_balance(a["account_id_key"])}
+            for a in adapter.list_accounts() if a["institution_type"] == "BROKERAGE"],
+            "execution_enabled": False}
+    except ETradeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/brokers/robinhood/status", dependencies=[Depends(require_dashboard_access)])
