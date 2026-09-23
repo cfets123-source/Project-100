@@ -14,7 +14,7 @@ from app.audit.logger import log_and_commit
 # broker-pending state, not a terminal state; omitting it leaves a real fill
 # stranded in the local ledger and prevents a completed paper lifecycle from
 # being proved.
-RESOLVABLE_STATUSES = {"pending", "pending_new", "submitted", "accepted", "partial", "unknown"}
+RESOLVABLE_STATUSES = {"pending", "pending_new", "new", "open", "submitted", "accepted", "partial", "unknown"}
 
 
 def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) -> str:
@@ -28,21 +28,21 @@ def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) ->
 
     status = broker.get_order_status(intent.broker_order_id)
     broker_status = status.get("status")
-    filled_qty = status.get("filled_qty", 0.0) or 0.0
-    fill_price = status.get("fill_price")
+    filled_qty = float(status.get("filled_qty") or 0.0)
+    fill_price = status.get("filled_avg_price") or status.get("fill_price")
 
     # A fill always wins over a concurrent cancel attempt — we never discard a real fill.
     if broker_status == "filled" or filled_qty >= intent.quantity:
         intent.status = "filled"
         intent.quantity_filled = intent.quantity
-    elif broker_status == "partial" or (0 < filled_qty < intent.quantity):
+    elif broker_status in ("partial", "partially_filled") or (0 < filled_qty < intent.quantity):
         intent.status = "partial"
         intent.quantity_filled = filled_qty
     elif broker_status == "rejected":
         intent.status = "rejected"
-    elif broker_status == "canceled":
+    elif broker_status in ("canceled", "expired"):
         intent.status = "canceled"
-    elif broker_status in ("accepted", "submitted", "pending"):
+    elif broker_status in ("new", "pending_new", "accepted", "submitted", "pending", "open"):
         intent.status = broker_status
     else:
         intent.status = "unknown"
@@ -55,6 +55,9 @@ def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) ->
     return intent.status
 
 
-def reconcile_all_pending(db: Session, broker: BrokerAdapter) -> list[str]:
-    pending = db.query(OrderIntent).filter(OrderIntent.status.in_(RESOLVABLE_STATUSES)).all()
+def reconcile_all_pending(db: Session, broker: BrokerAdapter, *, account_id: str | None = None) -> list[str]:
+    pending_query = db.query(OrderIntent).filter(OrderIntent.status.in_(RESOLVABLE_STATUSES))
+    if account_id is not None:
+        pending_query = pending_query.filter(OrderIntent.account_id == account_id)
+    pending = pending_query.all()
     return [reconcile_intent(db, broker, i) for i in pending]

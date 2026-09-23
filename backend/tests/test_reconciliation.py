@@ -93,3 +93,28 @@ def test_pending_new_order_is_reconciled_when_alpaca_reports_a_fill(db):
     broker = MagicMock()
     broker.get_order_status.return_value = {"status": "filled", "filled_qty": 10.0, "fill_price": 10.0}
     assert reconcile_all_pending(db, broker) == ["filled"]
+
+
+def test_account_scoped_reconciliation_never_queries_another_broker_account(db):
+    make_intent(db, broker_order_id="paper-order", status="pending_new")
+    db.add(OrderIntent(intent_key="live", decision_id="live-d", account_id="live-account",
+                       symbol="TST", side="buy", quantity=1.0, status="pending_new",
+                       broker_order_id="live-order"))
+    db.commit()
+    broker = MagicMock()
+    broker.get_order_status.return_value = {"status": "filled", "filled_qty": 10.0,
+                                            "filled_avg_price": "10"}
+
+    assert reconcile_all_pending(db, broker, account_id="acct-designated") == ["filled"]
+    broker.get_order_status.assert_called_once_with("paper-order")
+    assert db.get(OrderIntent, "live").status == "pending_new"
+
+
+def test_alpaca_string_fill_quantity_and_price_are_reconciled(db):
+    intent = make_intent(db, quantity=0.263462957, status="pending_new")
+    broker = MagicMock()
+    broker.get_order_status.return_value = {"status": "filled", "filled_qty": "0.263462957",
+                                            "filled_avg_price": "126.554"}
+
+    assert reconcile_intent(db, broker, intent) == "filled"
+    assert intent.quantity_filled == 0.263462957

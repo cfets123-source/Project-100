@@ -23,7 +23,7 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     state.heartbeat = time.time(); state.status = "running"; db.commit()
     log_and_commit(db, 'alpaca_paper_worker_cycle_started', {'symbols': symbols})
     try:
-        reconciliation = run_reconciliation_cycle(db, cfg, symbols)
+        reconciliation = run_reconciliation_cycle(db, cfg, symbols, account_id=account_id)
     except AlpacaBrokerError as exc:
         # A broker throttle is external and temporary.  Do not restart-loop or
         # create an entry while account/position state is unavailable.
