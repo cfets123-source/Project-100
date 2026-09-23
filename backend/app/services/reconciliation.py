@@ -61,7 +61,15 @@ def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) ->
 
 def reconcile_all_pending(db: Session, broker: BrokerAdapter, *, account_id: str | None = None) -> list[str]:
     pending_query = db.query(OrderIntent).filter(OrderIntent.status.in_(RESOLVABLE_STATUSES))
+    # An entry can fill between cycles after the intent was already marked
+    # filled by an older worker. Recover its actual price before any exit P&L.
+    missing_price_query = (db.query(OrderIntent)
+                           .join(TradeDecisionRecord, OrderIntent.trade_id == TradeDecisionRecord.trade_id)
+                           .filter(OrderIntent.status == "filled",
+                                   TradeDecisionRecord.status == "open",
+                                   TradeDecisionRecord.fill_price.is_(None)))
     if account_id is not None:
         pending_query = pending_query.filter(OrderIntent.account_id == account_id)
-    pending = pending_query.all()
+        missing_price_query = missing_price_query.filter(OrderIntent.account_id == account_id)
+    pending = pending_query.all() + missing_price_query.all()
     return [reconcile_intent(db, broker, i) for i in pending]

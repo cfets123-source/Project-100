@@ -125,3 +125,22 @@ def test_alpaca_string_fill_quantity_and_price_are_reconciled(db):
     assert reconcile_intent(db, broker, intent) == "filled"
     assert intent.quantity_filled == 0.263462957
     assert trade.fill_price == 126.554
+
+
+def test_reconcile_backfills_open_filled_intent_missing_entry_price(db):
+    trade = models.TradeDecisionRecord(symbol="TST", strategy="test", direction="long",
+                                       entry_price=126.0, status="open")
+    db.add(trade)
+    db.commit()
+    intent = OrderIntent(intent_key="backfill", decision_id="d-backfill",
+                         account_id="paper-account", symbol="TST", side="buy",
+                         quantity=0.2, status="filled", broker_order_id="order-backfill",
+                         trade_id=trade.trade_id)
+    db.add(intent)
+    db.commit()
+    broker = MagicMock()
+    broker.get_order_status.return_value = {"status": "filled", "filled_qty": "0.2",
+                                            "filled_avg_price": "125.75"}
+
+    assert reconcile_all_pending(db, broker, account_id="paper-account") == ["filled"]
+    assert trade.fill_price == 125.75

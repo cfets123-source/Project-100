@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.session import Base
 from app.models.models import AuditLogEntry, SystemStateRecord, TradeDecisionRecord
 from app.runtime import alpaca_live_emergency_exit as emergency
+from app.runtime import alpaca_live_reconciliation_worker as live_reconciliation
 
 
 def database():
@@ -87,3 +88,19 @@ def test_reconcile_emergency_exit_only_after_broker_fill_and_flat(monkeypatch):
     assert len(done["closed"]) == 1 and trade.status == "closed"
     assert trade.exit_price == 101 and round(trade.pnl, 2) == 0.2
     assert emergency.reconcile_emergency_exits(db, cfg)["closed"] == []
+
+
+def test_live_entry_reconciliation_is_read_only_and_account_scoped(monkeypatch):
+    db = database()
+    adapter = SimpleNamespace(paper=False, get_accounts=lambda: [{"account_id": "live-1"}])
+    checked = []
+    monkeypatch.setattr(live_reconciliation, "load_read_only_adapter",
+                        lambda *args, **kwargs: (adapter, False))
+    monkeypatch.setattr(live_reconciliation, "reconcile_all_pending",
+                        lambda db_arg, adapter_arg, *, account_id: checked.append(account_id) or [])
+
+    result = live_reconciliation.reconcile_live_entry_intents(
+        db, SimpleNamespace(BROKER_TOKEN_ENCRYPTION_KEY="unused"))
+
+    assert checked == ["live-1"]
+    assert result["order_submission"] is False
