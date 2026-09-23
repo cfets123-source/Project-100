@@ -1,0 +1,7 @@
+# Intraday opening-range v2: locked evaluation plan
+
+The v1 test found that a 4.5% intraday target was never reached in its January–March 2025 holdout. V2 is a new, separately versioned hypothesis. This document and its evaluator are frozen before reading April 1–June 30, 2025 Alpaca IEX five-minute bars. That window has not been used to choose v2 parameters. A single pass is planned; a failing result will not be tuned and retested on the same window.
+
+The evaluator watches the same 20 liquid U.S. equities and ETFs. A completed five-minute bar from 10:00 to 14:30 ET must close at least 0.05% above the first 30 minutes' high, above cumulative VWAP, and have volume at least 1.2 times the median of the preceding six bars. It buys at the next bar open. A position has a 0.4% stop, 0.8% target, and closes by 15:45 ET. The portfolio holds at most two positions, allocates 50% of equity to each, takes at most six first-breakout signals per session, and stops new entries after a 2% realized daily loss. The model deducts 0.1% round-trip trading cost, assumes the stop wins if both levels touch within a bar, and charges the worse opening fill on a gap through the stop.
+
+The research screen requires at least 30 completed trades, positive compounded account return after modeled cost, and maximum drawdown no worse than 15%. A pass authorizes implementing a distinct paper worker and collecting its broker lifecycle, followed by a separate live readiness decision. It does not authorize live execution.
