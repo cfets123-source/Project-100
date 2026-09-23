@@ -125,6 +125,23 @@ def test_pending_exit_never_submits_duplicate_sell():
     adapter.place_order.assert_not_called()
 
 
+def test_live_pending_exit_does_not_trip_halt_or_submit_duplicate_sell():
+    db = _db()
+    db.add(models.SystemStateRecord(id='current', state='live', reason='active'))
+    db.commit()
+    adapter = MagicMock(paper=False)
+    adapter.get_positions.return_value = [{'symbol': 'AAPL', 'qty': '.5'}]
+    adapter.get_orders.return_value = [{'id': 'exit-1', 'symbol': 'AAPL', 'side': 'sell',
+                                        'type': 'market', 'status': 'accepted'}]
+
+    result = ensure_protective_stops(db, adapter,
+                                     SimpleNamespace(LIVE_TRADING_ENABLED=True), mode='live')
+
+    assert result['reason'] == 'exit_pending'
+    assert db.get(models.SystemStateRecord, 'current').state == 'live'
+    adapter.place_order.assert_not_called()
+
+
 def test_stop_submission_failure_submits_one_emergency_exit():
     db = _db()
     db.add(models.SystemStateRecord(id='current', state='live', reason='active'))

@@ -9,7 +9,9 @@ from app.models.models import ExternalPaperRuntimeState
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.research.strategy_validation import require_passing_validation
 from app.brokers.alpaca_adapter import AlpacaBrokerError
-from app.runtime.alpaca_live_position_manager import manage_paper_positions, reconcile_broker_bracket_exits
+from app.runtime.alpaca_live_position_manager import (
+    manage_paper_positions, manage_session_close, reconcile_broker_bracket_exits,
+)
 
 
 def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str, float] | None = None,
@@ -46,12 +48,18 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
         state.status = 'halted_unprotected_position'; db.commit()
         log_and_commit(db, 'alpaca_paper_worker_unprotected_position', protection)
         return {**reconciliation, **protection, 'entries': []}
+    session_close = manage_session_close(db, execution_adapter, cfg, mode="paper")
     lifecycle = manage_paper_positions(db, execution_adapter, allow_legacy_target_exit=True)
     bracket_reconciliation = reconcile_broker_bracket_exits(db, execution_adapter, mode="paper")
     adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     if not paper: raise RuntimeError('paper worker refuses live credential')
     strategy, entries = strategy or DailyTrendPullback(), []
     require_passing_validation(db, strategy.name)
+    if session_close["due"]:
+        state.status = "session_closing"; db.commit()
+        return {**reconciliation, "entries": [], "reason": "session_closing",
+                "session_close": session_close, "lifecycle": lifecycle,
+                "bracket_reconciliation": bracket_reconciliation}
     scan_day=time.strftime('%Y-%m-%d', time.gmtime())
     retry_after = float(state.payload.get('strategy_retry_after', 0) or 0)
     if state.payload.get('last_strategy_scan_day') == scan_day or time.time() < retry_after:

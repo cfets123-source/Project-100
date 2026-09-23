@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from sqlalchemy import create_engine
@@ -8,7 +10,8 @@ from app.db.session import Base
 from app.models import models  # noqa: F401
 from app.models.models import ExternalLiveProtection, TradeDecisionRecord, OrderIntent, RiskReservation
 from app.runtime.alpaca_live_position_manager import (
-    _finish_trade, manage_live_positions, manage_paper_positions, release_flat_account_reservations,
+    _finish_trade, manage_live_positions, manage_paper_positions,
+    manage_session_close, release_flat_account_reservations,
 )
 
 
@@ -126,6 +129,82 @@ def test_continuous_worker_does_not_retry_legacy_target_exit_requests():
     assert result['legacy_target_management_disabled'] == [
         {'symbol': 'LCID', 'entry_order_id': 'entry-legacy'}]
     adapter.get_quotes.assert_not_called()
+    adapter.place_order.assert_not_called()
+
+
+def test_fractional_session_close_cancels_exact_stop_then_reconciles_flat_paper_trade():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    trade = TradeDecisionRecord(symbol='CVX', strategy='expanded-test', direction='long',
+                                order_id='entry-cvx', fill_price=205.87, entry_price=205.9,
+                                stop_price=199.72, target_price=218.25,
+                                position_size=.16, risk_dollars=1, status='open')
+    db.add(trade)
+    db.add(models.ExternalPaperProtection(entry_order_id='entry-cvx', symbol='CVX',
+                                          quantity=.16, stop_price=199.72,
+                                          protective_order_id='stop-cvx'))
+    db.commit()
+    state = {'positions': [{'symbol': 'CVX', 'qty': '.16'}],
+             'orders': [{'id': 'stop-cvx', 'symbol': 'CVX', 'side': 'sell',
+                         'type': 'stop', 'status': 'new'}]}
+    adapter = MagicMock(paper=True)
+    adapter.get_market_clock.return_value = {
+        'is_open': True,
+        'next_close': (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat(),
+    }
+    adapter.get_positions.side_effect = lambda: state['positions']
+    adapter.get_orders.side_effect = lambda: state['orders']
+    def cancel(order_id):
+        assert order_id == 'stop-cvx'
+        state['orders'][0]['status'] = 'canceled'
+        return True
+    adapter.cancel_order.side_effect = cancel
+    adapter.get_order_status.side_effect = lambda _: state['orders'][0]
+    def submit(order):
+        assert state['orders'][0]['status'] == 'canceled'
+        assert order.symbol == 'CVX' and order.side == 'sell' and order.quantity == .16
+        state['orders'].append({'id': 'exit-cvx', 'symbol': 'CVX', 'side': 'sell',
+                                'type': 'market', 'status': 'accepted'})
+        return OrderResult(order_id='exit-cvx', status='accepted')
+    adapter.place_order.side_effect = submit
+
+    result = manage_session_close(db, adapter, SimpleNamespace(), mode='paper')
+
+    assert result['due'] and result['submitted'][0]['exit_order_id'] == 'exit-cvx'
+    assert db.get(models.ExternalPaperExit, 'entry-cvx').target_price == 0
+    manage_session_close(db, adapter, SimpleNamespace(), mode='paper')
+    assert adapter.place_order.call_count == 1
+    state['positions'] = []
+    state['orders'][1].update(status='filled', filled_qty='.16', filled_avg_price='206.00')
+    lifecycle = manage_paper_positions(db, adapter)
+    assert lifecycle['trades_closed'] == [{'symbol': 'CVX', 'reason': 'session_close'}]
+    assert trade.status == 'closed' and round(trade.pnl, 4) == .0208
+
+
+def test_session_close_does_not_sell_until_stop_cancellation_is_confirmed():
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(TradeDecisionRecord(symbol='CVX', strategy='expanded-test', direction='long',
+                               order_id='entry-cvx', status='open'))
+    db.add(models.ExternalPaperProtection(entry_order_id='entry-cvx', symbol='CVX',
+                                          quantity=.16, stop_price=199.72,
+                                          protective_order_id='stop-cvx'))
+    db.commit()
+    adapter = MagicMock(paper=True)
+    adapter.get_market_clock.return_value = {
+        'is_open': True,
+        'next_close': (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat(),
+    }
+    adapter.get_positions.return_value = [{'symbol': 'CVX', 'qty': '.16'}]
+    adapter.get_orders.return_value = [{'id': 'stop-cvx', 'symbol': 'CVX',
+                                        'side': 'sell', 'type': 'stop', 'status': 'new'}]
+    adapter.get_order_status.return_value = {'id': 'stop-cvx', 'status': 'pending_cancel'}
+
+    result = manage_session_close(db, adapter, SimpleNamespace(), mode='paper')
+
+    assert result['failed'] == [{'symbol': 'CVX', 'reason': 'stop_cancel_unconfirmed'}]
     adapter.place_order.assert_not_called()
 
 

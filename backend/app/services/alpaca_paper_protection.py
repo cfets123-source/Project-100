@@ -113,8 +113,6 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
         position = positions[symbol]
         quantity = abs(float(position.get("qty") or 0))
         if symbol in check["pending_exit_symbols"]:
-            if mode == "live":
-                state.activate_kill_switch(f"live unprotected position has pending exit: {symbol}")
             log_and_commit(db, f"{event_prefix}_exit_pending", {"symbol": symbol})
             return {"protected": False, "placed": placed, "failed": symbol,
                     "reason": "exit_pending", "emergency_exit": {"submitted": False}}

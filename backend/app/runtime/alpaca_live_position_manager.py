@@ -1,6 +1,7 @@
 """Broker-reconciled live position management after the final worker gate."""
 from __future__ import annotations
 import time
+from datetime import datetime, timezone
 
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
@@ -86,6 +87,84 @@ def _finish_trade(db, entry_order_id: str, exit_order: dict, reason: str, mode: 
                    "entry_order_id": entry_order_id, "exit_order_id": str(exit_order.get("id")),
                    "reason": reason, "pnl": pnl})
     return True
+
+
+def manage_session_close(db, adapter, cfg, *, mode: str) -> dict:
+    """Close fractional positions before their broker-side DAY stops expire.
+
+    The exact stop must be canceled and confirmed before a market sell is
+    attempted. A failed/uncertain sell is reconciled before any stop is
+    rearmed, so this path cannot knowingly create two active closing orders.
+    """
+    if mode not in {"paper", "live"} or bool(getattr(adapter, "paper", False)) != (mode == "paper"):
+        raise RuntimeError("session close broker mode mismatch")
+    clock = adapter.get_market_clock()
+    try:
+        close_at = datetime.fromisoformat(str(clock["next_close"]).replace("Z", "+00:00"))
+        seconds_left = (close_at - datetime.now(timezone.utc)).total_seconds()
+    except (KeyError, TypeError, ValueError):
+        return {"due": False, "reason": "invalid_market_clock", "submitted": [], "failed": []}
+    due = bool(clock.get("is_open")) and 0 <= seconds_left <= 45 * 60
+    if not due:
+        return {"due": False, "submitted": [], "failed": []}
+    protection_model = ExternalPaperProtection if mode == "paper" else ExternalLiveProtection
+    exit_model = ExternalPaperExit if mode == "paper" else ExternalLiveExit
+    positions = {str(p.get("symbol")): p for p in adapter.get_positions()}
+    orders = {str(o.get("id")): o for o in adapter.get_orders()}
+    submitted, failed = [], []
+    for protection in db.query(protection_model).all():
+        symbol, entry_id = protection.symbol, protection.entry_order_id
+        position = positions.get(symbol)
+        quantity = abs(float(position.get("qty") or 0)) if position else 0.0
+        if quantity <= 0 or quantity.is_integer() or db.get(exit_model, entry_id) is not None:
+            continue
+        trade = _trade(db, entry_id)
+        stop = orders.get(str(protection.protective_order_id))
+        if trade is None or trade.status != "open" or stop is None or str(stop.get("status")) not in OPEN:
+            failed.append({"symbol": symbol, "reason": "missing_active_recorded_stop"})
+            continue
+        try:
+            adapter.cancel_order(str(protection.protective_order_id))
+            stop_state = adapter.get_order_status(str(protection.protective_order_id))
+            if str(stop_state.get("status")) == "filled":
+                continue
+            if str(stop_state.get("status")) not in {"canceled", "expired"}:
+                failed.append({"symbol": symbol, "reason": "stop_cancel_unconfirmed"})
+                continue
+            current = next((p for p in adapter.get_positions() if str(p.get("symbol")) == symbol), None)
+            if current is None or float(current.get("qty") or 0) <= 0:
+                continue
+            quantity = float(current["qty"])
+            active_exits = [o for o in adapter.get_orders()
+                            if str(o.get("symbol")) == symbol and str(o.get("side")) == "sell"
+                            and str(o.get("status")) in OPEN]
+            if active_exits:
+                failed.append({"symbol": symbol, "reason": "other_exit_pending"})
+                continue
+            result = adapter.place_order(OrderRequest(symbol=symbol, side="sell", quantity=quantity,
+                                                      order_type="market", time_in_force="day"))
+            if not result.order_id or result.status == "rejected":
+                raise RuntimeError("session exit rejected")
+            db.add(exit_model(entry_order_id=entry_id, symbol=symbol, quantity=quantity,
+                              target_price=0.0, exit_order_id=result.order_id, status=result.status))
+            db.commit()
+            item = {"symbol": symbol, "entry_order_id": entry_id,
+                    "exit_order_id": result.order_id, "status": result.status}
+            submitted.append(item)
+            log_and_commit(db, f"alpaca_{mode}_session_exit_submitted", item)
+        except Exception as exc:
+            # The broker may have accepted an uncertain POST. Read its state
+            # before rearming protection; the shared manager will avoid a
+            # duplicate sell when it sees a pending exit.
+            from app.services.alpaca_paper_protection import ensure_protective_stops
+            error = {"symbol": symbol, "reason": type(exc).__name__}
+            try:
+                error["protection"] = ensure_protective_stops(db, adapter, cfg, mode=mode)
+            except Exception as recovery_exc:
+                error["recovery_error"] = type(recovery_exc).__name__
+            failed.append(error)
+            log_and_commit(db, f"alpaca_{mode}_session_exit_failed", error)
+    return {"due": True, "submitted": submitted, "failed": failed}
 
 
 def manage_external_positions(db, adapter, *, mode: str,
@@ -200,8 +279,9 @@ def manage_external_positions(db, adapter, *, mode: str,
         # exact stop only after flatness is confirmed.
         exit_order = orders.get(exit_row.exit_order_id) if exit_row else None
         if exit_order and str(exit_order.get("status")) in FILLED:
-            if _finish_trade(db, entry_id, exit_order, "target_hit", mode):
-                closed.append({"symbol": symbol, "reason": "target_hit"})
+            reason = "session_close" if float(exit_row.target_price) == 0.0 else "target_hit"
+            if _finish_trade(db, entry_id, exit_order, reason, mode):
+                closed.append({"symbol": symbol, "reason": reason})
         elif stop and str(stop.get("status")) in FILLED:
             if _finish_trade(db, entry_id, stop, "stop_hit", mode):
                 closed.append({"symbol": symbol, "reason": "stop_hit"})

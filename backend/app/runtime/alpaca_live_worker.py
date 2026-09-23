@@ -8,7 +8,8 @@ from app.risk.engine import RiskEngine
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.audit.logger import log_and_commit
 from app.runtime.alpaca_live_position_manager import (
-    manage_live_positions, reconcile_broker_bracket_exits, release_flat_account_reservations,
+    manage_live_positions, manage_session_close, reconcile_broker_bracket_exits,
+    release_flat_account_reservations,
 )
 from app.brokers.alpaca_adapter import AlpacaBrokerError
 
@@ -43,10 +44,19 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
     released_reservations = release_flat_account_reservations(db, adapter, account_id)
     protection=ensure_protective_stops(db, adapter, cfg, mode="live")
     if not protection.get('protected'):
+        if protection.get("reason") == "exit_pending":
+            return {"started": True, "entries": [], "reason": "exit_pending",
+                    "protection": protection}
         StateManager(db,cfg).activate_kill_switch('live position lacks verified protective stop')
         return {"started": True, "entries": [], "protection": protection}
+    session_close = manage_session_close(db, adapter, cfg, mode="live")
     lifecycle = manage_live_positions(db, adapter, allow_legacy_target_exit=True)
     bracket_reconciliation = reconcile_broker_bracket_exits(db, adapter, mode="live")
+    if session_close["due"]:
+        return {"started": True, "entries": [], "reason": "session_closing",
+                "protection": protection, "session_close": session_close,
+                "lifecycle": lifecycle, "bracket_reconciliation": bracket_reconciliation,
+                "released_reservations": released_reservations}
     positions = adapter.get_positions()
     if positions:
         return {"started": True, "entries": [], "reason": "position_already_open",
