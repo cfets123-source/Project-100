@@ -1,0 +1,2221 @@
+{
+  "rule": "crypto_rotation_stage_v1",
+  "first_day": "2025-09-22",
+  "last_day": "2026-09-21",
+  "source": "Coinbase Exchange UTC daily candles",
+  "source_sha256": "ee7de4cacd94f9f0ab898fe816a864159942a8c76fbfb644f377e8c1ed48f4c0",
+  "one_way_cost": 0.0075,
+  "entries": 46,
+  "exits": 45,
+  "cash_days": 189,
+  "asset_days": {
+    "BTC": 17,
+    "DOGE": 29,
+    "ETH": 74,
+    "SOL": 56
+  },
+  "stage_distribution": {
+    "observed_days": 365,
+    "observed_end": 39.90733270250956,
+    "observed_target_day": null,
+    "observed_max_drawdown": 0.63482076681527,
+    "sampled_paths": 10000,
+    "target_fraction": 0.0,
+    "floor_fraction": 0.7699,
+    "ending_equity_p10": 22.953534453485346,
+    "ending_equity_p50": 40.23676979681811,
+    "ending_equity_p90": 69.9959451995142
+  },
+  "daily_account_returns": [
+    {
+      "date": "2025-09-22",
+      "asset": "SOL",
+      "net_return": -0.073532249873,
+      "equity": 92.64677501
+    },
+    {
+      "date": "2025-09-23",
+      "asset": "SOL",
+      "net_return": -0.032870874139,
+      "equity": 89.60139453
+    },
+    {
+      "date": "2025-09-24",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-09-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-09-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-09-27",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-09-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-09-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-09-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-10-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 88.92938407
+    },
+    {
+      "date": "2025-10-02",
+      "asset": "BTC",
+      "net_return": 0.008881896732,
+      "equity": 89.71924568
+    },
+    {
+      "date": "2025-10-03",
+      "asset": "BTC",
+      "net_return": 0.014069319249,
+      "equity": 90.98153439
+    },
+    {
+      "date": "2025-10-04",
+      "asset": "BTC",
+      "net_return": 0.001145862041,
+      "equity": 91.08578668
+    },
+    {
+      "date": "2025-10-05",
+      "asset": "BTC",
+      "net_return": 0.008674363693,
+      "equity": 91.87589792
+    },
+    {
+      "date": "2025-10-06",
+      "asset": "BTC",
+      "net_return": 0.009737388359,
+      "equity": 92.77052922
+    },
+    {
+      "date": "2025-10-07",
+      "asset": "ETH",
+      "net_return": -0.064659733349,
+      "equity": 86.77201153
+    },
+    {
+      "date": "2025-10-08",
+      "asset": "BTC",
+      "net_return": 0.00087376223,
+      "equity": 86.84782964
+    },
+    {
+      "date": "2025-10-09",
+      "asset": "ETH",
+      "net_return": -0.048934917704,
+      "equity": 82.59793824
+    },
+    {
+      "date": "2025-10-10",
+      "asset": "BTC",
+      "net_return": -0.085665918134,
+      "equity": 75.52211003
+    },
+    {
+      "date": "2025-10-11",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-12",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-13",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-14",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-15",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-16",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-17",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-18",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-19",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-20",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 74.9556942
+    },
+    {
+      "date": "2025-10-27",
+      "asset": "ETH",
+      "net_return": -0.016818744665,
+      "equity": 73.69503352
+    },
+    {
+      "date": "2025-10-28",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-10-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-10-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-10-31",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-03",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-04",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-05",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-06",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-07",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-08",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-09",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-10",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-11",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-12",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-13",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-14",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-15",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-16",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-17",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-18",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-19",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-20",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-27",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-11-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-12-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-12-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-12-03",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 73.14232077
+    },
+    {
+      "date": "2025-12-04",
+      "asset": "SOL",
+      "net_return": -0.046121613215,
+      "equity": 69.76887894
+    },
+    {
+      "date": "2025-12-05",
+      "asset": "ETH",
+      "net_return": -0.050013762787,
+      "equity": 66.27947478
+    },
+    {
+      "date": "2025-12-06",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 65.78237872
+    },
+    {
+      "date": "2025-12-07",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 65.78237872
+    },
+    {
+      "date": "2025-12-08",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 65.78237872
+    },
+    {
+      "date": "2025-12-09",
+      "asset": "ETH",
+      "net_return": 0.053896631285,
+      "equity": 69.32782733
+    },
+    {
+      "date": "2025-12-10",
+      "asset": "ETH",
+      "net_return": 0.002115579343,
+      "equity": 69.47449585
+    },
+    {
+      "date": "2025-12-11",
+      "asset": "ETH",
+      "net_return": -0.02633177556,
+      "equity": 67.64510902
+    },
+    {
+      "date": "2025-12-12",
+      "asset": "ETH",
+      "net_return": -0.047190907125,
+      "equity": 64.45287496
+    },
+    {
+      "date": "2025-12-13",
+      "asset": "ETH",
+      "net_return": 0.009753931233,
+      "equity": 65.08154387
+    },
+    {
+      "date": "2025-12-14",
+      "asset": "ETH",
+      "net_return": -0.016552166934,
+      "equity": 64.00430329
+    },
+    {
+      "date": "2025-12-15",
+      "asset": "ETH",
+      "net_return": -0.032293761262,
+      "equity": 61.9373636
+    },
+    {
+      "date": "2025-12-16",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-17",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-18",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-19",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-20",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-27",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2025-12-31",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2026-01-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2026-01-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 61.47283337
+    },
+    {
+      "date": "2026-01-03",
+      "asset": "DOGE",
+      "net_return": 0.001529727061,
+      "equity": 61.56687003
+    },
+    {
+      "date": "2026-01-04",
+      "asset": "DOGE",
+      "net_return": 0.044590438915,
+      "equity": 64.31216379
+    },
+    {
+      "date": "2026-01-05",
+      "asset": "DOGE",
+      "net_return": 0.014853472501,
+      "equity": 65.26742275
+    },
+    {
+      "date": "2026-01-06",
+      "asset": "DOGE",
+      "net_return": -0.007911392405,
+      "equity": 64.75106655
+    },
+    {
+      "date": "2026-01-07",
+      "asset": "DOGE",
+      "net_return": -0.027977139819,
+      "equity": 62.93951691
+    },
+    {
+      "date": "2026-01-08",
+      "asset": "DOGE",
+      "net_return": -0.030423189991,
+      "equity": 61.02469603
+    },
+    {
+      "date": "2026-01-09",
+      "asset": "SOL",
+      "net_return": -0.03240170582,
+      "equity": 59.04739178
+    },
+    {
+      "date": "2026-01-10",
+      "asset": "DOGE",
+      "net_return": -0.022374962191,
+      "equity": 57.72620862
+    },
+    {
+      "date": "2026-01-11",
+      "asset": "DOGE",
+      "net_return": -0.01176048763,
+      "equity": 57.04732026
+    },
+    {
+      "date": "2026-01-12",
+      "asset": "SOL",
+      "net_return": -0.018191964158,
+      "equity": 56.00951745
+    },
+    {
+      "date": "2026-01-13",
+      "asset": "SOL",
+      "net_return": 0.045886075949,
+      "equity": 58.57957443
+    },
+    {
+      "date": "2026-01-14",
+      "asset": "DOGE",
+      "net_return": -0.021921480976,
+      "equity": 57.2954234
+    },
+    {
+      "date": "2026-01-15",
+      "asset": "DOGE",
+      "net_return": -0.049191466232,
+      "equity": 54.47697751
+    },
+    {
+      "date": "2026-01-16",
+      "asset": "SOL",
+      "net_return": 0.002216544324,
+      "equity": 54.59772815
+    },
+    {
+      "date": "2026-01-17",
+      "asset": "SOL",
+      "net_return": -0.00814692074,
+      "equity": 54.15292479
+    },
+    {
+      "date": "2026-01-18",
+      "asset": "SOL",
+      "net_return": -0.040929973549,
+      "equity": 51.93644701
+    },
+    {
+      "date": "2026-01-19",
+      "asset": "ETH",
+      "net_return": -0.043551644078,
+      "equity": 49.67452935
+    },
+    {
+      "date": "2026-01-20",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-27",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-01-31",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-03",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-04",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-05",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-06",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-07",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-08",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-09",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-10",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-11",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-12",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-13",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-14",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-15",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-16",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-17",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-18",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-19",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-20",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-27",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-02-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-03-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-03-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 49.30197038
+    },
+    {
+      "date": "2026-03-03",
+      "asset": "ETH",
+      "net_return": -0.02934626823,
+      "equity": 47.85514153
+    },
+    {
+      "date": "2026-03-04",
+      "asset": "SOL",
+      "net_return": 0.029337348385,
+      "equity": 49.25908449
+    },
+    {
+      "date": "2026-03-05",
+      "asset": "SOL",
+      "net_return": -0.023214875124,
+      "equity": 48.115541
+    },
+    {
+      "date": "2026-03-06",
+      "asset": "SOL",
+      "net_return": -0.046294210408,
+      "equity": 45.88807002
+    },
+    {
+      "date": "2026-03-07",
+      "asset": "BTC",
+      "net_return": -0.027217282645,
+      "equity": 44.63912145
+    },
+    {
+      "date": "2026-03-08",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 44.30432804
+    },
+    {
+      "date": "2026-03-09",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 44.30432804
+    },
+    {
+      "date": "2026-03-10",
+      "asset": "SOL",
+      "net_return": 0.003599175986,
+      "equity": 44.46378711
+    },
+    {
+      "date": "2026-03-11",
+      "asset": "ETH",
+      "net_return": -0.00748691771,
+      "equity": 44.1308904
+    },
+    {
+      "date": "2026-03-12",
+      "asset": "BTC",
+      "net_return": -0.010426057908,
+      "equity": 43.67077918
+    },
+    {
+      "date": "2026-03-13",
+      "asset": "BTC",
+      "net_return": 0.005874094464,
+      "equity": 43.92730546
+    },
+    {
+      "date": "2026-03-14",
+      "asset": "ETH",
+      "net_return": -0.013112781679,
+      "equity": 43.35129629
+    },
+    {
+      "date": "2026-03-15",
+      "asset": "ETH",
+      "net_return": 0.039061382172,
+      "equity": 45.04465784
+    },
+    {
+      "date": "2026-03-16",
+      "asset": "ETH",
+      "net_return": 0.080023868539,
+      "equity": 48.64930562
+    },
+    {
+      "date": "2026-03-17",
+      "asset": "ETH",
+      "net_return": -0.014785757393,
+      "equity": 47.92998879
+    },
+    {
+      "date": "2026-03-18",
+      "asset": "ETH",
+      "net_return": -0.049474796713,
+      "equity": 45.55866234
+    },
+    {
+      "date": "2026-03-19",
+      "asset": "ETH",
+      "net_return": -0.029866664246,
+      "equity": 44.19797707
+    },
+    {
+      "date": "2026-03-20",
+      "asset": "ETH",
+      "net_return": 0.003854700255,
+      "equity": 44.36834702
+    },
+    {
+      "date": "2026-03-21",
+      "asset": "ETH",
+      "net_return": -0.028556915779,
+      "equity": 43.10132387
+    },
+    {
+      "date": "2026-03-22",
+      "asset": "ETH",
+      "net_return": -0.014990813629,
+      "equity": 42.45519996
+    },
+    {
+      "date": "2026-03-23",
+      "asset": "ETH",
+      "net_return": 0.047892235166,
+      "equity": 44.48847438
+    },
+    {
+      "date": "2026-03-24",
+      "asset": "ETH",
+      "net_return": 0.001789282893,
+      "equity": 44.56807685
+    },
+    {
+      "date": "2026-03-25",
+      "asset": "ETH",
+      "net_return": 0.005766509707,
+      "equity": 44.82507909
+    },
+    {
+      "date": "2026-03-26",
+      "asset": "SOL",
+      "net_return": -0.070713815861,
+      "equity": 41.65532671
+    },
+    {
+      "date": "2026-03-27",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-03-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-03-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-03-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-03-31",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-04-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-04-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-04-03",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-04-04",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-04-05",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 41.34291175
+    },
+    {
+      "date": "2026-04-06",
+      "asset": "ETH",
+      "net_return": -0.008478699397,
+      "equity": 40.99237763
+    },
+    {
+      "date": "2026-04-07",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 40.6849348
+    },
+    {
+      "date": "2026-04-08",
+      "asset": "ETH",
+      "net_return": -0.029383118043,
+      "equity": 39.48948456
+    },
+    {
+      "date": "2026-04-09",
+      "asset": "ETH",
+      "net_return": 3.1960114e-05,
+      "equity": 39.49074665
+    },
+    {
+      "date": "2026-04-10",
+      "asset": "ETH",
+      "net_return": 0.02555814272,
+      "equity": 40.50005679
+    },
+    {
+      "date": "2026-04-11",
+      "asset": "ETH",
+      "net_return": 0.017589080613,
+      "equity": 41.21241555
+    },
+    {
+      "date": "2026-04-12",
+      "asset": "ETH",
+      "net_return": -0.04113238749,
+      "equity": 39.51725051
+    },
+    {
+      "date": "2026-04-13",
+      "asset": "ETH",
+      "net_return": 0.081441027115,
+      "equity": 42.73557597
+    },
+    {
+      "date": "2026-04-14",
+      "asset": "ETH",
+      "net_return": -0.019731929274,
+      "equity": 41.89232061
+    },
+    {
+      "date": "2026-04-15",
+      "asset": "ETH",
+      "net_return": 0.015984506133,
+      "equity": 42.56194867
+    },
+    {
+      "date": "2026-04-16",
+      "asset": "ETH",
+      "net_return": -0.005096075641,
+      "equity": 42.34504976
+    },
+    {
+      "date": "2026-04-17",
+      "asset": "ETH",
+      "net_return": 0.030311545978,
+      "equity": 43.62859368
+    },
+    {
+      "date": "2026-04-18",
+      "asset": "ETH",
+      "net_return": -0.028275064055,
+      "equity": 42.3949924
+    },
+    {
+      "date": "2026-04-19",
+      "asset": "ETH",
+      "net_return": -0.037203684645,
+      "equity": 40.81774247
+    },
+    {
+      "date": "2026-04-20",
+      "asset": "ETH",
+      "net_return": 0.022412650735,
+      "equity": 41.73257628
+    },
+    {
+      "date": "2026-04-21",
+      "asset": "BTC",
+      "net_return": -0.008570119818,
+      "equity": 41.3749231
+    },
+    {
+      "date": "2026-04-22",
+      "asset": "BTC",
+      "net_return": 0.024265238509,
+      "equity": 42.37889548
+    },
+    {
+      "date": "2026-04-23",
+      "asset": "BTC",
+      "net_return": 0.000930844875,
+      "equity": 42.41834365
+    },
+    {
+      "date": "2026-04-24",
+      "asset": "BTC",
+      "net_return": -0.010469036547,
+      "equity": 41.97426446
+    },
+    {
+      "date": "2026-04-25",
+      "asset": "BTC",
+      "net_return": 0.002439008962,
+      "equity": 42.07664007
+    },
+    {
+      "date": "2026-04-26",
+      "asset": "BTC",
+      "net_return": 0.01317592419,
+      "equity": 42.63103869
+    },
+    {
+      "date": "2026-04-27",
+      "asset": "BTC",
+      "net_return": -0.016642889174,
+      "equity": 41.92153504
+    },
+    {
+      "date": "2026-04-28",
+      "asset": "DOGE",
+      "net_return": -0.011260738556,
+      "equity": 41.44946759
+    },
+    {
+      "date": "2026-04-29",
+      "asset": "DOGE",
+      "net_return": 0.048323769254,
+      "equity": 43.4524621
+    },
+    {
+      "date": "2026-04-30",
+      "asset": "DOGE",
+      "net_return": 0.022087774897,
+      "equity": 44.4122303
+    },
+    {
+      "date": "2026-05-01",
+      "asset": "DOGE",
+      "net_return": 0.019543361834,
+      "equity": 45.28019459
+    },
+    {
+      "date": "2026-05-02",
+      "asset": "DOGE",
+      "net_return": -9.2157405e-05,
+      "equity": 45.27602168
+    },
+    {
+      "date": "2026-05-03",
+      "asset": "DOGE",
+      "net_return": -0.002580645161,
+      "equity": 45.15918034
+    },
+    {
+      "date": "2026-05-04",
+      "asset": "DOGE",
+      "net_return": 0.017187211236,
+      "equity": 45.93534071
+    },
+    {
+      "date": "2026-05-05",
+      "asset": "DOGE",
+      "net_return": 0.04324127907,
+      "equity": 47.9216436
+    },
+    {
+      "date": "2026-05-06",
+      "asset": "DOGE",
+      "net_return": -0.020724486242,
+      "equity": 46.92849215
+    },
+    {
+      "date": "2026-05-07",
+      "asset": "DOGE",
+      "net_return": -0.041081273342,
+      "equity": 45.00060994
+    },
+    {
+      "date": "2026-05-08",
+      "asset": "DOGE",
+      "net_return": 0.015856824926,
+      "equity": 45.71417673
+    },
+    {
+      "date": "2026-05-09",
+      "asset": "DOGE",
+      "net_return": -0.007759014149,
+      "equity": 45.35947979
+    },
+    {
+      "date": "2026-05-10",
+      "asset": "DOGE",
+      "net_return": 0.034406623735,
+      "equity": 46.92014634
+    },
+    {
+      "date": "2026-05-11",
+      "asset": "DOGE",
+      "net_return": -0.010939167556,
+      "equity": 46.406879
+    },
+    {
+      "date": "2026-05-12",
+      "asset": "SOL",
+      "net_return": -0.046210558552,
+      "equity": 44.2623912
+    },
+    {
+      "date": "2026-05-13",
+      "asset": "SOL",
+      "net_return": -0.033099936346,
+      "equity": 42.79730887
+    },
+    {
+      "date": "2026-05-14",
+      "asset": "SOL",
+      "net_return": 0.010972130788,
+      "equity": 43.26688654
+    },
+    {
+      "date": "2026-05-15",
+      "asset": "SOL",
+      "net_return": -0.032016496636,
+      "equity": 41.88163241
+    },
+    {
+      "date": "2026-05-16",
+      "asset": "SOL",
+      "net_return": -0.030048211683,
+      "equity": 40.62316426
+    },
+    {
+      "date": "2026-05-17",
+      "asset": "DOGE",
+      "net_return": -0.018727576825,
+      "equity": 39.86239083
+    },
+    {
+      "date": "2026-05-18",
+      "asset": "DOGE",
+      "net_return": -0.038652221814,
+      "equity": 38.32162085
+    },
+    {
+      "date": "2026-05-19",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-20",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-27",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-28",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-29",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-30",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-05-31",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-01",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-02",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-03",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-04",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-05",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-06",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-07",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-08",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-09",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-10",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-11",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-12",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-13",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-14",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-15",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-16",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-17",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-18",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-19",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-20",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-21",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-22",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-23",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-24",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-25",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-26",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.0342087
+    },
+    {
+      "date": "2026-06-27",
+      "asset": "SOL",
+      "net_return": -0.026990598886,
+      "equity": 37.00764263
+    },
+    {
+      "date": "2026-06-28",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 36.73008531
+    },
+    {
+      "date": "2026-06-29",
+      "asset": "SOL",
+      "net_return": 0.044993336139,
+      "equity": 38.38269438
+    },
+    {
+      "date": "2026-06-30",
+      "asset": "SOL",
+      "net_return": -0.020119920053,
+      "equity": 37.61043764
+    },
+    {
+      "date": "2026-07-01",
+      "asset": "SOL",
+      "net_return": 0.052216480827,
+      "equity": 39.57432233
+    },
+    {
+      "date": "2026-07-02",
+      "asset": "SOL",
+      "net_return": 0.04187128457,
+      "equity": 41.23135005
+    },
+    {
+      "date": "2026-07-03",
+      "asset": "SOL",
+      "net_return": 0.020590424212,
+      "equity": 42.08032104
+    },
+    {
+      "date": "2026-07-04",
+      "asset": "SOL",
+      "net_return": -0.006806028196,
+      "equity": 41.79392118
+    },
+    {
+      "date": "2026-07-05",
+      "asset": "SOL",
+      "net_return": -0.002447381302,
+      "equity": 41.69163552
+    },
+    {
+      "date": "2026-07-06",
+      "asset": "SOL",
+      "net_return": 0.004661432777,
+      "equity": 41.88597828
+    },
+    {
+      "date": "2026-07-07",
+      "asset": "SOL",
+      "net_return": -0.016727716728,
+      "equity": 41.1853215
+    },
+    {
+      "date": "2026-07-08",
+      "asset": "SOL",
+      "net_return": -0.034397119086,
+      "equity": 39.76866509
+    },
+    {
+      "date": "2026-07-09",
+      "asset": "SOL",
+      "net_return": 0.00295781893,
+      "equity": 39.8862936
+    },
+    {
+      "date": "2026-07-10",
+      "asset": "SOL",
+      "net_return": 0.000897550968,
+      "equity": 39.92209358
+    },
+    {
+      "date": "2026-07-11",
+      "asset": "ETH",
+      "net_return": -0.019836858513,
+      "equity": 39.13016466
+    },
+    {
+      "date": "2026-07-12",
+      "asset": "ETH",
+      "net_return": 0.010493561151,
+      "equity": 39.54077944
+    },
+    {
+      "date": "2026-07-13",
+      "asset": "ETH",
+      "net_return": -0.017163650059,
+      "equity": 38.86211534
+    },
+    {
+      "date": "2026-07-14",
+      "asset": "ETH",
+      "net_return": 0.065452475811,
+      "equity": 41.405737
+    },
+    {
+      "date": "2026-07-15",
+      "asset": "ETH",
+      "net_return": 0.013767242109,
+      "equity": 41.97577981
+    },
+    {
+      "date": "2026-07-16",
+      "asset": "ETH",
+      "net_return": -0.027958784401,
+      "equity": 40.80218803
+    },
+    {
+      "date": "2026-07-17",
+      "asset": "ETH",
+      "net_return": -0.011936709676,
+      "equity": 40.31514416
+    },
+    {
+      "date": "2026-07-18",
+      "asset": "ETH",
+      "net_return": 0.011238945745,
+      "equity": 40.76824387
+    },
+    {
+      "date": "2026-07-19",
+      "asset": "ETH",
+      "net_return": 0.005038649341,
+      "equity": 40.97366076
+    },
+    {
+      "date": "2026-07-20",
+      "asset": "ETH",
+      "net_return": 0.017391862062,
+      "equity": 41.68626901
+    },
+    {
+      "date": "2026-07-21",
+      "asset": "ETH",
+      "net_return": 0.01343819115,
+      "equity": 42.24645707
+    },
+    {
+      "date": "2026-07-22",
+      "asset": "ETH",
+      "net_return": 0.002306763222,
+      "equity": 42.34390964
+    },
+    {
+      "date": "2026-07-23",
+      "asset": "ETH",
+      "net_return": -0.029231055669,
+      "equity": 41.10615246
+    },
+    {
+      "date": "2026-07-24",
+      "asset": "ETH",
+      "net_return": -0.009200656353,
+      "equity": 40.72794888
+    },
+    {
+      "date": "2026-07-25",
+      "asset": "ETH",
+      "net_return": 0.007119159896,
+      "equity": 41.01789766
+    },
+    {
+      "date": "2026-07-26",
+      "asset": "ETH",
+      "net_return": 0.042770727332,
+      "equity": 42.77226297
+    },
+    {
+      "date": "2026-07-27",
+      "asset": "ETH",
+      "net_return": -0.031964241828,
+      "equity": 41.40508002
+    },
+    {
+      "date": "2026-07-28",
+      "asset": "ETH",
+      "net_return": 0.015496987872,
+      "equity": 42.04673404
+    },
+    {
+      "date": "2026-07-29",
+      "asset": "ETH",
+      "net_return": -0.006088573378,
+      "equity": 41.79072941
+    },
+    {
+      "date": "2026-07-30",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 41.47729894
+    },
+    {
+      "date": "2026-07-31",
+      "asset": "ETH",
+      "net_return": -0.036506296888,
+      "equity": 39.96311635
+    },
+    {
+      "date": "2026-08-01",
+      "asset": "ETH",
+      "net_return": -0.009436801376,
+      "equity": 39.58599236
+    },
+    {
+      "date": "2026-08-02",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 39.28909742
+    },
+    {
+      "date": "2026-08-03",
+      "asset": "ETH",
+      "net_return": -0.020347998768,
+      "equity": 38.48964291
+    },
+    {
+      "date": "2026-08-04",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 38.20097059
+    },
+    {
+      "date": "2026-08-05",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.20097059
+    },
+    {
+      "date": "2026-08-06",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 38.20097059
+    },
+    {
+      "date": "2026-08-07",
+      "asset": "ETH",
+      "net_return": -0.001907422008,
+      "equity": 38.12810522
+    },
+    {
+      "date": "2026-08-08",
+      "asset": "ETH",
+      "net_return": 0.001149923948,
+      "equity": 38.17194964
+    },
+    {
+      "date": "2026-08-09",
+      "asset": "ETH",
+      "net_return": -0.003231751568,
+      "equity": 38.04858738
+    },
+    {
+      "date": "2026-08-10",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 37.76322298
+    },
+    {
+      "date": "2026-08-11",
+      "asset": "SOL",
+      "net_return": -0.003709337548,
+      "equity": 37.62314644
+    },
+    {
+      "date": "2026-08-12",
+      "asset": "SOL",
+      "net_return": -0.008790343742,
+      "equity": 37.29242605
+    },
+    {
+      "date": "2026-08-13",
+      "asset": "SOL",
+      "net_return": 0.008603573792,
+      "equity": 37.61327419
+    },
+    {
+      "date": "2026-08-14",
+      "asset": "SOL",
+      "net_return": -0.01154855643,
+      "equity": 37.17889517
+    },
+    {
+      "date": "2026-08-15",
+      "asset": "SOL",
+      "net_return": -0.000663834307,
+      "equity": 37.15421454
+    },
+    {
+      "date": "2026-08-16",
+      "asset": "SOL",
+      "net_return": -0.009698419025,
+      "equity": 36.7938774
+    },
+    {
+      "date": "2026-08-17",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 36.51792332
+    },
+    {
+      "date": "2026-08-18",
+      "asset": "SOL",
+      "net_return": 0.006351876234,
+      "equity": 36.74988065
+    },
+    {
+      "date": "2026-08-19",
+      "asset": "SOL",
+      "net_return": 0.108167770419,
+      "equity": 40.7250333
+    },
+    {
+      "date": "2026-08-20",
+      "asset": "ETH",
+      "net_return": 0.017700718741,
+      "equity": 41.44589566
+    },
+    {
+      "date": "2026-08-21",
+      "asset": "ETH",
+      "net_return": 0.081408244852,
+      "equity": 44.81993328
+    },
+    {
+      "date": "2026-08-22",
+      "asset": "DOGE",
+      "net_return": -0.01193200344,
+      "equity": 44.28514168
+    },
+    {
+      "date": "2026-08-23",
+      "asset": "DOGE",
+      "net_return": 0.016873503157,
+      "equity": 45.03238716
+    },
+    {
+      "date": "2026-08-24",
+      "asset": "DOGE",
+      "net_return": -0.035649288085,
+      "equity": 43.42701462
+    },
+    {
+      "date": "2026-08-25",
+      "asset": "ETH",
+      "net_return": -0.030631912171,
+      "equity": 42.09676212
+    },
+    {
+      "date": "2026-08-26",
+      "asset": "ETH",
+      "net_return": 0.026505086897,
+      "equity": 43.21254046
+    },
+    {
+      "date": "2026-08-27",
+      "asset": "SOL",
+      "net_return": 0.053466954403,
+      "equity": 45.52298339
+    },
+    {
+      "date": "2026-08-28",
+      "asset": "SOL",
+      "net_return": -0.046162300788,
+      "equity": 43.42153774
+    },
+    {
+      "date": "2026-08-29",
+      "asset": "SOL",
+      "net_return": 0.014211638179,
+      "equity": 44.03862892
+    },
+    {
+      "date": "2026-08-30",
+      "asset": "SOL",
+      "net_return": -0.03664078773,
+      "equity": 42.42501887
+    },
+    {
+      "date": "2026-08-31",
+      "asset": "SOL",
+      "net_return": 0.01257985258,
+      "equity": 42.95871935
+    },
+    {
+      "date": "2026-09-01",
+      "asset": "SOL",
+      "net_return": -0.02999126468,
+      "equity": 41.67033303
+    },
+    {
+      "date": "2026-09-02",
+      "asset": "SOL",
+      "net_return": 0.004602761657,
+      "equity": 41.86213164
+    },
+    {
+      "date": "2026-09-03",
+      "asset": "SOL",
+      "net_return": 0.03515936255,
+      "equity": 43.3339775
+    },
+    {
+      "date": "2026-09-04",
+      "asset": "SOL",
+      "net_return": -0.019051284518,
+      "equity": 42.50840957
+    },
+    {
+      "date": "2026-09-05",
+      "asset": "SOL",
+      "net_return": 0.012064737616,
+      "equity": 43.02126238
+    },
+    {
+      "date": "2026-09-06",
+      "asset": "SOL",
+      "net_return": 0.032661368482,
+      "equity": 44.42639568
+    },
+    {
+      "date": "2026-09-07",
+      "asset": "SOL",
+      "net_return": -0.02599718442,
+      "equity": 43.27143448
+    },
+    {
+      "date": "2026-09-08",
+      "asset": "SOL",
+      "net_return": -0.003950664868,
+      "equity": 43.10048354
+    },
+    {
+      "date": "2026-09-09",
+      "asset": "SOL",
+      "net_return": -0.017800135436,
+      "equity": 42.3332891
+    },
+    {
+      "date": "2026-09-10",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 42.01578943
+    },
+    {
+      "date": "2026-09-11",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 42.01578943
+    },
+    {
+      "date": "2026-09-12",
+      "asset": "ETH",
+      "net_return": -0.003890693931,
+      "equity": 41.85231885
+    },
+    {
+      "date": "2026-09-13",
+      "asset": "ETH",
+      "net_return": -0.019558459558,
+      "equity": 41.03375197
+    },
+    {
+      "date": "2026-09-14",
+      "asset": "ETH",
+      "net_return": 0.015849038314,
+      "equity": 41.68409747
+    },
+    {
+      "date": "2026-09-15",
+      "asset": "ETH",
+      "net_return": -0.046992167309,
+      "equity": 39.72527139
+    },
+    {
+      "date": "2026-09-16",
+      "asset": "CASH",
+      "net_return": -0.0075,
+      "equity": 39.42733186
+    },
+    {
+      "date": "2026-09-17",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 39.42733186
+    },
+    {
+      "date": "2026-09-18",
+      "asset": "CASH",
+      "net_return": 0.0,
+      "equity": 39.42733186
+    },
+    {
+      "date": "2026-09-19",
+      "asset": "SOL",
+      "net_return": -0.022206965395,
+      "equity": 38.55177046
+    },
+    {
+      "date": "2026-09-20",
+      "asset": "SOL",
+      "net_return": 0.001080788976,
+      "equity": 38.59343679
+    },
+    {
+      "date": "2026-09-21",
+      "asset": "ETH",
+      "net_return": 0.034044542856,
+      "equity": 39.9073327
+    }
+  ]
+}

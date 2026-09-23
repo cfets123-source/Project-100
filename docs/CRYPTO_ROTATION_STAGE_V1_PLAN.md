@@ -1,0 +1,9 @@
+# Crypto rotation opening-stage research plan (frozen before outcome)
+
+Objective: evaluate whether a fully invested, long-only spot-crypto rotation can move a $100 account to $1,000 within 365 calendar days. This is a research proxy, not an executable Robinhood backtest.
+
+Data: Coinbase Exchange public UTC daily candles for BTC-USD, ETH-USD, SOL-USD, and DOGE-USD. These four assets are listed by Robinhood, but Coinbase prices are not Robinhood quotes. Require a complete daily series; exclude any partial current UTC day. Use unadjusted open and close prices. Run the fixed one-year observation from 2025-09-22 through 2026-09-21 inclusive; use earlier days only to initialize signals. No search or tuning based on observed outcome.
+
+At each UTC daily close, calculate each coin's 14-day close-to-close return and 30-day simple moving average using data through that close. Select the highest 14-day return among coins with positive 14-day return and close above the moving average; otherwise hold cash. Break ties alphabetically. Change holdings at the following UTC daily open. Hold at most one coin. Account return for each day is the selected coin's next-open/open return, with a 0.75% cost on each entry and exit leg applied to account equity at the day's opening rebalance. No margin or additional deposits. Count flat days as zero returns.
+
+Feed the resulting **net daily account returns** into the stage-distribution assessment with 365 days, $100 start, $1,000 target, $50 floor, five-day blocks, 10,000 resampled paths, fixed seed 20260923. Report observed account end, maximum drawdown, observed target day, historical-block target and floor fractions, trade count, and data completeness. Resampling is descriptive of this one price history, not a forecast. Coinbase daily bars, uniform assumed costs, and venue differences limit executable conclusions. No live trading promotion follows from this study alone.
