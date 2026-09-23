@@ -199,8 +199,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         clean = list(dict.fromkeys(symbol.upper() for symbol in symbols if symbol))
         if not clean:
             return {}
-        if adjustment not in {"all", "raw"}:
-            raise ValueError("daily-bar adjustment must be 'all' or 'raw'")
+        if adjustment not in {"all", "raw", "split"}:
+            raise ValueError("daily-bar adjustment must be 'all', 'raw', or 'split'")
         params = {
             "symbols": ",".join(clean), "timeframe": "1Day", "start": start, "end": end,
             "adjustment": adjustment, "feed": "iex", "limit": 10000,
@@ -235,6 +235,10 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         """Read Alpaca's market clock; this is a read-only endpoint."""
         return self._request("GET", "/v2/clock")
 
+    def get_market_calendar(self, start: str, end: str) -> list[dict]:
+        """Read official trading sessions; missing IEX bars are not holidays."""
+        return self._request("GET", "/v2/calendar", params={"start": start, "end": end})
+
     def get_orders(self) -> list[dict]:
         # ``nested=true`` exposes bracket/OCO child legs.  Protection and
         # reconciliation must see those broker-managed stops rather than
@@ -267,6 +271,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             payload["take_profit"] = {"limit_price": str(order.take_profit_price)}
         if order.stop_loss_price is not None:
             payload["stop_loss"] = {"stop_price": str(order.stop_loss_price)}
+        if order.client_order_id is not None:
+            payload["client_order_id"] = order.client_order_id
         raw = self._request("POST", "/v2/orders", json=payload)
         return OrderResult(order_id=str(raw["id"]), status=str(raw.get("status", "accepted")),
                            filled_qty=float(raw.get("filled_qty") or 0),
@@ -281,3 +287,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
     def get_order_status(self, order_id: str) -> dict:
         return self._request("GET", f"/v2/orders/{order_id}")
+
+    def get_order_by_client_id(self, client_order_id: str) -> dict:
+        return self._request("GET", "/v2/orders:by_client_order_id",
+                             params={"client_order_id": client_order_id})

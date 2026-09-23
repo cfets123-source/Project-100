@@ -69,6 +69,22 @@ def test_day_bracket_submission_keeps_whole_quantity_and_both_exit_legs():
     }
 
 
+def test_whole_share_gtc_oto_attaches_stop_and_idempotency_id():
+    client = Client()
+    adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)
+    adapter.place_order(OrderRequest(symbol='XLF', side='buy', quantity=2,
+                                     order_class='oto', stop_loss_price=45.0,
+                                     time_in_force='gtc', client_order_id='p100-etf-202610-XLF'))
+    assert client.calls[-1][2]['json'] == {
+        'symbol': 'XLF', 'side': 'buy', 'qty': '2', 'type': 'market',
+        'time_in_force': 'gtc', 'order_class': 'oto',
+        'stop_loss': {'stop_price': '45.0'},
+        'client_order_id': 'p100-etf-202610-XLF',
+    }
+    adapter.get_order_by_client_id('p100-etf-202610-XLF')
+    assert client.calls[-1][2]['params'] == {'client_order_id': 'p100-etf-202610-XLF'}
+
+
 def test_fractional_bracket_is_rejected_locally_without_a_broker_request():
     client = Client()
     adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)
@@ -84,6 +100,14 @@ def test_orders_request_includes_nested_bracket_legs():
     adapter = AlpacaBrokerAdapter('key', 'secret', client=client)
     adapter.get_orders()
     assert client.calls[-1][2]['params'] == {'status': 'all', 'limit': 500, 'nested': 'true'}
+
+
+def test_market_calendar_is_read_only_and_bounded():
+    client = Client()
+    adapter = AlpacaBrokerAdapter('key', 'secret', client=client)
+    assert adapter.get_market_calendar('2026-10-01', '2026-10-02') == []
+    assert client.calls[-1][0] == 'GET'
+    assert client.calls[-1][2]['params'] == {'start': '2026-10-01', 'end': '2026-10-02'}
 
 
 def test_asset_catalog_is_read_only_and_filters_to_tradable_symbols():
@@ -129,6 +153,8 @@ def test_whole_share_research_can_request_unadjusted_historical_prices():
     adapter = AlpacaBrokerAdapter('key', 'secret', client=client)
     assert adapter.get_daily_bars_many(['NFLX'], 'a', 'b', adjustment='raw') == {'NFLX': []}
     assert client.calls[-1][2]['params']['adjustment'] == 'raw'
+    assert adapter.get_daily_bars_many(['NFLX'], 'a', 'b', adjustment='split') == {'NFLX': []}
+    assert client.calls[-1][2]['params']['adjustment'] == 'split'
     with pytest.raises(ValueError, match='adjustment'):
         adapter.get_daily_bars_many(['NFLX'], 'a', 'b', adjustment='invalid')
 

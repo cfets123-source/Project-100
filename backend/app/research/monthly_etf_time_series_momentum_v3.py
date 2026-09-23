@@ -35,6 +35,14 @@ class Result:
     breaker_events: int
 
 
+def apply_split(position: tuple[str, int, float, str], factor: int
+                ) -> tuple[str, int, float, str]:
+    if not isinstance(factor, int) or factor < 1:
+        raise ValueError("invalid split factor")
+    symbol, shares, entry, entry_day = position
+    return symbol, shares * factor, entry / factor, entry_day
+
+
 def evaluate(raw_data: dict[str, list[dict]], signal_data: dict[str, list[dict]],
              *, raw_adjustment: str, signal_adjustment: str,
              split_events: dict[tuple[str, str], int],
@@ -79,12 +87,9 @@ def evaluate(raw_data: dict[str, list[dict]], signal_data: dict[str, list[dict]]
         if position is not None:
             symbol, shares, entry, entry_day = position
             factor = split_events.get((symbol, day), 1)
-            if factor < 1 or not isinstance(factor, int):
-                raise ValueError("invalid split factor")
             if factor != 1:
-                shares *= factor
-                entry /= factor
-                position = (symbol, shares, entry, entry_day)
+                position = apply_split(position, factor)
+                symbol, shares, entry, entry_day = position
             bar = rows[symbol][day]
             opening, low = float(bar["open"]), float(bar["low"])
             stop = entry * (1 - STOP)

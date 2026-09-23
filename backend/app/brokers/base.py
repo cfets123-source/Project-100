@@ -29,6 +29,7 @@ class OrderRequest:
     order_class: Optional[str] = None
     take_profit_price: Optional[float] = None
     stop_loss_price: Optional[float] = None
+    client_order_id: Optional[str] = None
 
 
 @dataclass
