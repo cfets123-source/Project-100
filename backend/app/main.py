@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -28,6 +29,7 @@ from app.runtime.market_research_worker import (run_scan as run_market_research_
                                                 run_equity_scan as run_equity_research_scan,
                                                 run_expanded_equity_scan)
 from app.strategies.daily_trend_pullback import DailyTrendPullback, BroadDailyTrendPullback
+from app.strategies.daily_trend_pullback import BROAD_UNIVERSE
 from app.research.daily_trend_portfolio import STOP_LOSS, TAKE_PROFIT
 from app.research.intraday_trend_pullback import STRATEGY_VERSION as INTRADAY_RESEARCH_VERSION
 
@@ -55,6 +57,46 @@ def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=
                 "bars": adapter.get_daily_bars(symbol, start, end)[-45:]}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"market data unavailable: {type(exc).__name__}") from exc
+
+
+_ticker_cache: dict[str, object] = {"expires_at": 0.0, "payload": None}
+
+
+@app.get("/terminal/ticker", dependencies=[Depends(require_dashboard_access)])
+def terminal_ticker(db: Session = Depends(get_db)):
+    """One read-only IEX snapshot batch for the exact live strategy universe."""
+    if time.time() < _ticker_cache["expires_at"] and _ticker_cache["payload"] is not None:
+        return _ticker_cache["payload"]
+    try:
+        adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
+        raw = adapter._request("GET", "/v2/stocks/snapshots", data_api=True,
+                               params={"symbols": ",".join(BROAD_UNIVERSE), "feed": "iex"})
+        now = datetime.now(timezone.utc)
+        items = []
+        for symbol in BROAD_UNIVERSE:
+            snap = raw.get(symbol) or {}
+            quote, trade = snap.get("latestQuote") or {}, snap.get("latestTrade") or {}
+            previous = snap.get("prevDailyBar") or {}
+            price, previous_close = trade.get("p"), previous.get("c")
+            try:
+                price = float(price) if price is not None else None
+                previous_close = float(previous_close) if previous_close is not None else None
+                quote_age = max(0, (now - datetime.fromisoformat(quote["t"].replace("Z", "+00:00"))).total_seconds()) if quote.get("t") else None
+                trade_age = max(0, (now - datetime.fromisoformat(trade["t"].replace("Z", "+00:00"))).total_seconds()) if trade.get("t") else None
+            except (KeyError, TypeError, ValueError):
+                quote_age = trade_age = None
+            items.append({"symbol": symbol, "asset_class": "ETF" if symbol in BROAD_UNIVERSE[:5] else "stock",
+                          "price": price, "previous_close": previous_close,
+                          "change_pct": round((price / previous_close - 1) * 100, 2)
+                                        if price is not None and previous_close and previous_close > 0 else None,
+                          "bid": quote.get("bp"), "ask": quote.get("ap"),
+                          "quote_age_seconds": quote_age, "trade_age_seconds": trade_age})
+        payload = {"source": "Alpaca IEX", "as_of": now.isoformat(),
+                   "universe": "daily-trend-pullback-broad-equity-etf-v1", "items": items}
+        _ticker_cache.update(expires_at=time.time() + 20, payload=payload)
+        return payload
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"ticker data unavailable: {type(exc).__name__}") from exc
 
 # The browser refreshes its display every second, but Alpaca account endpoints
 # must not be called at browser-poll frequency.  This short process-local cache
@@ -330,7 +372,16 @@ def robinhood_capabilities(db: Session = Depends(get_db)):
 def robinhood_readiness(db: Session = Depends(get_db)):
     """Verify broker data paths only; this endpoint never sends an order."""
     try:
-        return verify_agentic_readiness(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        report = verify_agentic_readiness(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        if report.get("read_only_ready"):
+            log_and_commit(db, "broker_read_only_verified", {
+                "broker": "robinhood_agentic_trading",
+                "account_last4": str(report["expected_account_id"])[-4:],
+                "open_positions": report["open_positions"],
+                "open_orders": report["open_orders"],
+                "execution_enabled": False,
+            })
+        return report
     except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 

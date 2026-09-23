@@ -3,7 +3,7 @@ import base64
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.main import app, live_decision_context, live_trades
+from app.main import app, live_decision_context, live_trades, terminal_ticker
 from app.db.session import Base
 from app.models.models import AuditLogEntry, StrategyValidationRecord, TradeDecisionRecord
 
@@ -19,9 +19,34 @@ def test_dashboard_is_read_only_and_identifies_operator_console():
         assert "fetch('/system/state')" in page.text
         assert 'Connect Robinhood Agentic account' in page.text
         assert '/market-capabilities/live-account' in page.text
+        assert '/terminal/ticker' in page.text
         broker = client.get('/brokers/robinhood/status').json()
         assert broker['connected'] is False
         assert broker['execution_enabled'] is False
+
+
+def test_ticker_uses_one_bounded_iex_snapshot_batch(monkeypatch):
+    import app.main as main
+    calls = []
+    class Adapter:
+        def _request(self, method, path, *, data_api, params):
+            calls.append((method, path, data_api, params))
+            return {'SPY': {'latestQuote': {'t': '2026-09-22T20:00:00Z', 'bp': 10, 'ap': 10.02},
+                            'latestTrade': {'t': '2026-09-22T20:00:00Z', 'p': 10},
+                            'prevDailyBar': {'c': 9}}}
+    monkeypatch.setattr(main.alpaca_connection, 'load_read_only_adapter', lambda *a, **k: (Adapter(), False))
+    main._ticker_cache.update(expires_at=0, payload=None)
+    result = terminal_ticker(db=object())
+    assert len(calls) == 1
+    assert calls[0][1] == '/v2/stocks/snapshots'
+    assert calls[0][3]['feed'] == 'iex'
+    assert result['source'] == 'Alpaca IEX'
+    assert result['items'][0]['symbol'] == 'SPY'
+    assert result['items'][0]['change_pct'] == 11.11
+    assert result['items'][1]['price'] is None
+    assert terminal_ticker(db=object()) is result
+    assert len(calls) == 1
+    main._ticker_cache.update(expires_at=0, payload=None)
 
 
 def test_activity_feed_is_bounded_and_read_only():

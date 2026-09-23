@@ -28,8 +28,11 @@ def _jsonrpc_response(response: httpx.Response) -> dict:
     """Decode a JSON-RPC response, including a single SSE data frame."""
     response.raise_for_status()
     text = response.text.strip()
-    if text.startswith("data:"):
-        text = text.split("data:", 1)[1].strip().split("\n\n", 1)[0]
+    if "text/event-stream" in response.headers.get("content-type", "") or text.startswith(("event:", "data:")):
+        frames = [line[5:].strip() for line in text.splitlines() if line.startswith("data:")]
+        if not frames:
+            raise RobinhoodMcpError("Robinhood MCP returned an empty event stream")
+        text = frames[0]
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
@@ -121,9 +124,15 @@ def _access_token(db: Session, encryption_key: str) -> str:
         "refresh_token": refresh_token,
     }, timeout=15)
     response.raise_for_status()
-    token = response.json().get("access_token")
+    payload = response.json()
+    token = payload.get("access_token")
     if not isinstance(token, str) or not token:
         raise RobinhoodMcpError("Robinhood did not return an access token")
+    rotated = payload.get("refresh_token")
+    if isinstance(rotated, str) and rotated:
+        connection.encrypted_refresh_token = _fernet(encryption_key).encrypt(rotated.encode()).decode()
+        db.add(connection)
+        db.commit()
     return token
 
 

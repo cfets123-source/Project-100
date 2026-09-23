@@ -12,9 +12,10 @@ from urllib.parse import urlencode
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.models import BrokerConnection, BrokerOAuthState
+from app.models.models import AuditLogEntry, BrokerConnection, BrokerOAuthState
 
 MCP_URL = "https://agent.robinhood.com/mcp/trading"
 REGISTRATION_URL = "https://agent.robinhood.com/oauth/trading/register"
@@ -106,15 +107,25 @@ def finish_connection(db: Session, state: str, code: str, redirect_url: str, enc
 def connection_status(db: Session):
     connection = db.get(BrokerConnection, BROKER)
     authorized = bool(connection and connection.status in {"authorized", "connected"})
+    last_check = None
+    if authorized:
+        last_check = db.scalars(select(AuditLogEntry).where(
+            AuditLogEntry.event_type == "broker_read_only_verified",
+            AuditLogEntry.timestamp >= connection.connected_at,
+        ).order_by(AuditLogEntry.timestamp.desc()).limit(1)).first()
+    recently_verified = bool(last_check and (last_check.payload or {}).get("broker") == BROKER
+                             and last_check.timestamp >= dt.datetime.utcnow() - dt.timedelta(hours=1))
     return {
         "broker": BROKER,
         # OAuth proves only that the application can refresh a credential. It
         # does not prove the selected account, balances, or permissions.
-        "connected": False,
+        "connected": recently_verified,
         "application_authorized": authorized,
-        "read_only_ready": False,
+        "read_only_ready": recently_verified,
         "execution_enabled": False,
         "connection_time": connection.connected_at if connection else None,
-        "reason": ("Application OAuth is complete; dedicated account verification is still required."
+        "last_read_only_verification": last_check.timestamp if last_check else None,
+        "reason": ("Dedicated Agentic account was verified read-only within the past hour; execution is disabled."
+                   if recently_verified else "Application OAuth is complete; dedicated account verification is still required."
                    if authorized else "Application OAuth has not been completed."),
     }

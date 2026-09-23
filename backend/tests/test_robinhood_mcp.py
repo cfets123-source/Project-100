@@ -5,7 +5,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.brokers.robinhood_mcp import RobinhoodMcpError, discover_capabilities
+from app.brokers.robinhood_mcp import RobinhoodMcpError, _access_token, _jsonrpc_response, discover_capabilities
 from app.brokers.robinhood_oauth import BROKER
 from app.db.session import Base
 from app.models import models  # noqa: F401 registers all tables
@@ -24,6 +24,12 @@ def db():
 
 def _response(payload):
     return Mock(text=__import__("json").dumps(payload), raise_for_status=Mock(), headers={})
+
+
+def test_standard_sse_event_is_decoded():
+    response = Mock(text='event: message\ndata: {"jsonrpc":"2.0","id":"1","result":{"ok":true}}\n\n',
+                    raise_for_status=Mock(), headers={"content-type": "text/event-stream"})
+    assert _jsonrpc_response(response)["result"]["ok"] is True
 
 
 @patch("app.brokers.robinhood_mcp.httpx.post")
@@ -55,3 +61,18 @@ def test_capability_discovery_only_lists_tools(post, db):
 def test_capability_discovery_requires_connection(db):
     with pytest.raises(RobinhoodMcpError, match="OAuth"):
         discover_capabilities(db, Fernet.generate_key().decode())
+
+
+@patch("app.brokers.robinhood_mcp.httpx.post")
+def test_rotated_refresh_token_is_saved_encrypted(post, db):
+    key = Fernet.generate_key().decode()
+    old = Fernet(key.encode()).encrypt(b"old-refresh").decode()
+    db.add(BrokerConnection(broker=BROKER, client_id="client",
+                            encrypted_refresh_token=old, status="authorized"))
+    db.commit()
+    post.return_value = Mock(raise_for_status=Mock(),
+                             json=lambda: {"access_token": "access", "refresh_token": "new-refresh"})
+    assert _access_token(db, key) == "access"
+    row = db.get(BrokerConnection, BROKER)
+    assert row.encrypted_refresh_token != old
+    assert Fernet(key.encode()).decrypt(row.encrypted_refresh_token.encode()) == b"new-refresh"
