@@ -1,0 +1,9 @@
+# Weekly crypto breakout: milestone test plan
+
+Frozen before fetching candidate returns on 2026-09-23. The opening ladder is $100 → $500 → $1,000. Each waypoint is measured on total net account equity, with no deposits and no reset of capital after a loss. Evaluate the fixed 365-day window 2025-09-22 through 2026-09-21 (UTC), recording the first day each waypoint is touched and the final equity. Separate 2024-09-22 through 2025-09-21 as an earlier comparison, without optimizing parameters from either period.
+
+Use Coinbase Exchange public UTC daily candles for BTC, ETH, SOL, DOGE, AVAX, BONK, PEPE, and WIF in USD, all currently listed by Robinhood. Require complete candles for every asset across the signal warmup and both windows; if a pair lacks history, report the data failure rather than silently changing the universe. This is a current-universe proxy and may have survivorship or historical-tradability bias.
+
+Every Monday at the UTC open, rank assets by the previous completed day's 28-day close-to-close return. Hold 100% of the asset with the highest positive return for the next seven days; otherwise hold cash. Break ties alphabetically. The first decision for each test window uses only preceding closes. Trades fill at Monday's Coinbase open. Account returns are the held asset's daily open-to-next-open returns, with 0.75% of equity deducted per entry and exit leg at each change. No leverage, shorts, deposits, intraday stops, or post-result parameter changes.
+
+Assess daily net account returns, including cash days, against $500 and $1,000 within the one-year window, with a $50 reporting floor, five-day block resampling, 10,000 paths, fixed seed 20260923. Record zero-cost sensitivity separately for the identical selections. This is an exploratory Coinbase price proxy, not evidence of Robinhood executable prices, order permission, or live readiness.

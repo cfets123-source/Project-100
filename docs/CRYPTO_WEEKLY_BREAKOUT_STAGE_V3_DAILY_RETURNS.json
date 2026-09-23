@@ -1,0 +1,4442 @@
+{
+  "rule": "crypto_weekly_breakout_stage_v3",
+  "coins": [
+    "AVAX",
+    "BONK",
+    "BTC",
+    "DOGE",
+    "ETH",
+    "SOL"
+  ],
+  "source": "Coinbase Exchange UTC daily candles",
+  "source_sha256": "26ac334f51807128432df1d31f71aa67872a63dd8bf29e99ba08ae23b12531ce",
+  "one_way_cost": 0.0075,
+  "windows": [
+    {
+      "start": "2024-09-22",
+      "end": "2025-09-21",
+      "observed_end": 186.17668138350857,
+      "zero_cost_end": 238.68123445313432,
+      "first_500_day": null,
+      "first_1000_day": null,
+      "max_drawdown": 0.6445583834300774,
+      "entries": 17,
+      "exits": 16,
+      "cash_days": 99,
+      "resampled": {
+        "paths": 10000,
+        "hit_500_fraction": 0.2497,
+        "hit_1000_fraction": 0.0876,
+        "crossed_50_fraction": 0.2679,
+        "ending_equity_p10": 49.88739112191736,
+        "ending_equity_p50": 179.19513935344554,
+        "ending_equity_p90": 723.4187724130965
+      },
+      "daily_account_returns": [
+        {
+          "date": "2024-09-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 100.0
+        },
+        {
+          "date": "2024-09-23",
+          "asset": "AVAX",
+          "net_return": -0.004956060051,
+          "equity": 99.50439399
+        },
+        {
+          "date": "2024-09-24",
+          "asset": "AVAX",
+          "net_return": 0.040175310446,
+          "equity": 103.50201391
+        },
+        {
+          "date": "2024-09-25",
+          "asset": "AVAX",
+          "net_return": -0.041783707865,
+          "equity": 99.177316
+        },
+        {
+          "date": "2024-09-26",
+          "asset": "AVAX",
+          "net_return": 0.068523268597,
+          "equity": 105.97326986
+        },
+        {
+          "date": "2024-09-27",
+          "asset": "AVAX",
+          "net_return": 0.044581618656,
+          "equity": 110.69772977
+        },
+        {
+          "date": "2024-09-28",
+          "asset": "AVAX",
+          "net_return": -0.038082731451,
+          "equity": 106.48205785
+        },
+        {
+          "date": "2024-09-29",
+          "asset": "AVAX",
+          "net_return": -0.00819112628,
+          "equity": 105.60984987
+        },
+        {
+          "date": "2024-09-30",
+          "asset": "BONK",
+          "net_return": 0.02327334078,
+          "equity": 108.0677439
+        },
+        {
+          "date": "2024-10-01",
+          "asset": "BONK",
+          "net_return": 0.00041963911,
+          "equity": 108.11309335
+        },
+        {
+          "date": "2024-10-02",
+          "asset": "BONK",
+          "net_return": -0.076342281879,
+          "equity": 99.8594931
+        },
+        {
+          "date": "2024-10-03",
+          "asset": "BONK",
+          "net_return": -0.099000908265,
+          "equity": 89.97331259
+        },
+        {
+          "date": "2024-10-04",
+          "asset": "BONK",
+          "net_return": 0.084173387097,
+          "equity": 97.54667105
+        },
+        {
+          "date": "2024-10-05",
+          "asset": "BONK",
+          "net_return": -0.041841004184,
+          "equity": 93.46522038
+        },
+        {
+          "date": "2024-10-06",
+          "asset": "BONK",
+          "net_return": 0.063076176613,
+          "equity": 99.36064913
+        },
+        {
+          "date": "2024-10-07",
+          "asset": "BONK",
+          "net_return": -0.03331811958,
+          "equity": 96.05013914
+        },
+        {
+          "date": "2024-10-08",
+          "asset": "BONK",
+          "net_return": -0.010859301228,
+          "equity": 95.00710175
+        },
+        {
+          "date": "2024-10-09",
+          "asset": "BONK",
+          "net_return": -0.052028639618,
+          "equity": 90.06401149
+        },
+        {
+          "date": "2024-10-10",
+          "asset": "BONK",
+          "net_return": 0.021148036254,
+          "equity": 91.96868847
+        },
+        {
+          "date": "2024-10-11",
+          "asset": "BONK",
+          "net_return": 0.063116370809,
+          "equity": 97.77341831
+        },
+        {
+          "date": "2024-10-12",
+          "asset": "BONK",
+          "net_return": 0.007884972171,
+          "equity": 98.544359
+        },
+        {
+          "date": "2024-10-13",
+          "asset": "BONK",
+          "net_return": -0.030372756558,
+          "equity": 95.55129517
+        },
+        {
+          "date": "2024-10-14",
+          "asset": "BONK",
+          "net_return": 0.102515424775,
+          "equity": 105.34677678
+        },
+        {
+          "date": "2024-10-15",
+          "asset": "BONK",
+          "net_return": -0.03314679294,
+          "equity": 101.85486899
+        },
+        {
+          "date": "2024-10-16",
+          "asset": "BONK",
+          "net_return": 0.087266251113,
+          "equity": 110.74336156
+        },
+        {
+          "date": "2024-10-17",
+          "asset": "BONK",
+          "net_return": -0.083128583129,
+          "equity": 101.53742282
+        },
+        {
+          "date": "2024-10-18",
+          "asset": "BONK",
+          "net_return": 0.054041983028,
+          "equity": 107.0247065
+        },
+        {
+          "date": "2024-10-19",
+          "asset": "BONK",
+          "net_return": -0.003813559322,
+          "equity": 106.61656144
+        },
+        {
+          "date": "2024-10-20",
+          "asset": "BONK",
+          "net_return": 0.029774564015,
+          "equity": 109.79102307
+        },
+        {
+          "date": "2024-10-21",
+          "asset": "BONK",
+          "net_return": -0.034283353986,
+          "equity": 106.02701856
+        },
+        {
+          "date": "2024-10-22",
+          "asset": "BONK",
+          "net_return": -0.026946107784,
+          "equity": 103.17000309
+        },
+        {
+          "date": "2024-10-23",
+          "asset": "BONK",
+          "net_return": -0.040879120879,
+          "equity": 98.95250406
+        },
+        {
+          "date": "2024-10-24",
+          "asset": "BONK",
+          "net_return": 0.051787351054,
+          "equity": 104.07699213
+        },
+        {
+          "date": "2024-10-25",
+          "asset": "BONK",
+          "net_return": -0.105446623094,
+          "equity": 93.10242477
+        },
+        {
+          "date": "2024-10-26",
+          "asset": "BONK",
+          "net_return": 0.026302971262,
+          "equity": 95.55129517
+        },
+        {
+          "date": "2024-10-27",
+          "asset": "BONK",
+          "net_return": 0.012339819649,
+          "equity": 96.73038092
+        },
+        {
+          "date": "2024-10-28",
+          "asset": "DOGE",
+          "net_return": 0.102634095246,
+          "equity": 106.65821605
+        },
+        {
+          "date": "2024-10-29",
+          "asset": "DOGE",
+          "net_return": 0.089832610043,
+          "equity": 116.23960198
+        },
+        {
+          "date": "2024-10-30",
+          "asset": "DOGE",
+          "net_return": -0.043062745321,
+          "equity": 111.2340056
+        },
+        {
+          "date": "2024-10-31",
+          "asset": "DOGE",
+          "net_return": -0.040363809297,
+          "equity": 106.74417741
+        },
+        {
+          "date": "2024-11-01",
+          "asset": "DOGE",
+          "net_return": -0.014557393297,
+          "equity": 105.19026044
+        },
+        {
+          "date": "2024-11-02",
+          "asset": "DOGE",
+          "net_return": 0.002954488308,
+          "equity": 105.50104384
+        },
+        {
+          "date": "2024-11-03",
+          "asset": "DOGE",
+          "net_return": -0.051394547164,
+          "equity": 100.07886546
+        },
+        {
+          "date": "2024-11-04",
+          "asset": "DOGE",
+          "net_return": 0.044796828543,
+          "equity": 104.56208124
+        },
+        {
+          "date": "2024-11-05",
+          "asset": "DOGE",
+          "net_return": 0.075064820085,
+          "equity": 112.41101505
+        },
+        {
+          "date": "2024-11-06",
+          "asset": "DOGE",
+          "net_return": 0.156705882353,
+          "equity": 130.02648236
+        },
+        {
+          "date": "2024-11-07",
+          "asset": "DOGE",
+          "net_return": -0.016425956062,
+          "equity": 127.89067307
+        },
+        {
+          "date": "2024-11-08",
+          "asset": "DOGE",
+          "net_return": 0.045188976785,
+          "equity": 133.66992173
+        },
+        {
+          "date": "2024-11-09",
+          "asset": "DOGE",
+          "net_return": 0.083997031907,
+          "equity": 144.89779841
+        },
+        {
+          "date": "2024-11-10",
+          "asset": "DOGE",
+          "net_return": 0.269246565965,
+          "equity": 183.91103304
+        },
+        {
+          "date": "2024-11-11",
+          "asset": "DOGE",
+          "net_return": 0.264732319419,
+          "equity": 232.59822739
+        },
+        {
+          "date": "2024-11-12",
+          "asset": "DOGE",
+          "net_return": 0.081646577212,
+          "equity": 251.58907652
+        },
+        {
+          "date": "2024-11-13",
+          "asset": "DOGE",
+          "net_return": 0.050620269134,
+          "equity": 264.32458328
+        },
+        {
+          "date": "2024-11-14",
+          "asset": "DOGE",
+          "net_return": -0.092510131586,
+          "equity": 239.8718813
+        },
+        {
+          "date": "2024-11-15",
+          "asset": "DOGE",
+          "net_return": 0.052238394531,
+          "equity": 252.40240327
+        },
+        {
+          "date": "2024-11-16",
+          "asset": "DOGE",
+          "net_return": -0.045558146237,
+          "equity": 240.90341768
+        },
+        {
+          "date": "2024-11-17",
+          "asset": "DOGE",
+          "net_return": 0.007877689943,
+          "equity": 242.80118011
+        },
+        {
+          "date": "2024-11-18",
+          "asset": "DOGE",
+          "net_return": 0.011574389281,
+          "equity": 245.61145548
+        },
+        {
+          "date": "2024-11-19",
+          "asset": "DOGE",
+          "net_return": 0.053467585613,
+          "equity": 258.74370701
+        },
+        {
+          "date": "2024-11-20",
+          "asset": "DOGE",
+          "net_return": -0.033708152313,
+          "equity": 250.02193472
+        },
+        {
+          "date": "2024-11-21",
+          "asset": "DOGE",
+          "net_return": 0.023538123826,
+          "equity": 255.90698198
+        },
+        {
+          "date": "2024-11-22",
+          "asset": "DOGE",
+          "net_return": 0.067698509082,
+          "equity": 273.23150312
+        },
+        {
+          "date": "2024-11-23",
+          "asset": "DOGE",
+          "net_return": 0.042133539847,
+          "equity": 284.74371355
+        },
+        {
+          "date": "2024-11-24",
+          "asset": "DOGE",
+          "net_return": 0.000209000975,
+          "equity": 284.80322526
+        },
+        {
+          "date": "2024-11-25",
+          "asset": "DOGE",
+          "net_return": -0.088342504237,
+          "equity": 259.64299513
+        },
+        {
+          "date": "2024-11-26",
+          "asset": "DOGE",
+          "net_return": -0.014720114094,
+          "equity": 255.82102061
+        },
+        {
+          "date": "2024-11-27",
+          "asset": "DOGE",
+          "net_return": 0.037556865178,
+          "equity": 265.4288562
+        },
+        {
+          "date": "2024-11-28",
+          "asset": "DOGE",
+          "net_return": 0.000672628983,
+          "equity": 265.60739134
+        },
+        {
+          "date": "2024-11-29",
+          "asset": "DOGE",
+          "net_return": 0.061690898227,
+          "equity": 281.99294988
+        },
+        {
+          "date": "2024-11-30",
+          "asset": "DOGE",
+          "net_return": -0.010739576983,
+          "equity": 278.96446489
+        },
+        {
+          "date": "2024-12-01",
+          "asset": "DOGE",
+          "net_return": 0.044183180051,
+          "equity": 291.29000207
+        },
+        {
+          "date": "2024-12-02",
+          "asset": "DOGE",
+          "net_return": -0.035707799873,
+          "equity": 280.88867697
+        },
+        {
+          "date": "2024-12-03",
+          "asset": "DOGE",
+          "net_return": -0.042609289296,
+          "equity": 268.92021007
+        },
+        {
+          "date": "2024-12-04",
+          "asset": "DOGE",
+          "net_return": 0.065430672011,
+          "equity": 286.51584014
+        },
+        {
+          "date": "2024-12-05",
+          "asset": "DOGE",
+          "net_return": -0.01366258943,
+          "equity": 282.60129185
+        },
+        {
+          "date": "2024-12-06",
+          "asset": "DOGE",
+          "net_return": 0.018788899808,
+          "equity": 287.91105921
+        },
+        {
+          "date": "2024-12-07",
+          "asset": "DOGE",
+          "net_return": 0.041018809857,
+          "equity": 299.7208282
+        },
+        {
+          "date": "2024-12-08",
+          "asset": "DOGE",
+          "net_return": 0.030445429876,
+          "equity": 308.84595766
+        },
+        {
+          "date": "2024-12-09",
+          "asset": "BONK",
+          "net_return": -0.162380273693,
+          "equity": 258.69546652
+        },
+        {
+          "date": "2024-12-10",
+          "asset": "BONK",
+          "net_return": -0.081475787855,
+          "equity": 237.61804957
+        },
+        {
+          "date": "2024-12-11",
+          "asset": "BONK",
+          "net_return": 0.098744769874,
+          "equity": 261.0815892
+        },
+        {
+          "date": "2024-12-12",
+          "asset": "BONK",
+          "net_return": -0.039096217314,
+          "equity": 250.87428665
+        },
+        {
+          "date": "2024-12-13",
+          "asset": "BONK",
+          "net_return": 0.025891677675,
+          "equity": 257.36984282
+        },
+        {
+          "date": "2024-12-14",
+          "asset": "BONK",
+          "net_return": -0.061292814834,
+          "equity": 241.5949207
+        },
+        {
+          "date": "2024-12-15",
+          "asset": "BONK",
+          "net_return": 0.009602194787,
+          "equity": 243.91476218
+        },
+        {
+          "date": "2024-12-16",
+          "asset": "AVAX",
+          "net_return": -0.04890451512,
+          "equity": 231.98622901
+        },
+        {
+          "date": "2024-12-17",
+          "asset": "AVAX",
+          "net_return": -0.02224035911,
+          "equity": 226.82677197
+        },
+        {
+          "date": "2024-12-18",
+          "asset": "AVAX",
+          "net_return": -0.108096828047,
+          "equity": 202.3075174
+        },
+        {
+          "date": "2024-12-19",
+          "asset": "AVAX",
+          "net_return": -0.092185306504,
+          "equity": 183.6577369
+        },
+        {
+          "date": "2024-12-20",
+          "asset": "AVAX",
+          "net_return": 0.026804123711,
+          "equity": 188.5805216
+        },
+        {
+          "date": "2024-12-21",
+          "asset": "AVAX",
+          "net_return": -0.060742971888,
+          "equity": 177.12558028
+        },
+        {
+          "date": "2024-12-22",
+          "asset": "AVAX",
+          "net_return": -0.02405130946,
+          "equity": 172.86547814
+        },
+        {
+          "date": "2024-12-23",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-29",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-30",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2024-12-31",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 171.56898705
+        },
+        {
+          "date": "2025-01-20",
+          "asset": "SOL",
+          "net_return": -0.049311417588,
+          "equity": 163.10867708
+        },
+        {
+          "date": "2025-01-21",
+          "asset": "SOL",
+          "net_return": 0.035705419942,
+          "equity": 168.9325409
+        },
+        {
+          "date": "2025-01-22",
+          "asset": "SOL",
+          "net_return": 0.027683457836,
+          "equity": 173.60917777
+        },
+        {
+          "date": "2025-01-23",
+          "asset": "SOL",
+          "net_return": -0.015898312991,
+          "equity": 170.84908472
+        },
+        {
+          "date": "2025-01-24",
+          "asset": "SOL",
+          "net_return": 0.000710984714,
+          "equity": 170.97055581
+        },
+        {
+          "date": "2025-01-25",
+          "asset": "SOL",
+          "net_return": 0.011683441879,
+          "equity": 172.96808036
+        },
+        {
+          "date": "2025-01-26",
+          "asset": "SOL",
+          "net_return": -0.062229331669,
+          "equity": 162.20439232
+        },
+        {
+          "date": "2025-01-27",
+          "asset": "SOL",
+          "net_return": -0.022757530371,
+          "equity": 158.51302094
+        },
+        {
+          "date": "2025-01-28",
+          "asset": "SOL",
+          "net_return": -0.033973349227,
+          "equity": 153.12780272
+        },
+        {
+          "date": "2025-01-29",
+          "asset": "SOL",
+          "net_return": 0.005464721696,
+          "equity": 153.96460354
+        },
+        {
+          "date": "2025-01-30",
+          "asset": "SOL",
+          "net_return": 0.044488275258,
+          "equity": 160.81422321
+        },
+        {
+          "date": "2025-01-31",
+          "asset": "SOL",
+          "net_return": -0.027738145195,
+          "equity": 156.35353493
+        },
+        {
+          "date": "2025-02-01",
+          "asset": "SOL",
+          "net_return": -0.080927100868,
+          "equity": 143.70029664
+        },
+        {
+          "date": "2025-02-02",
+          "asset": "SOL",
+          "net_return": -0.044378698225,
+          "equity": 137.32306454
+        },
+        {
+          "date": "2025-02-03",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 136.29314156
+        },
+        {
+          "date": "2025-02-10",
+          "asset": "SOL",
+          "net_return": -0.0075,
+          "equity": 135.270943
+        },
+        {
+          "date": "2025-02-11",
+          "asset": "SOL",
+          "net_return": -0.012817315845,
+          "equity": 133.5371326
+        },
+        {
+          "date": "2025-02-12",
+          "asset": "SOL",
+          "net_return": -0.005658280287,
+          "equity": 132.78154207
+        },
+        {
+          "date": "2025-02-13",
+          "asset": "SOL",
+          "net_return": -0.012854384717,
+          "equity": 131.07471705
+        },
+        {
+          "date": "2025-02-14",
+          "asset": "SOL",
+          "net_return": 0.026403829327,
+          "equity": 134.5355915
+        },
+        {
+          "date": "2025-02-15",
+          "asset": "SOL",
+          "net_return": -0.024521111223,
+          "equity": 131.2366293
+        },
+        {
+          "date": "2025-02-16",
+          "asset": "SOL",
+          "net_return": -0.032077314553,
+          "equity": 127.02691066
+        },
+        {
+          "date": "2025-02-17",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-23",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-02-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-23",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-29",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-30",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-03-31",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 126.07420883
+        },
+        {
+          "date": "2025-04-14",
+          "asset": "BONK",
+          "net_return": 0.010674761146,
+          "equity": 127.4200209
+        },
+        {
+          "date": "2025-04-15",
+          "asset": "BONK",
+          "net_return": -0.079749804535,
+          "equity": 117.25829914
+        },
+        {
+          "date": "2025-04-16",
+          "asset": "BONK",
+          "net_return": -0.001699235344,
+          "equity": 117.05904969
+        },
+        {
+          "date": "2025-04-17",
+          "asset": "BONK",
+          "net_return": 0.004255319149,
+          "equity": 117.55717331
+        },
+        {
+          "date": "2025-04-18",
+          "asset": "BONK",
+          "net_return": 0.008474576271,
+          "equity": 118.55342054
+        },
+        {
+          "date": "2025-04-19",
+          "asset": "BONK",
+          "net_return": 0.046218487395,
+          "equity": 124.03278031
+        },
+        {
+          "date": "2025-04-20",
+          "asset": "BONK",
+          "net_return": -0.01124497992,
+          "equity": 122.63803419
+        },
+        {
+          "date": "2025-04-21",
+          "asset": "SOL",
+          "net_return": -0.024375595713,
+          "equity": 119.64865905
+        },
+        {
+          "date": "2025-04-22",
+          "asset": "SOL",
+          "net_return": 0.09022996924,
+          "equity": 130.44455387
+        },
+        {
+          "date": "2025-04-23",
+          "asset": "SOL",
+          "net_return": 0.015517936316,
+          "equity": 132.46878415
+        },
+        {
+          "date": "2025-04-24",
+          "asset": "SOL",
+          "net_return": 0.009525699544,
+          "equity": 133.73064199
+        },
+        {
+          "date": "2025-04-25",
+          "asset": "SOL",
+          "net_return": -0.011073979425,
+          "equity": 132.24971161
+        },
+        {
+          "date": "2025-04-26",
+          "asset": "SOL",
+          "net_return": -0.010800424066,
+          "equity": 130.82135864
+        },
+        {
+          "date": "2025-04-27",
+          "asset": "SOL",
+          "net_return": -0.008439949092,
+          "equity": 129.71723304
+        },
+        {
+          "date": "2025-04-28",
+          "asset": "BONK",
+          "net_return": 0.098615013405,
+          "equity": 142.50929971
+        },
+        {
+          "date": "2025-04-29",
+          "asset": "BONK",
+          "net_return": -0.029807692308,
+          "equity": 138.26142635
+        },
+        {
+          "date": "2025-04-30",
+          "asset": "BONK",
+          "net_return": -0.034192269574,
+          "equity": 133.53395439
+        },
+        {
+          "date": "2025-05-01",
+          "asset": "BONK",
+          "net_return": -0.035915854284,
+          "equity": 128.73796834
+        },
+        {
+          "date": "2025-05-02",
+          "asset": "BONK",
+          "net_return": -0.002660989888,
+          "equity": 128.39539791
+        },
+        {
+          "date": "2025-05-03",
+          "asset": "BONK",
+          "net_return": -0.10992529349,
+          "equity": 114.28149611
+        },
+        {
+          "date": "2025-05-04",
+          "asset": "BONK",
+          "net_return": -0.015587529976,
+          "equity": 112.50012987
+        },
+        {
+          "date": "2025-05-05",
+          "asset": "BONK",
+          "net_return": 0.033495736906,
+          "equity": 116.26840462
+        },
+        {
+          "date": "2025-05-06",
+          "asset": "BONK",
+          "net_return": 0.0,
+          "equity": 116.26840462
+        },
+        {
+          "date": "2025-05-07",
+          "asset": "BONK",
+          "net_return": 0.001767825575,
+          "equity": 116.47394688
+        },
+        {
+          "date": "2025-05-08",
+          "asset": "BONK",
+          "net_return": 0.170588235294,
+          "equity": 136.34303193
+        },
+        {
+          "date": "2025-05-09",
+          "asset": "BONK",
+          "net_return": 0.090452261307,
+          "equity": 148.67556749
+        },
+        {
+          "date": "2025-05-10",
+          "asset": "BONK",
+          "net_return": 0.09400921659,
+          "equity": 162.65244111
+        },
+        {
+          "date": "2025-05-11",
+          "asset": "BONK",
+          "net_return": -0.064026958719,
+          "equity": 152.23829998
+        },
+        {
+          "date": "2025-05-12",
+          "asset": "BONK",
+          "net_return": 0.023402340234,
+          "equity": 155.80103247
+        },
+        {
+          "date": "2025-05-13",
+          "asset": "BONK",
+          "net_return": 0.031222515391,
+          "equity": 160.66553261
+        },
+        {
+          "date": "2025-05-14",
+          "asset": "BONK",
+          "net_return": -0.0460554371,
+          "equity": 153.26601127
+        },
+        {
+          "date": "2025-05-15",
+          "asset": "BONK",
+          "net_return": -0.066160035762,
+          "equity": 143.12592649
+        },
+        {
+          "date": "2025-05-16",
+          "asset": "BONK",
+          "net_return": -0.065102920057,
+          "equity": 133.80801074
+        },
+        {
+          "date": "2025-05-17",
+          "asset": "BONK",
+          "net_return": -0.055811571941,
+          "equity": 126.33997532
+        },
+        {
+          "date": "2025-05-18",
+          "asset": "BONK",
+          "net_return": 0.120390455531,
+          "equity": 141.5501025
+        },
+        {
+          "date": "2025-05-19",
+          "asset": "BONK",
+          "net_return": -0.045014520813,
+          "equity": 135.17829247
+        },
+        {
+          "date": "2025-05-20",
+          "asset": "BONK",
+          "net_return": 0.015712113533,
+          "equity": 137.30222914
+        },
+        {
+          "date": "2025-05-21",
+          "asset": "BONK",
+          "net_return": 0.027944111776,
+          "equity": 141.13901798
+        },
+        {
+          "date": "2025-05-22",
+          "asset": "BONK",
+          "net_return": 0.117475728155,
+          "equity": 157.71942689
+        },
+        {
+          "date": "2025-05-23",
+          "asset": "BONK",
+          "net_return": -0.088184187663,
+          "equity": 143.81106735
+        },
+        {
+          "date": "2025-05-24",
+          "asset": "BONK",
+          "net_return": 0.01191043354,
+          "equity": 145.52391951
+        },
+        {
+          "date": "2025-05-25",
+          "asset": "BONK",
+          "net_return": -0.015536723164,
+          "equity": 143.26295466
+        },
+        {
+          "date": "2025-05-26",
+          "asset": "ETH",
+          "net_return": -0.010208422162,
+          "equity": 141.80046594
+        },
+        {
+          "date": "2025-05-27",
+          "asset": "ETH",
+          "net_return": 0.038004296782,
+          "equity": 147.18949293
+        },
+        {
+          "date": "2025-05-28",
+          "asset": "ETH",
+          "net_return": 0.007610304337,
+          "equity": 148.30964977
+        },
+        {
+          "date": "2025-05-29",
+          "asset": "ETH",
+          "net_return": -0.019023724669,
+          "equity": 145.48824782
+        },
+        {
+          "date": "2025-05-30",
+          "asset": "ETH",
+          "net_return": -0.037808627314,
+          "equity": 139.98753688
+        },
+        {
+          "date": "2025-05-31",
+          "asset": "ETH",
+          "net_return": -0.001030838257,
+          "equity": 139.84323238
+        },
+        {
+          "date": "2025-06-01",
+          "asset": "ETH",
+          "net_return": 0.004384595008,
+          "equity": 140.45638831
+        },
+        {
+          "date": "2025-06-02",
+          "asset": "ETH",
+          "net_return": 0.027117776728,
+          "equity": 144.26525329
+        },
+        {
+          "date": "2025-06-03",
+          "asset": "ETH",
+          "net_return": -0.005465088204,
+          "equity": 143.47683096
+        },
+        {
+          "date": "2025-06-04",
+          "asset": "ETH",
+          "net_return": 0.005456584317,
+          "equity": 144.25972438
+        },
+        {
+          "date": "2025-06-05",
+          "asset": "ETH",
+          "net_return": -0.074306585569,
+          "equity": 133.54027683
+        },
+        {
+          "date": "2025-06-06",
+          "asset": "ETH",
+          "net_return": 0.026112590102,
+          "equity": 137.02735934
+        },
+        {
+          "date": "2025-06-07",
+          "asset": "ETH",
+          "net_return": 0.019189954728,
+          "equity": 139.65690816
+        },
+        {
+          "date": "2025-06-08",
+          "asset": "ETH",
+          "net_return": -0.006005685012,
+          "equity": 138.81817276
+        },
+        {
+          "date": "2025-06-09",
+          "asset": "BTC",
+          "net_return": 0.027102188381,
+          "equity": 142.58044903
+        },
+        {
+          "date": "2025-06-10",
+          "asset": "BTC",
+          "net_return": 5.077077e-06,
+          "equity": 142.58117292
+        },
+        {
+          "date": "2025-06-11",
+          "asset": "BTC",
+          "net_return": -0.014745932126,
+          "equity": 140.47868063
+        },
+        {
+          "date": "2025-06-12",
+          "asset": "BTC",
+          "net_return": -0.027212822377,
+          "equity": 136.65585924
+        },
+        {
+          "date": "2025-06-13",
+          "asset": "BTC",
+          "net_return": 0.00376554453,
+          "equity": 137.17044296
+        },
+        {
+          "date": "2025-06-14",
+          "asset": "BTC",
+          "net_return": -0.006117069924,
+          "equity": 136.33136177
+        },
+        {
+          "date": "2025-06-15",
+          "asset": "BTC",
+          "net_return": 0.001278049241,
+          "equity": 136.50559997
+        },
+        {
+          "date": "2025-06-16",
+          "asset": "ETH",
+          "net_return": -0.015925732721,
+          "equity": 134.33164827
+        },
+        {
+          "date": "2025-06-17",
+          "asset": "ETH",
+          "net_return": -0.013659881905,
+          "equity": 132.49669382
+        },
+        {
+          "date": "2025-06-18",
+          "asset": "ETH",
+          "net_return": 0.005914826498,
+          "equity": 133.28038877
+        },
+        {
+          "date": "2025-06-19",
+          "asset": "ETH",
+          "net_return": -0.001465062226,
+          "equity": 133.08512471
+        },
+        {
+          "date": "2025-06-20",
+          "asset": "ETH",
+          "net_return": -0.045439945436,
+          "equity": 127.0377439
+        },
+        {
+          "date": "2025-06-21",
+          "asset": "ETH",
+          "net_return": -0.045671319375,
+          "equity": 121.23576253
+        },
+        {
+          "date": "2025-06-22",
+          "asset": "ETH",
+          "net_return": -0.02994872152,
+          "equity": 117.60490644
+        },
+        {
+          "date": "2025-06-23",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-29",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 116.72286964
+        },
+        {
+          "date": "2025-06-30",
+          "asset": "BTC",
+          "net_return": -0.018609607207,
+          "equity": 114.55070288
+        },
+        {
+          "date": "2025-07-01",
+          "asset": "BTC",
+          "net_return": -0.01363624361,
+          "equity": 112.98866159
+        },
+        {
+          "date": "2025-07-02",
+          "asset": "BTC",
+          "net_return": 0.030036958042,
+          "equity": 116.38249728
+        },
+        {
+          "date": "2025-07-03",
+          "asset": "BTC",
+          "net_return": 0.00681256528,
+          "equity": 117.17536064
+        },
+        {
+          "date": "2025-07-04",
+          "asset": "BTC",
+          "net_return": -0.014596799035,
+          "equity": 115.46497545
+        },
+        {
+          "date": "2025-07-05",
+          "asset": "BTC",
+          "net_return": 0.002018539535,
+          "equity": 115.69804607
+        },
+        {
+          "date": "2025-07-06",
+          "asset": "BTC",
+          "net_return": 0.008973209889,
+          "equity": 116.73622892
+        },
+        {
+          "date": "2025-07-07",
+          "asset": "BONK",
+          "net_return": 0.018114827098,
+          "equity": 118.85088552
+        },
+        {
+          "date": "2025-07-08",
+          "asset": "BONK",
+          "net_return": -0.032470381746,
+          "equity": 114.9917519
+        },
+        {
+          "date": "2025-07-09",
+          "asset": "BONK",
+          "net_return": -0.045351473923,
+          "equity": 109.77670646
+        },
+        {
+          "date": "2025-07-10",
+          "asset": "BONK",
+          "net_return": 0.129691211401,
+          "equity": 124.01378051
+        },
+        {
+          "date": "2025-07-11",
+          "asset": "BONK",
+          "net_return": -0.055929352397,
+          "equity": 117.07777007
+        },
+        {
+          "date": "2025-07-12",
+          "asset": "BONK",
+          "net_return": 0.121603563474,
+          "equity": 131.31484412
+        },
+        {
+          "date": "2025-07-13",
+          "asset": "BONK",
+          "net_return": 0.047656870532,
+          "equity": 137.57289864
+        },
+        {
+          "date": "2025-07-14",
+          "asset": "BONK",
+          "net_return": 0.021607278241,
+          "equity": 140.54547454
+        },
+        {
+          "date": "2025-07-15",
+          "asset": "BONK",
+          "net_return": 0.10241187384,
+          "equity": 154.93899995
+        },
+        {
+          "date": "2025-07-16",
+          "asset": "BONK",
+          "net_return": 0.300572197913,
+          "equity": 201.50935571
+        },
+        {
+          "date": "2025-07-17",
+          "asset": "BONK",
+          "net_return": -0.088768115942,
+          "equity": 183.62174986
+        },
+        {
+          "date": "2025-07-18",
+          "asset": "BONK",
+          "net_return": -0.076114740131,
+          "equity": 169.64542808
+        },
+        {
+          "date": "2025-07-19",
+          "asset": "BONK",
+          "net_return": 0.017829695666,
+          "equity": 172.67015444
+        },
+        {
+          "date": "2025-07-20",
+          "asset": "BONK",
+          "net_return": -0.008456659619,
+          "equity": 171.20994172
+        },
+        {
+          "date": "2025-07-21",
+          "asset": "BONK",
+          "net_return": 0.05482790131,
+          "equity": 180.5970235
+        },
+        {
+          "date": "2025-07-22",
+          "asset": "BONK",
+          "net_return": 0.069592838579,
+          "equity": 193.16528301
+        },
+        {
+          "date": "2025-07-23",
+          "asset": "BONK",
+          "net_return": -0.06398488121,
+          "equity": 180.80562532
+        },
+        {
+          "date": "2025-07-24",
+          "asset": "BONK",
+          "net_return": -0.044995673493,
+          "equity": 172.67015444
+        },
+        {
+          "date": "2025-07-25",
+          "asset": "BONK",
+          "net_return": 0.067955300513,
+          "equity": 184.40400667
+        },
+        {
+          "date": "2025-07-26",
+          "asset": "BONK",
+          "net_return": -0.018665158371,
+          "equity": 180.96207668
+        },
+        {
+          "date": "2025-07-27",
+          "asset": "BONK",
+          "net_return": -0.026224783862,
+          "equity": 176.21638534
+        },
+        {
+          "date": "2025-07-28",
+          "asset": "BONK",
+          "net_return": -0.046759396271,
+          "equity": 167.97661354
+        },
+        {
+          "date": "2025-07-29",
+          "asset": "BONK",
+          "net_return": -0.108040981062,
+          "equity": 149.82825542
+        },
+        {
+          "date": "2025-07-30",
+          "asset": "BONK",
+          "net_return": -0.01009397842,
+          "equity": 148.31589224
+        },
+        {
+          "date": "2025-07-31",
+          "asset": "BONK",
+          "net_return": -0.082278481013,
+          "equity": 136.11268592
+        },
+        {
+          "date": "2025-08-01",
+          "asset": "BONK",
+          "net_return": -0.022988505747,
+          "equity": 132.98365866
+        },
+        {
+          "date": "2025-08-02",
+          "asset": "BONK",
+          "net_return": -0.025490196078,
+          "equity": 129.59387912
+        },
+        {
+          "date": "2025-08-03",
+          "asset": "BONK",
+          "net_return": 0.050301810865,
+          "equity": 136.11268592
+        },
+        {
+          "date": "2025-08-04",
+          "asset": "ETH",
+          "net_return": 0.048021593275,
+          "equity": 142.64903396
+        },
+        {
+          "date": "2025-08-05",
+          "asset": "ETH",
+          "net_return": -0.029313115785,
+          "equity": 138.46754631
+        },
+        {
+          "date": "2025-08-06",
+          "asset": "ETH",
+          "net_return": 0.019931945102,
+          "equity": 141.22747385
+        },
+        {
+          "date": "2025-08-07",
+          "asset": "ETH",
+          "net_return": 0.061659491066,
+          "equity": 149.93548801
+        },
+        {
+          "date": "2025-08-08",
+          "asset": "ETH",
+          "net_return": 0.025518292371,
+          "equity": 153.76158563
+        },
+        {
+          "date": "2025-08-09",
+          "asset": "ETH",
+          "net_return": 0.062764291698,
+          "equity": 163.41232264
+        },
+        {
+          "date": "2025-08-10",
+          "asset": "ETH",
+          "net_return": -0.002477448416,
+          "equity": 163.00747704
+        },
+        {
+          "date": "2025-08-11",
+          "asset": "ETH",
+          "net_return": -0.006453600634,
+          "equity": 161.95549188
+        },
+        {
+          "date": "2025-08-12",
+          "asset": "ETH",
+          "net_return": 0.086463326587,
+          "equity": 175.95870247
+        },
+        {
+          "date": "2025-08-13",
+          "asset": "ETH",
+          "net_return": 0.035259308322,
+          "equity": 182.16288461
+        },
+        {
+          "date": "2025-08-14",
+          "asset": "ETH",
+          "net_return": -0.042241041852,
+          "equity": 174.46813458
+        },
+        {
+          "date": "2025-08-15",
+          "asset": "ETH",
+          "net_return": -0.023793461852,
+          "equity": 170.31693367
+        },
+        {
+          "date": "2025-08-16",
+          "asset": "ETH",
+          "net_return": -0.003840136858,
+          "equity": 169.66289334
+        },
+        {
+          "date": "2025-08-17",
+          "asset": "ETH",
+          "net_return": 0.011293664656,
+          "equity": 171.57900916
+        },
+        {
+          "date": "2025-08-18",
+          "asset": "ETH",
+          "net_return": -0.035643183844,
+          "equity": 165.46338699
+        },
+        {
+          "date": "2025-08-19",
+          "asset": "ETH",
+          "net_return": -0.055797680696,
+          "equity": 156.23091376
+        },
+        {
+          "date": "2025-08-20",
+          "asset": "ETH",
+          "net_return": 0.06411819991,
+          "equity": 166.24815872
+        },
+        {
+          "date": "2025-08-21",
+          "asset": "ETH",
+          "net_return": -0.025885407779,
+          "equity": 161.94475734
+        },
+        {
+          "date": "2025-08-22",
+          "asset": "ETH",
+          "net_return": 0.143462502693,
+          "equity": 185.17775753
+        },
+        {
+          "date": "2025-08-23",
+          "asset": "ETH",
+          "net_return": -0.011065840196,
+          "equity": 183.12861005
+        },
+        {
+          "date": "2025-08-24",
+          "asset": "ETH",
+          "net_return": 0.000584081579,
+          "equity": 183.2355721
+        },
+        {
+          "date": "2025-08-25",
+          "asset": "ETH",
+          "net_return": -0.084213477504,
+          "equity": 167.80466737
+        },
+        {
+          "date": "2025-08-26",
+          "asset": "ETH",
+          "net_return": 0.051315735363,
+          "equity": 176.41568728
+        },
+        {
+          "date": "2025-08-27",
+          "asset": "ETH",
+          "net_return": -0.020575317876,
+          "equity": 172.78587843
+        },
+        {
+          "date": "2025-08-28",
+          "asset": "ETH",
+          "net_return": 0.000965176006,
+          "equity": 172.95264722
+        },
+        {
+          "date": "2025-08-29",
+          "asset": "ETH",
+          "net_return": -0.033491454791,
+          "equity": 167.16021145
+        },
+        {
+          "date": "2025-08-30",
+          "asset": "ETH",
+          "net_return": 0.003272778146,
+          "equity": 167.70728974
+        },
+        {
+          "date": "2025-08-31",
+          "asset": "ETH",
+          "net_return": 0.003982187597,
+          "equity": 168.37513163
+        },
+        {
+          "date": "2025-09-01",
+          "asset": "ETH",
+          "net_return": -0.017539106082,
+          "equity": 165.42198233
+        },
+        {
+          "date": "2025-09-02",
+          "asset": "ETH",
+          "net_return": 0.002699965468,
+          "equity": 165.86861597
+        },
+        {
+          "date": "2025-09-03",
+          "asset": "ETH",
+          "net_return": 0.029092665699,
+          "equity": 170.69417617
+        },
+        {
+          "date": "2025-09-04",
+          "asset": "ETH",
+          "net_return": -0.03465554455,
+          "equity": 164.77867654
+        },
+        {
+          "date": "2025-09-05",
+          "asset": "ETH",
+          "net_return": 0.002224243792,
+          "equity": 165.14518449
+        },
+        {
+          "date": "2025-09-06",
+          "asset": "ETH",
+          "net_return": -0.007755969032,
+          "equity": 163.86432355
+        },
+        {
+          "date": "2025-09-07",
+          "asset": "ETH",
+          "net_return": 0.00719894063,
+          "equity": 165.04397309
+        },
+        {
+          "date": "2025-09-08",
+          "asset": "SOL",
+          "net_return": 0.022390325874,
+          "equity": 168.73936143
+        },
+        {
+          "date": "2025-09-09",
+          "asset": "SOL",
+          "net_return": 0.014382442213,
+          "equity": 171.16624554
+        },
+        {
+          "date": "2025-09-10",
+          "asset": "SOL",
+          "net_return": 0.031763568568,
+          "equity": 176.60309632
+        },
+        {
+          "date": "2025-09-11",
+          "asset": "SOL",
+          "net_return": 0.020969972784,
+          "equity": 180.30645844
+        },
+        {
+          "date": "2025-09-12",
+          "asset": "SOL",
+          "net_return": 0.059083162173,
+          "equity": 190.95953417
+        },
+        {
+          "date": "2025-09-13",
+          "asset": "SOL",
+          "net_return": 0.00061893955,
+          "equity": 191.07772658
+        },
+        {
+          "date": "2025-09-14",
+          "asset": "SOL",
+          "net_return": -0.010927835052,
+          "equity": 188.9896607
+        },
+        {
+          "date": "2025-09-15",
+          "asset": "SOL",
+          "net_return": -0.02301438399,
+          "equity": 184.64018008
+        },
+        {
+          "date": "2025-09-16",
+          "asset": "SOL",
+          "net_return": 0.011436862544,
+          "equity": 186.75188444
+        },
+        {
+          "date": "2025-09-17",
+          "asset": "SOL",
+          "net_return": 0.033374119235,
+          "equity": 192.9845641
+        },
+        {
+          "date": "2025-09-18",
+          "asset": "SOL",
+          "net_return": 0.010901518863,
+          "equity": 195.08838896
+        },
+        {
+          "date": "2025-09-19",
+          "asset": "SOL",
+          "net_return": -0.036067692556,
+          "equity": 188.05200093
+        },
+        {
+          "date": "2025-09-20",
+          "asset": "SOL",
+          "net_return": 0.003812955669,
+          "equity": 188.76903487
+        },
+        {
+          "date": "2025-09-21",
+          "asset": "SOL",
+          "net_return": -0.013732938181,
+          "equity": 186.17668138
+        }
+      ]
+    },
+    {
+      "start": "2025-09-22",
+      "end": "2026-09-21",
+      "observed_end": 24.394868686086994,
+      "zero_cost_end": 30.346844344661548,
+      "first_500_day": null,
+      "first_1000_day": null,
+      "max_drawdown": 0.7863668559334774,
+      "entries": 15,
+      "exits": 14,
+      "cash_days": 147,
+      "resampled": {
+        "paths": 10000,
+        "hit_500_fraction": 0.0,
+        "hit_1000_fraction": 0.0,
+        "crossed_50_fraction": 0.9204,
+        "ending_equity_p10": 11.270642745666823,
+        "ending_equity_p50": 24.814557221868156,
+        "ending_equity_p90": 53.36943380325267
+      },
+      "daily_account_returns": [
+        {
+          "date": "2025-09-22",
+          "asset": "AVAX",
+          "net_return": 0.017417574108,
+          "equity": 101.74175741
+        },
+        {
+          "date": "2025-09-23",
+          "asset": "AVAX",
+          "net_return": -0.008557096489,
+          "equity": 100.87114338
+        },
+        {
+          "date": "2025-09-24",
+          "asset": "AVAX",
+          "net_return": -0.038095238095,
+          "equity": 97.02843315
+        },
+        {
+          "date": "2025-09-25",
+          "asset": "AVAX",
+          "net_return": -0.113551980198,
+          "equity": 86.01066243
+        },
+        {
+          "date": "2025-09-26",
+          "asset": "AVAX",
+          "net_return": 0.016055846422,
+          "equity": 87.39163642
+        },
+        {
+          "date": "2025-09-27",
+          "asset": "AVAX",
+          "net_return": -0.011336310546,
+          "equity": 86.40093769
+        },
+        {
+          "date": "2025-09-28",
+          "asset": "AVAX",
+          "net_return": 0.042390548992,
+          "equity": 90.06352087
+        },
+        {
+          "date": "2025-09-29",
+          "asset": "AVAX",
+          "net_return": 0.014333333333,
+          "equity": 91.35443134
+        },
+        {
+          "date": "2025-09-30",
+          "asset": "AVAX",
+          "net_return": -0.013144922774,
+          "equity": 90.15358439
+        },
+        {
+          "date": "2025-10-01",
+          "asset": "AVAX",
+          "net_return": 0.024309024309,
+          "equity": 92.34513007
+        },
+        {
+          "date": "2025-10-02",
+          "asset": "AVAX",
+          "net_return": 0.007477243173,
+          "equity": 93.03561706
+        },
+        {
+          "date": "2025-10-03",
+          "asset": "AVAX",
+          "net_return": 0.011616650532,
+          "equity": 94.11637931
+        },
+        {
+          "date": "2025-10-04",
+          "asset": "AVAX",
+          "net_return": -0.038596491228,
+          "equity": 90.4838173
+        },
+        {
+          "date": "2025-10-05",
+          "asset": "AVAX",
+          "net_return": -0.001658925017,
+          "equity": 90.33371143
+        },
+        {
+          "date": "2025-10-06",
+          "asset": "AVAX",
+          "net_return": 0.017946161515,
+          "equity": 91.95485481
+        },
+        {
+          "date": "2025-10-07",
+          "asset": "AVAX",
+          "net_return": -0.087822396343,
+          "equity": 83.8791591
+        },
+        {
+          "date": "2025-10-08",
+          "asset": "AVAX",
+          "net_return": 0.031496062992,
+          "equity": 86.52102238
+        },
+        {
+          "date": "2025-10-09",
+          "asset": "AVAX",
+          "net_return": -0.01387925052,
+          "equity": 85.32017544
+        },
+        {
+          "date": "2025-10-10",
+          "asset": "AVAX",
+          "net_return": -0.269528501056,
+          "equity": 62.32395644
+        },
+        {
+          "date": "2025-10-11",
+          "asset": "AVAX",
+          "net_return": 0.034682080925,
+          "equity": 64.48548094
+        },
+        {
+          "date": "2025-10-12",
+          "asset": "AVAX",
+          "net_return": 0.049348230912,
+          "equity": 67.66772535
+        },
+        {
+          "date": "2025-10-13",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-23",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 67.16021741
+        },
+        {
+          "date": "2025-10-27",
+          "asset": "BTC",
+          "net_return": -0.011611935456,
+          "equity": 66.3803573
+        },
+        {
+          "date": "2025-10-28",
+          "asset": "BTC",
+          "net_return": -0.010345695647,
+          "equity": 65.69360632
+        },
+        {
+          "date": "2025-10-29",
+          "asset": "BTC",
+          "net_return": -0.025464376576,
+          "equity": 64.02075959
+        },
+        {
+          "date": "2025-10-30",
+          "asset": "BTC",
+          "net_return": -0.01566485643,
+          "equity": 63.01788359
+        },
+        {
+          "date": "2025-10-31",
+          "asset": "BTC",
+          "net_return": 0.011519091569,
+          "equity": 63.74379236
+        },
+        {
+          "date": "2025-11-01",
+          "asset": "BTC",
+          "net_return": 0.004533039516,
+          "equity": 64.03274549
+        },
+        {
+          "date": "2025-11-02",
+          "asset": "BTC",
+          "net_return": 0.004375921437,
+          "equity": 64.31294775
+        },
+        {
+          "date": "2025-11-03",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-23",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-29",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-11-30",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 63.83060064
+        },
+        {
+          "date": "2025-12-22",
+          "asset": "ETH",
+          "net_return": -0.005433235489,
+          "equity": 63.48379396
+        },
+        {
+          "date": "2025-12-23",
+          "asset": "ETH",
+          "net_return": -0.014932072536,
+          "equity": 62.53584934
+        },
+        {
+          "date": "2025-12-24",
+          "asset": "ETH",
+          "net_return": -0.005991136493,
+          "equity": 62.16118853
+        },
+        {
+          "date": "2025-12-25",
+          "asset": "ETH",
+          "net_return": -0.014472182984,
+          "equity": 61.26158044
+        },
+        {
+          "date": "2025-12-26",
+          "asset": "ETH",
+          "net_return": 0.008007332015,
+          "equity": 61.75212225
+        },
+        {
+          "date": "2025-12-27",
+          "asset": "ETH",
+          "net_return": 0.007096028822,
+          "equity": 62.19031709
+        },
+        {
+          "date": "2025-12-28",
+          "asset": "ETH",
+          "net_return": 0.000872268645,
+          "equity": 62.24456376
+        },
+        {
+          "date": "2025-12-29",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2025-12-30",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2025-12-31",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2026-01-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2026-01-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2026-01-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2026-01-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 61.77772953
+        },
+        {
+          "date": "2026-01-05",
+          "asset": "BONK",
+          "net_return": 0.003270033389,
+          "equity": 61.97974477
+        },
+        {
+          "date": "2026-01-06",
+          "asset": "BONK",
+          "net_return": -0.015689512799,
+          "equity": 61.00731277
+        },
+        {
+          "date": "2026-01-07",
+          "asset": "BONK",
+          "net_return": -0.064597315436,
+          "equity": 57.06640414
+        },
+        {
+          "date": "2026-01-08",
+          "asset": "BONK",
+          "net_return": -0.021524663677,
+          "equity": 55.83806898
+        },
+        {
+          "date": "2026-01-09",
+          "asset": "BONK",
+          "net_return": -0.01099908341,
+          "equity": 55.22390141
+        },
+        {
+          "date": "2026-01-10",
+          "asset": "BONK",
+          "net_return": -0.027803521779,
+          "equity": 53.68848246
+        },
+        {
+          "date": "2026-01-11",
+          "asset": "BONK",
+          "net_return": -0.003813155386,
+          "equity": 53.48375993
+        },
+        {
+          "date": "2026-01-12",
+          "asset": "BONK",
+          "net_return": -0.024880382775,
+          "equity": 52.15306351
+        },
+        {
+          "date": "2026-01-13",
+          "asset": "BONK",
+          "net_return": 0.127576054956,
+          "equity": 58.80654561
+        },
+        {
+          "date": "2026-01-14",
+          "asset": "BONK",
+          "net_return": -0.040034812881,
+          "equity": 56.45223656
+        },
+        {
+          "date": "2026-01-15",
+          "asset": "BONK",
+          "net_return": -0.044424297371,
+          "equity": 53.94438562
+        },
+        {
+          "date": "2026-01-16",
+          "asset": "BONK",
+          "net_return": 0.018975332068,
+          "equity": 54.96799825
+        },
+        {
+          "date": "2026-01-17",
+          "asset": "BONK",
+          "net_return": -0.033519553073,
+          "equity": 53.12549551
+        },
+        {
+          "date": "2026-01-18",
+          "asset": "BONK",
+          "net_return": -0.073217726397,
+          "equity": 49.23576752
+        },
+        {
+          "date": "2026-01-19",
+          "asset": "BONK",
+          "net_return": -0.031185031185,
+          "equity": 47.70034857
+        },
+        {
+          "date": "2026-01-20",
+          "asset": "BONK",
+          "net_return": -0.054721030043,
+          "equity": 45.09013637
+        },
+        {
+          "date": "2026-01-21",
+          "asset": "BONK",
+          "net_return": 0.041997729852,
+          "equity": 46.98381973
+        },
+        {
+          "date": "2026-01-22",
+          "asset": "BONK",
+          "net_return": -0.020697167756,
+          "equity": 46.01138773
+        },
+        {
+          "date": "2026-01-23",
+          "asset": "BONK",
+          "net_return": 0.004449388209,
+          "equity": 46.21611026
+        },
+        {
+          "date": "2026-01-24",
+          "asset": "BONK",
+          "net_return": -0.021040974529,
+          "equity": 45.24367826
+        },
+        {
+          "date": "2026-01-25",
+          "asset": "BONK",
+          "net_return": -0.047511312217,
+          "equity": 43.09409174
+        },
+        {
+          "date": "2026-01-26",
+          "asset": "BONK",
+          "net_return": 0.029691211401,
+          "equity": 44.37360752
+        },
+        {
+          "date": "2026-01-27",
+          "asset": "BONK",
+          "net_return": 0.021914648212,
+          "equity": 45.34603952
+        },
+        {
+          "date": "2026-01-28",
+          "asset": "BONK",
+          "net_return": -0.013544018059,
+          "equity": 44.73187194
+        },
+        {
+          "date": "2026-01-29",
+          "asset": "BONK",
+          "net_return": -0.054919908467,
+          "equity": 42.27520163
+        },
+        {
+          "date": "2026-01-30",
+          "asset": "BONK",
+          "net_return": -0.029055690073,
+          "equity": 41.04686648
+        },
+        {
+          "date": "2026-01-31",
+          "asset": "BONK",
+          "net_return": -0.10349127182,
+          "equity": 36.79887406
+        },
+        {
+          "date": "2026-02-01",
+          "asset": "BONK",
+          "net_return": -0.022253129346,
+          "equity": 35.97998396
+        },
+        {
+          "date": "2026-02-02",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-23",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-02-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 35.71013408
+        },
+        {
+          "date": "2026-03-16",
+          "asset": "ETH",
+          "net_return": 0.071923689525,
+          "equity": 38.27853867
+        },
+        {
+          "date": "2026-03-17",
+          "asset": "ETH",
+          "net_return": -0.014785757393,
+          "equity": 37.71256149
+        },
+        {
+          "date": "2026-03-18",
+          "asset": "ETH",
+          "net_return": -0.049474796713,
+          "equity": 35.84674017
+        },
+        {
+          "date": "2026-03-19",
+          "asset": "ETH",
+          "net_return": -0.029866664246,
+          "equity": 34.77611762
+        },
+        {
+          "date": "2026-03-20",
+          "asset": "ETH",
+          "net_return": 0.003854700255,
+          "equity": 34.91016913
+        },
+        {
+          "date": "2026-03-21",
+          "asset": "ETH",
+          "net_return": -0.028556915779,
+          "equity": 33.91324237
+        },
+        {
+          "date": "2026-03-22",
+          "asset": "ETH",
+          "net_return": -0.014990813629,
+          "equity": 33.40485527
+        },
+        {
+          "date": "2026-03-23",
+          "asset": "ETH",
+          "net_return": 0.047892235166,
+          "equity": 35.00468846
+        },
+        {
+          "date": "2026-03-24",
+          "asset": "ETH",
+          "net_return": 0.001789282893,
+          "equity": 35.06732175
+        },
+        {
+          "date": "2026-03-25",
+          "asset": "ETH",
+          "net_return": 0.005766509707,
+          "equity": 35.2695378
+        },
+        {
+          "date": "2026-03-26",
+          "asset": "ETH",
+          "net_return": -0.050387918708,
+          "equity": 33.4923792
+        },
+        {
+          "date": "2026-03-27",
+          "asset": "ETH",
+          "net_return": -0.032636466965,
+          "equity": 32.39930627
+        },
+        {
+          "date": "2026-03-28",
+          "asset": "ETH",
+          "net_return": 0.000718033692,
+          "equity": 32.42257006
+        },
+        {
+          "date": "2026-03-29",
+          "asset": "ETH",
+          "net_return": -0.004987506147,
+          "equity": 32.2608623
+        },
+        {
+          "date": "2026-03-30",
+          "asset": "ETH",
+          "net_return": 0.020947635953,
+          "equity": 32.93665109
+        },
+        {
+          "date": "2026-03-31",
+          "asset": "ETH",
+          "net_return": 0.038936470774,
+          "equity": 34.21908805
+        },
+        {
+          "date": "2026-04-01",
+          "asset": "ETH",
+          "net_return": 0.017443104293,
+          "equity": 34.81597517
+        },
+        {
+          "date": "2026-04-02",
+          "asset": "ETH",
+          "net_return": -0.038932760151,
+          "equity": 33.46049316
+        },
+        {
+          "date": "2026-04-03",
+          "asset": "ETH",
+          "net_return": -0.001594725736,
+          "equity": 33.40713285
+        },
+        {
+          "date": "2026-04-04",
+          "asset": "ETH",
+          "net_return": 0.005668371074,
+          "equity": 33.59649687
+        },
+        {
+          "date": "2026-04-05",
+          "asset": "ETH",
+          "net_return": 0.021398065022,
+          "equity": 34.3153969
+        },
+        {
+          "date": "2026-04-06",
+          "asset": "ETH",
+          "net_return": -0.000986095111,
+          "equity": 34.28155865
+        },
+        {
+          "date": "2026-04-07",
+          "asset": "ETH",
+          "net_return": 0.062811721438,
+          "equity": 36.43484237
+        },
+        {
+          "date": "2026-04-08",
+          "asset": "ETH",
+          "net_return": -0.022048481655,
+          "equity": 35.63150941
+        },
+        {
+          "date": "2026-04-09",
+          "asset": "ETH",
+          "net_return": 3.1960114e-05,
+          "equity": 35.6326482
+        },
+        {
+          "date": "2026-04-10",
+          "asset": "ETH",
+          "net_return": 0.02555814272,
+          "equity": 36.54335251
+        },
+        {
+          "date": "2026-04-11",
+          "asset": "ETH",
+          "net_return": 0.017589080613,
+          "equity": 37.18611648
+        },
+        {
+          "date": "2026-04-12",
+          "asset": "ETH",
+          "net_return": -0.04113238749,
+          "equity": 35.65656273
+        },
+        {
+          "date": "2026-04-13",
+          "asset": "ETH",
+          "net_return": 0.081441027115,
+          "equity": 38.56046982
+        },
+        {
+          "date": "2026-04-14",
+          "asset": "ETH",
+          "net_return": -0.019731929274,
+          "equity": 37.79959736
+        },
+        {
+          "date": "2026-04-15",
+          "asset": "ETH",
+          "net_return": 0.015984506133,
+          "equity": 38.40380525
+        },
+        {
+          "date": "2026-04-16",
+          "asset": "ETH",
+          "net_return": -0.005096075641,
+          "equity": 38.20809656
+        },
+        {
+          "date": "2026-04-17",
+          "asset": "ETH",
+          "net_return": 0.030311545978,
+          "equity": 39.36624303
+        },
+        {
+          "date": "2026-04-18",
+          "asset": "ETH",
+          "net_return": -0.028275064055,
+          "equity": 38.25315999
+        },
+        {
+          "date": "2026-04-19",
+          "asset": "ETH",
+          "net_return": -0.037203684645,
+          "equity": 36.83000149
+        },
+        {
+          "date": "2026-04-20",
+          "asset": "ETH",
+          "net_return": 0.022412650735,
+          "equity": 37.65545945
+        },
+        {
+          "date": "2026-04-21",
+          "asset": "ETH",
+          "net_return": 0.005771955898,
+          "equity": 37.8728051
+        },
+        {
+          "date": "2026-04-22",
+          "asset": "ETH",
+          "net_return": 0.020317869416,
+          "equity": 38.64229981
+        },
+        {
+          "date": "2026-04-23",
+          "asset": "ETH",
+          "net_return": -0.018566075864,
+          "equity": 37.92486394
+        },
+        {
+          "date": "2026-04-24",
+          "asset": "ETH",
+          "net_return": -0.006606039808,
+          "equity": 37.67433078
+        },
+        {
+          "date": "2026-04-25",
+          "asset": "ETH",
+          "net_return": 0.001783400985,
+          "equity": 37.74151922
+        },
+        {
+          "date": "2026-04-26",
+          "asset": "ETH",
+          "net_return": 0.021785140069,
+          "equity": 38.5637235
+        },
+        {
+          "date": "2026-04-27",
+          "asset": "ETH",
+          "net_return": -0.028213814138,
+          "equity": 37.47569377
+        },
+        {
+          "date": "2026-04-28",
+          "asset": "ETH",
+          "net_return": -0.006212042942,
+          "equity": 37.24289315
+        },
+        {
+          "date": "2026-04-29",
+          "asset": "ETH",
+          "net_return": -0.016293332401,
+          "equity": 36.63608231
+        },
+        {
+          "date": "2026-04-30",
+          "asset": "ETH",
+          "net_return": 0.002140338724,
+          "equity": 36.71449594
+        },
+        {
+          "date": "2026-05-01",
+          "asset": "ETH",
+          "net_return": 0.017165898618,
+          "equity": 37.34473325
+        },
+        {
+          "date": "2026-05-02",
+          "asset": "ETH",
+          "net_return": 0.009296287584,
+          "equity": 37.69190063
+        },
+        {
+          "date": "2026-05-03",
+          "asset": "ETH",
+          "net_return": 0.00241704361,
+          "equity": 37.7830036
+        },
+        {
+          "date": "2026-05-04",
+          "asset": "DOGE",
+          "net_return": 0.001986619848,
+          "equity": 37.85806407
+        },
+        {
+          "date": "2026-05-05",
+          "asset": "DOGE",
+          "net_return": 0.04324127907,
+          "equity": 39.49509518
+        },
+        {
+          "date": "2026-05-06",
+          "asset": "DOGE",
+          "net_return": -0.020724486242,
+          "equity": 38.67657962
+        },
+        {
+          "date": "2026-05-07",
+          "asset": "DOGE",
+          "net_return": -0.041081273342,
+          "equity": 37.08769648
+        },
+        {
+          "date": "2026-05-08",
+          "asset": "DOGE",
+          "net_return": 0.015856824926,
+          "equity": 37.67578959
+        },
+        {
+          "date": "2026-05-09",
+          "asset": "DOGE",
+          "net_return": -0.007759014149,
+          "equity": 37.38346261
+        },
+        {
+          "date": "2026-05-10",
+          "asset": "DOGE",
+          "net_return": 0.034406623735,
+          "equity": 38.66970134
+        },
+        {
+          "date": "2026-05-11",
+          "asset": "BONK",
+          "net_return": -0.03918736237,
+          "equity": 37.15433774
+        },
+        {
+          "date": "2026-05-12",
+          "asset": "BONK",
+          "net_return": -0.059760956175,
+          "equity": 34.93395899
+        },
+        {
+          "date": "2026-05-13",
+          "asset": "BONK",
+          "net_return": -0.033898305085,
+          "equity": 33.74975699
+        },
+        {
+          "date": "2026-05-14",
+          "asset": "BONK",
+          "net_return": 0.00730994152,
+          "equity": 33.99646574
+        },
+        {
+          "date": "2026-05-15",
+          "asset": "BONK",
+          "net_return": -0.053701015965,
+          "equity": 32.17082099
+        },
+        {
+          "date": "2026-05-16",
+          "asset": "BONK",
+          "net_return": -0.042944785276,
+          "equity": 30.78925199
+        },
+        {
+          "date": "2026-05-17",
+          "asset": "BONK",
+          "net_return": -0.033653846154,
+          "equity": 29.75307524
+        },
+        {
+          "date": "2026-05-18",
+          "asset": "DOGE",
+          "net_return": -0.053018362674,
+          "equity": 28.17561591
+        },
+        {
+          "date": "2026-05-19",
+          "asset": "DOGE",
+          "net_return": -0.017285837074,
+          "equity": 27.6885768
+        },
+        {
+          "date": "2026-05-20",
+          "asset": "DOGE",
+          "net_return": 0.006802721088,
+          "equity": 27.87693447
+        },
+        {
+          "date": "2026-05-21",
+          "asset": "DOGE",
+          "net_return": 0.019111969112,
+          "equity": 28.40971758
+        },
+        {
+          "date": "2026-05-22",
+          "asset": "DOGE",
+          "net_return": -0.031634779314,
+          "equity": 27.51098243
+        },
+        {
+          "date": "2026-05-23",
+          "asset": "DOGE",
+          "net_return": 0.007629107981,
+          "equity": 27.72086669
+        },
+        {
+          "date": "2026-05-24",
+          "asset": "DOGE",
+          "net_return": -0.008347893613,
+          "equity": 27.48945584
+        },
+        {
+          "date": "2026-05-25",
+          "asset": "DOGE",
+          "net_return": -0.001174628034,
+          "equity": 27.45716596
+        },
+        {
+          "date": "2026-05-26",
+          "asset": "DOGE",
+          "net_return": -0.011074088593,
+          "equity": 27.15310287
+        },
+        {
+          "date": "2026-05-27",
+          "asset": "DOGE",
+          "net_return": -0.00564859776,
+          "equity": 26.99972591
+        },
+        {
+          "date": "2026-05-28",
+          "asset": "DOGE",
+          "net_return": -0.008271875623,
+          "equity": 26.77638754
+        },
+        {
+          "date": "2026-05-29",
+          "asset": "DOGE",
+          "net_return": 0.001507386192,
+          "equity": 26.8167499
+        },
+        {
+          "date": "2026-05-30",
+          "asset": "DOGE",
+          "net_return": 0.008127633955,
+          "equity": 27.03470662
+        },
+        {
+          "date": "2026-05-31",
+          "asset": "DOGE",
+          "net_return": -0.001791579576,
+          "equity": 26.98627179
+        },
+        {
+          "date": "2026-06-01",
+          "asset": "CASH",
+          "net_return": -0.0075,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-06",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-07",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-08",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-09",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-10",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-11",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-12",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-13",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-14",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-15",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-16",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-17",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-18",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-19",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-20",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-21",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-22",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-23",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-24",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-25",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-26",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-27",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-28",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-29",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-06-30",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-07-01",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-07-02",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-07-03",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-07-04",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-07-05",
+          "asset": "CASH",
+          "net_return": 0.0,
+          "equity": 26.78387476
+        },
+        {
+          "date": "2026-07-06",
+          "asset": "SOL",
+          "net_return": -0.002873527969,
+          "equity": 26.70691054
+        },
+        {
+          "date": "2026-07-07",
+          "asset": "SOL",
+          "net_return": -0.016727716728,
+          "equity": 26.26016491
+        },
+        {
+          "date": "2026-07-08",
+          "asset": "SOL",
+          "net_return": -0.034397119086,
+          "equity": 25.35689089
+        },
+        {
+          "date": "2026-07-09",
+          "asset": "SOL",
+          "net_return": 0.00295781893,
+          "equity": 25.43189198
+        },
+        {
+          "date": "2026-07-10",
+          "asset": "SOL",
+          "net_return": 0.000897550968,
+          "equity": 25.4547184
+        },
+        {
+          "date": "2026-07-11",
+          "asset": "SOL",
+          "net_return": -0.017038175762,
+          "equity": 25.02101643
+        },
+        {
+          "date": "2026-07-12",
+          "asset": "SOL",
+          "net_return": 0.001694252574,
+          "equity": 25.06340836
+        },
+        {
+          "date": "2026-07-13",
+          "asset": "SOL",
+          "net_return": -0.025240697372,
+          "equity": 24.43079045
+        },
+        {
+          "date": "2026-07-14",
+          "asset": "SOL",
+          "net_return": 0.038707955152,
+          "equity": 25.37645639
+        },
+        {
+          "date": "2026-07-15",
+          "asset": "SOL",
+          "net_return": -0.007581598561,
+          "equity": 25.18406229
+        },
+        {
+          "date": "2026-07-16",
+          "asset": "SOL",
+          "net_return": -0.025767188916,
+          "equity": 24.5351398
+        },
+        {
+          "date": "2026-07-17",
+          "asset": "SOL",
+          "net_return": -0.003455608719,
+          "equity": 24.45035595
+        },
+        {
+          "date": "2026-07-18",
+          "asset": "SOL",
+          "net_return": 0.00653507602,
+          "equity": 24.61014089
+        },
+        {
+          "date": "2026-07-19",
+          "asset": "SOL",
+          "net_return": 0.011395256393,
+          "equity": 24.89057975
+        },
+        {
+          "date": "2026-07-20",
+          "asset": "ETH",
+          "net_return": 0.002188212424,
+          "equity": 24.94504563
+        },
+        {
+          "date": "2026-07-21",
+          "asset": "ETH",
+          "net_return": 0.01343819115,
+          "equity": 25.28026192
+        },
+        {
+          "date": "2026-07-22",
+          "asset": "ETH",
+          "net_return": 0.002306763222,
+          "equity": 25.3385775
+        },
+        {
+          "date": "2026-07-23",
+          "asset": "ETH",
+          "net_return": -0.029231055669,
+          "equity": 24.59790413
+        },
+        {
+          "date": "2026-07-24",
+          "asset": "ETH",
+          "net_return": -0.009200656353,
+          "equity": 24.37158727
+        },
+        {
+          "date": "2026-07-25",
+          "asset": "ETH",
+          "net_return": 0.007119159896,
+          "equity": 24.54509249
+        },
+        {
+          "date": "2026-07-26",
+          "asset": "ETH",
+          "net_return": 0.042770727332,
+          "equity": 25.59490395
+        },
+        {
+          "date": "2026-07-27",
+          "asset": "ETH",
+          "net_return": -0.031964241828,
+          "equity": 24.77678225
+        },
+        {
+          "date": "2026-07-28",
+          "asset": "ETH",
+          "net_return": 0.015496987872,
+          "equity": 25.16074775
+        },
+        {
+          "date": "2026-07-29",
+          "asset": "ETH",
+          "net_return": -0.006088573378,
+          "equity": 25.00755469
+        },
+        {
+          "date": "2026-07-30",
+          "asset": "ETH",
+          "net_return": 0.004464706807,
+          "equity": 25.11920609
+        },
+        {
+          "date": "2026-07-31",
+          "asset": "ETH",
+          "net_return": -0.029225488048,
+          "equity": 24.38508503
+        },
+        {
+          "date": "2026-08-01",
+          "asset": "ETH",
+          "net_return": -0.009436801376,
+          "equity": 24.15496783
+        },
+        {
+          "date": "2026-08-02",
+          "asset": "ETH",
+          "net_return": 0.021755170244,
+          "equity": 24.68046326
+        },
+        {
+          "date": "2026-08-03",
+          "asset": "ETH",
+          "net_return": -0.01294508692,
+          "equity": 24.36097252
+        },
+        {
+          "date": "2026-08-04",
+          "asset": "ETH",
+          "net_return": 0.005067349486,
+          "equity": 24.48441808
+        },
+        {
+          "date": "2026-08-05",
+          "asset": "ETH",
+          "net_return": 0.020825527998,
+          "equity": 24.99431902
+        },
+        {
+          "date": "2026-08-06",
+          "asset": "ETH",
+          "net_return": -0.002537631928,
+          "equity": 24.93089263
+        },
+        {
+          "date": "2026-08-07",
+          "asset": "ETH",
+          "net_return": 0.005634839286,
+          "equity": 25.07137421
+        },
+        {
+          "date": "2026-08-08",
+          "asset": "ETH",
+          "net_return": 0.001149923948,
+          "equity": 25.10020438
+        },
+        {
+          "date": "2026-08-09",
+          "asset": "ETH",
+          "net_return": -0.003231751568,
+          "equity": 25.01908676
+        },
+        {
+          "date": "2026-08-10",
+          "asset": "ETH",
+          "net_return": -0.019788600342,
+          "equity": 24.52399405
+        },
+        {
+          "date": "2026-08-11",
+          "asset": "ETH",
+          "net_return": 0.004980228706,
+          "equity": 24.64612915
+        },
+        {
+          "date": "2026-08-12",
+          "asset": "ETH",
+          "net_return": -0.001632353567,
+          "equity": 24.60589795
+        },
+        {
+          "date": "2026-08-13",
+          "asset": "ETH",
+          "net_return": 0.003706761111,
+          "equity": 24.69710614
+        },
+        {
+          "date": "2026-08-14",
+          "asset": "ETH",
+          "net_return": -0.002228577796,
+          "equity": 24.64206671
+        },
+        {
+          "date": "2026-08-15",
+          "asset": "ETH",
+          "net_return": 0.000249945491,
+          "equity": 24.64822589
+        },
+        {
+          "date": "2026-08-16",
+          "asset": "ETH",
+          "net_return": -0.003604695674,
+          "equity": 24.55937653
+        },
+        {
+          "date": "2026-08-17",
+          "asset": "ETH",
+          "net_return": 0.020191025025,
+          "equity": 25.05525552
+        },
+        {
+          "date": "2026-08-18",
+          "asset": "ETH",
+          "net_return": 0.002520999613,
+          "equity": 25.11841981
+        },
+        {
+          "date": "2026-08-19",
+          "asset": "ETH",
+          "net_return": 0.174732360859,
+          "equity": 29.5074206
+        },
+        {
+          "date": "2026-08-20",
+          "asset": "ETH",
+          "net_return": 0.033139700135,
+          "equity": 30.48528767
+        },
+        {
+          "date": "2026-08-21",
+          "asset": "ETH",
+          "net_return": 0.081408244852,
+          "equity": 32.96704144
+        },
+        {
+          "date": "2026-08-22",
+          "asset": "ETH",
+          "net_return": -0.037238440501,
+          "equity": 31.73940023
+        },
+        {
+          "date": "2026-08-23",
+          "asset": "ETH",
+          "net_return": 0.017167630058,
+          "equity": 32.28429051
+        },
+        {
+          "date": "2026-08-24",
+          "asset": "DOGE",
+          "net_return": -0.050060304036,
+          "equity": 30.66812911
+        },
+        {
+          "date": "2026-08-25",
+          "asset": "DOGE",
+          "net_return": -0.048845470693,
+          "equity": 29.17012991
+        },
+        {
+          "date": "2026-08-26",
+          "asset": "DOGE",
+          "net_return": 0.021708683473,
+          "equity": 29.80337502
+        },
+        {
+          "date": "2026-08-27",
+          "asset": "DOGE",
+          "net_return": 0.018620059401,
+          "equity": 30.35831564
+        },
+        {
+          "date": "2026-08-28",
+          "asset": "DOGE",
+          "net_return": -0.044521700123,
+          "equity": 29.00671181
+        },
+        {
+          "date": "2026-08-29",
+          "asset": "DOGE",
+          "net_return": 0.000821596244,
+          "equity": 29.03054362
+        },
+        {
+          "date": "2026-08-30",
+          "asset": "DOGE",
+          "net_return": -0.037879676322,
+          "equity": 27.93087602
+        },
+        {
+          "date": "2026-08-31",
+          "asset": "SOL",
+          "net_return": -0.002551887592,
+          "equity": 27.85959957
+        },
+        {
+          "date": "2026-09-01",
+          "asset": "SOL",
+          "net_return": -0.02999126468,
+          "equity": 27.02405494
+        },
+        {
+          "date": "2026-09-02",
+          "asset": "SOL",
+          "net_return": 0.004602761657,
+          "equity": 27.14844023
+        },
+        {
+          "date": "2026-09-03",
+          "asset": "SOL",
+          "net_return": 0.03515936255,
+          "equity": 28.10296208
+        },
+        {
+          "date": "2026-09-04",
+          "asset": "SOL",
+          "net_return": -0.019051284518,
+          "equity": 27.56756455
+        },
+        {
+          "date": "2026-09-05",
+          "asset": "SOL",
+          "net_return": 0.012064737616,
+          "equity": 27.90015999
+        },
+        {
+          "date": "2026-09-06",
+          "asset": "SOL",
+          "net_return": 0.032661368482,
+          "equity": 28.81141739
+        },
+        {
+          "date": "2026-09-07",
+          "asset": "BONK",
+          "net_return": -0.090271580882,
+          "equity": 26.2105652
+        },
+        {
+          "date": "2026-09-08",
+          "asset": "BONK",
+          "net_return": -0.031847133758,
+          "equity": 25.37583382
+        },
+        {
+          "date": "2026-09-09",
+          "asset": "BONK",
+          "net_return": -0.055921052632,
+          "equity": 23.95679048
+        },
+        {
+          "date": "2026-09-10",
+          "asset": "BONK",
+          "net_return": -0.076655052265,
+          "equity": 22.12038145
+        },
+        {
+          "date": "2026-09-11",
+          "asset": "BONK",
+          "net_return": 0.033962264151,
+          "equity": 22.87163969
+        },
+        {
+          "date": "2026-09-12",
+          "asset": "BONK",
+          "net_return": 0.018248175182,
+          "equity": 23.28900538
+        },
+        {
+          "date": "2026-09-13",
+          "asset": "BONK",
+          "net_return": -0.028673835125,
+          "equity": 22.62122028
+        },
+        {
+          "date": "2026-09-14",
+          "asset": "SOL",
+          "net_return": 0.017507730329,
+          "equity": 23.0172665
+        },
+        {
+          "date": "2026-09-15",
+          "asset": "SOL",
+          "net_return": -0.055691017263,
+          "equity": 21.73541152
+        },
+        {
+          "date": "2026-09-16",
+          "asset": "SOL",
+          "net_return": 0.018074777938,
+          "equity": 22.12827426
+        },
+        {
+          "date": "2026-09-17",
+          "asset": "SOL",
+          "net_return": 0.029927969971,
+          "equity": 22.79052858
+        },
+        {
+          "date": "2026-09-18",
+          "asset": "SOL",
+          "net_return": 0.11012608353,
+          "equity": 25.30036024
+        },
+        {
+          "date": "2026-09-19",
+          "asset": "SOL",
+          "net_return": -0.014818101154,
+          "equity": 24.92545694
+        },
+        {
+          "date": "2026-09-20",
+          "asset": "SOL",
+          "net_return": 0.001080788976,
+          "equity": 24.9523961
+        },
+        {
+          "date": "2026-09-21",
+          "asset": "AVAX",
+          "net_return": -0.022343642289,
+          "equity": 24.39486869
+        }
+      ]
+    }
+  ]
+}
