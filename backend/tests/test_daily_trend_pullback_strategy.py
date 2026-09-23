@@ -41,6 +41,20 @@ def test_broad_variant_has_an_independent_version_and_larger_universe():
     assert len(strategy.universe) > len(DailyTrendPullback().universe)
 
 
+def test_expanded_scan_batches_bars_without_changing_signal_selection():
+    class BatchAdapter(_Adapter):
+        calls = []
+        def get_daily_bars_many(self, symbols, start, end):
+            self.calls.append(tuple(symbols))
+            return {symbol: self.get_daily_bars(symbol, start, end) for symbol in symbols}
+
+    adapter = BatchAdapter()
+    signal = DailyTrendPullback().portfolio_signal(adapter, ["SPY"] * 16)
+
+    assert signal["symbol"] == "SPY"
+    assert [len(batch) for batch in adapter.calls] == [15, 1]
+
+
 def test_portfolio_v2_returns_two_distinct_qualified_candidates():
     class PortfolioAdapter(_Adapter):
         def get_quotes(self, symbols):

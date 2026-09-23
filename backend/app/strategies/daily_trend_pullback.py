@@ -17,6 +17,17 @@ BROAD_UNIVERSE = UNIVERSE + (
 )
 
 
+def _daily_bars_for_scan(adapter, symbols: tuple[str, ...], start: str, end: str) -> dict[str, list[dict]]:
+    """Fetch the same completed bars with bounded request count and response size."""
+    if callable(getattr(adapter, "get_daily_bars_many", None)):
+        bars: dict[str, list[dict]] = {}
+        # At most ~15 * 130 daily rows fit well below Alpaca's 10k row limit.
+        for index in range(0, len(symbols), 15):
+            bars.update(adapter.get_daily_bars_many(list(symbols[index:index + 15]), start, end))
+        return bars
+    return {symbol: adapter.get_daily_bars(symbol, start, end) for symbol in symbols}
+
+
 class DailyTrendPullback:
     """One-position, once-per-day selector matching the research hypothesis."""
 
@@ -28,8 +39,9 @@ class DailyTrendPullback:
         end = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT00:00:00Z")
         start = (dt.datetime.now(dt.UTC) - dt.timedelta(days=180)).strftime("%Y-%m-%dT00:00:00Z")
         candidates: list[tuple[float, str, float, float, float]] = []
+        bars_by_symbol = _daily_bars_for_scan(adapter, symbols, start, end)
         for symbol in symbols:
-            bars = adapter.get_daily_bars(symbol, start, end)
+            bars = bars_by_symbol.get(symbol, [])
             if len(bars) < WARMUP_BARS:
                 continue
             close = float(bars[-1]["close"])
@@ -105,8 +117,9 @@ class BroadDailyTrendPullbackPortfolioV2(BroadDailyTrendPullback):
         end = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT00:00:00Z")
         start = (dt.datetime.now(dt.UTC) - dt.timedelta(days=180)).strftime("%Y-%m-%dT00:00:00Z")
         candidates: list[tuple[float, str]] = []
+        bars_by_symbol = _daily_bars_for_scan(adapter, symbols, start, end)
         for symbol in symbols:
-            bars = adapter.get_daily_bars(symbol, start, end)
+            bars = bars_by_symbol.get(symbol, [])
             if len(bars) < WARMUP_BARS:
                 continue
             close = float(bars[-1]["close"])
