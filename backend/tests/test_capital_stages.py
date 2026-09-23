@@ -102,6 +102,25 @@ def test_stage_policy_cannot_change_silently(db):
 def test_intermediate_300k_is_optional_extra_checkpoint():
     assert StagePolicy().milestones == [1000,10000,100000,500000,1000000]
     assert StagePolicy(intermediate_milestone=300000).milestones == [1000,10000,100000,300000,500000,1000000]
+    assert StagePolicy(opening_milestone=500).milestones == [500,1000,10000,100000,500000,1000000]
+
+
+def test_500_waypoint_is_explicit_and_old_policy_remains_compatible(db):
+    row = CapitalStageState(id='paper:paper-1', payload={'index': 0, 'used_trade_ids': [],
+        'policy': StagePolicy(minimum_trades=5, minimum_losses=1).model_dump(exclude={'opening_milestone'}),
+        'last_action': 'hold', 'reasons': ['insufficient_history']})
+    db.add(row)
+    db.commit()
+    result = evaluate_paper_stage(db, 100, 0, True, policy())
+    assert result['next_milestone'] == 1000
+    with pytest.raises(ValueError):
+        evaluate_paper_stage(db, 100, 0, True, policy(opening_milestone=500))
+
+
+def test_new_paper_stage_can_track_500_before_1000(db):
+    result = evaluate_paper_stage(db, 100, 0, True, policy(opening_milestone=500))
+    assert result['next_milestone'] == 500
+    assert result['index'] == 0
 
 
 def test_stage_state_survives_a_new_session(db):

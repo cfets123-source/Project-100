@@ -14,6 +14,7 @@ from app.models.models import CapitalStageState, OrderIntent
 
 class StagePolicy(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True, allow_inf_nan=False)
+    opening_milestone: Literal[500, 1000] = 1000
     intermediate_milestone: Literal[300000, 500000] = 500000
     minimum_trades: int = Field(default=50, ge=2)
     minimum_losses: int = Field(default=5, ge=1)
@@ -23,7 +24,7 @@ class StagePolicy(BaseModel):
 
     @property
     def milestones(self):
-        return [1000, 10000, 100000] + ([300000] if self.intermediate_milestone == 300000 else []) + [500000, 1000000]
+        return ([500] if self.opening_milestone == 500 else []) + [1000, 10000, 100000] + ([300000] if self.intermediate_milestone == 300000 else []) + [500000, 1000000]
 
 
 def evaluate_paper_stage(db, equity, max_drawdown, healthy, policy=None):
@@ -37,7 +38,10 @@ def evaluate_paper_stage(db, equity, max_drawdown, healthy, policy=None):
         db.add(row)
         db.flush()
     state = deepcopy(row.payload)
-    if state['policy'] != policy.model_dump():
+    # Older persisted policies predate the optional $500 waypoint.  Their
+    # default remains $1,000; an intentional switch to $500 still requires a
+    # stage migration rather than silently reinterpreting an achieved index.
+    if StagePolicy.model_validate(state['policy']).model_dump() != policy.model_dump():
         raise ValueError('stage policy changes require an explicit migration; no silent relaxation')
     all_trades = closed_trades(db, 'paper-1')
     used = set(state['used_trade_ids'])
