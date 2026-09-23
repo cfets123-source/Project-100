@@ -119,6 +119,40 @@ def test_batched_daily_bars_use_one_read_only_market_data_request():
     assert client.calls[-1][2]['params']['symbols'] == 'AAPL,MSFT'
 
 
+def test_historical_bars_follow_partial_pages_for_single_and_multiple_symbols():
+    bar = {'t': '2025-04-01T13:30:00Z', 'o': 1, 'h': 2, 'l': 1, 'c': 2, 'v': 3}
+
+    class PagingClient(Client):
+        def request(self, method, url, **kwargs):
+            self.calls.append((method, url, kwargs))
+            token = kwargs['params'].get('page_token')
+            if '/v2/stocks/AAPL/bars' in url:
+                return Response({'bars': [bar], 'next_page_token': 'next'} if not token
+                                else {'bars': [dict(bar, t='2025-04-02T13:30:00Z')]})
+            if '/v2/stocks/bars' in url:
+                return Response({'bars': {'AAPL': [bar]}, 'next_page_token': 'next'} if not token
+                                else {'bars': {'MSFT': [bar]}})
+            return super().request(method, url, **kwargs)
+
+    client = PagingClient()
+    adapter = AlpacaBrokerAdapter('key', 'secret', client=client)
+    intraday = adapter.get_intraday_bars('AAPL', 'a', 'b')
+    daily = adapter.get_daily_bars_many(['AAPL', 'MSFT'], 'a', 'b')
+    assert len(intraday) == 2 and intraday[-1]['timestamp'] == '2025-04-02T13:30:00Z'
+    assert len(daily['AAPL']) == len(daily['MSFT']) == 1
+    assert [call[2]['params'].get('page_token') for call in client.calls] == [None, 'next', None, 'next']
+
+
+def test_repeated_historical_page_token_fails_instead_of_silently_truncating():
+    class RepeatingClient(Client):
+        def request(self, method, url, **kwargs):
+            return Response({'bars': [], 'next_page_token': 'same'})
+
+    adapter = AlpacaBrokerAdapter('key', 'secret', client=RepeatingClient())
+    with pytest.raises(AlpacaBrokerError, match='repeated stock-bars page token'):
+        adapter.get_intraday_bars('AAPL', 'a', 'b')
+
+
 def test_stop_submission_uses_alpaca_stop_price_and_gtc():
     client = Client()
     adapter = AlpacaBrokerAdapter('key', 'secret', allow_order_submission=True, client=client)

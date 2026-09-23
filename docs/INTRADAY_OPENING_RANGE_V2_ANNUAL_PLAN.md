@@ -1,0 +1,5 @@
+# Opening-range v2: locked annual follow-up
+
+The frozen v2 rules lost money in the complete April–June 2025 quarter. A single quarter does not establish the year-scale expectancy of a strategy. Before fetching more data, this follow-up fixes a separate July 1, 2025–June 30, 2026 window, the same 20-symbol universe, the same five-minute Alpaca IEX feed, and the unchanged v2 evaluator and cost assumptions. All pages must be consumed. This is a sequential follow-up after seeing one losing quarter, so a positive result would be exploratory support rather than a clean first-look out-of-sample pass.
+
+Report compounded account return, maximum drawdown, total completed trades, positive-trade rate, each calendar quarter's compounded return, and exit types. The annual research screen requires at least 120 completed trades, positive compounded annual return after modeled costs, and maximum drawdown no worse than 15%. A pass would justify building a distinct paper execution worker and collecting forward fills, not immediate live promotion. A fail leaves v2 out of paper and live execution. No parameters will be changed after reading this window.

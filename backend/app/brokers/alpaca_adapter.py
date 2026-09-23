@@ -150,23 +150,42 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
     def get_daily_bars(self, symbol: str, start: str, end: str) -> list[dict]:
         """Read adjusted daily bars for research. This endpoint cannot trade."""
-        raw = self._request("GET", "/v2/stocks/bars", data_api=True, params={
+        params = {
             "symbols": symbol, "timeframe": "1Day", "start": start, "end": end,
             "adjustment": "all", "feed": "iex", "limit": 10000,
-        })
-        bars = raw.get("bars", {}).get(symbol, [])
+        }
+        bars = [item for page in self._stock_bar_pages("/v2/stocks/bars", params)
+                for item in page.get("bars", {}).get(symbol, [])]
         return [{"timestamp": item["t"], "open": float(item["o"]), "high": float(item["h"]),
                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
                 for item in bars]
 
     def get_intraday_bars(self, symbol: str, start: str, end: str, *, timeframe: str = "5Min") -> list[dict]:
         """Read-only intraday research bars; never used to submit an order."""
-        raw = self._request("GET", f"/v2/stocks/{symbol.upper()}/bars", data_api=True, params={
+        params = {
             "timeframe": timeframe, "start": start, "end": end, "adjustment": "all", "feed": "iex", "limit": 10000,
-        })
+        }
+        bars = [item for page in self._stock_bar_pages(f"/v2/stocks/{symbol.upper()}/bars", params)
+                for item in page.get("bars", [])]
         return [{"timestamp": item["t"], "open": float(item["o"]), "high": float(item["h"]),
                  "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
-                for item in raw.get("bars", [])]
+                for item in bars]
+
+    def _stock_bar_pages(self, path: str, params: dict):
+        """Consume every page; Alpaca may return fewer rows than `limit`."""
+        token = None
+        seen = set()
+        for _ in range(100):
+            query = {**params, **({"page_token": token} if token else {})}
+            raw = self._request("GET", path, data_api=True, params=query)
+            yield raw
+            token = raw.get("next_page_token")
+            if not token:
+                return
+            if token in seen:
+                raise AlpacaBrokerError("Alpaca returned a repeated stock-bars page token")
+            seen.add(token)
+        raise AlpacaBrokerError("Alpaca stock-bars pagination exceeded safety bound")
 
     def get_daily_bars_many(self, symbols: list[str], start: str, end: str) -> dict[str, list[dict]]:
         """Fetch daily bars for a bounded research batch in one data request.
@@ -178,14 +197,19 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         clean = list(dict.fromkeys(symbol.upper() for symbol in symbols if symbol))
         if not clean:
             return {}
-        raw = self._request("GET", "/v2/stocks/bars", data_api=True, params={
+        params = {
             "symbols": ",".join(clean), "timeframe": "1Day", "start": start, "end": end,
             "adjustment": "all", "feed": "iex", "limit": 10000,
-        })
+        }
+        bars = {symbol: [] for symbol in clean}
+        for page in self._stock_bar_pages("/v2/stocks/bars", params):
+            for symbol, rows in page.get("bars", {}).items():
+                if symbol in bars:
+                    bars[symbol].extend(rows)
         return {symbol: [{"timestamp": item["t"], "open": float(item["o"]),
-                          "high": float(item["h"]), "low": float(item["l"]),
-                          "close": float(item["c"]), "volume": float(item["v"])}
-                         for item in raw.get("bars", {}).get(symbol, [])]
+                         "high": float(item["h"]), "low": float(item["l"]),
+                         "close": float(item["c"]), "volume": float(item["v"])}
+                         for item in bars[symbol]]
                 for symbol in clean}
 
     def get_option_chain(self, underlying_symbol: str, *, limit: int = 100,
