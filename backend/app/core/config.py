@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     # A separate, default-off gate for an external broker's simulated account.
     # It is never equivalent to LIVE_TRADING_ENABLED.
     ALPACA_PAPER_EXECUTION_ENABLED: bool = False
+    # Broker-specific live gates. Building a transport never enables a worker.
+    ROBINHOOD_EQUITY_EXECUTION_ENABLED: bool = False
+    ROBINHOOD_CRYPTO_EXECUTION_ENABLED: bool = False
 
     # --- Capital ---
     STARTING_CAPITAL: float = 100.0

@@ -16,9 +16,10 @@ from app.brokers.robinhood_mcp import RobinhoodMcpDiscoveryClient, RobinhoodMcpE
 class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
     """Maps only documented read tools from the authenticated Trading MCP."""
 
-    def __init__(self, access_token: str, designated_account_id: str):
+    def __init__(self, access_token: str, designated_account_id: str, crypto_account_id: str | None = None):
         self._client = RobinhoodMcpDiscoveryClient(access_token)
         self.designated_account_id = designated_account_id
+        self.crypto_account_id = crypto_account_id
         self._authenticated = False
 
     def _tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -117,7 +118,7 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
 
     def get_crypto_positions(self) -> list[dict]:
         rows = self._tool("get_crypto_positions", {
-            "rhs_account_number": self.designated_account_id,
+            "rhs_account_number": self._crypto_account(),
         }).get("results")
         if not isinstance(rows, list):
             raise RobinhoodMcpError("Robinhood returned malformed crypto positions")
@@ -125,7 +126,7 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
 
     def get_crypto_orders(self) -> list[dict]:
         rows = self._tool("get_crypto_orders", {
-            "rhs_account_number": self.designated_account_id, "state_group": "open",
+            "rhs_account_number": self._crypto_account(), "state_group": "open",
         }).get("results")
         if not isinstance(rows, list):
             raise RobinhoodMcpError("Robinhood returned malformed crypto orders")
@@ -136,7 +137,7 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
         if not symbols:
             raise RobinhoodMcpError("Crypto quote symbols are required")
         rows = self._tool("get_crypto_quotes", {
-            "rhs_account_number": self.designated_account_id,
+            "rhs_account_number": self._crypto_account(),
             "symbols": symbols, "timezone": "America/New_York",
         }).get("results")
         if not isinstance(rows, list):
@@ -171,6 +172,11 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
             raise RobinhoodMcpError("Robinhood omitted a requested crypto quote")
         return quotes
 
+    def _crypto_account(self) -> str:
+        if not self.crypto_account_id:
+            raise RobinhoodMcpError("Agentic crypto account identifier is unavailable")
+        return self.crypto_account_id
+
     def preview_order(self, order: OrderRequest) -> dict:
         raise RobinhoodMcpError("Order preview is disabled until live readiness is verified")
 
@@ -198,6 +204,7 @@ def load_agentic_read_only_adapter(db, encryption_key: str) -> tuple[RobinhoodMc
     if len(matches) != 1:
         raise RobinhoodMcpError("Expected exactly one active Agentic account")
     adapter.designated_account_id = str(matches[0]["account_id"])
+    adapter.crypto_account_id = str(matches[0].get("rhs_account_number") or "")
     return adapter, matches[0]
 
 

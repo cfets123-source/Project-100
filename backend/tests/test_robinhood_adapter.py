@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 
 def adapter(monkeypatch):
-    a = RobinhoodMcpReadOnlyAdapter('token', 'agentic-1')
+    a = RobinhoodMcpReadOnlyAdapter('token', 'agentic-1', 'crypto-1')
     data = {
         'get_accounts': {'accounts': [{'account_number': 'agentic-1', 'agentic_allowed': True, 'type': 'limited_margin'}]},
         'get_portfolio': {'cash': '100.00', 'total_value': '100.00', 'buying_power': {'buying_power': '100.00'}},
@@ -89,4 +89,4 @@ def test_crypto_reads_use_only_designated_agentic_account(monkeypatch):
     monkeypatch.setattr(a, '_tool', tool)
     assert a.get_crypto_positions() == []
     assert a.get_crypto_orders() == []
-    assert all(arguments['rhs_account_number'] == 'agentic-1' for _, arguments in calls)
+    assert all(arguments['rhs_account_number'] == 'crypto-1' for _, arguments in calls)
