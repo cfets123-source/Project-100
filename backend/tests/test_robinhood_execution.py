@@ -67,6 +67,26 @@ def test_invalid_orders_and_cancel_ownership_fail_closed(monkeypatch):
                for name, _ in calls)
 
 
+def test_stop_orders_are_gtc_and_require_a_trigger(monkeypatch):
+    client, calls = transport(monkeypatch, allow_equity=True, allow_crypto=True)
+    ref = str(uuid4())
+    client.preview_equity(symbol="F", side="sell", quantity="1",
+                          order_type="stop_market", stop_price="10")
+    client.submit_crypto(ref_id=ref, symbol="BTCUSD", side="sell", quantity="0.001",
+                         order_type="stop_loss", stop_price="100000")
+    assert calls[0][1]["type"] == "stop_market"
+    assert calls[0][1]["time_in_force"] == "gtc"
+    assert calls[0][1]["stop_price"] == "10"
+    assert calls[1][1]["type"] == "stop_loss"
+    assert calls[1][1]["time_in_force"] == "gtc"
+    with pytest.raises(RobinhoodMcpError, match="Invalid stop price"):
+        client.preview_crypto(symbol="BTCUSD", side="sell", quantity="0.001",
+                              order_type="stop_loss")
+    with pytest.raises(RobinhoodMcpError, match="Fractional"):
+        client.preview_equity(symbol="F", side="sell", quantity="0.5",
+                              order_type="stop_market", stop_price="10")
+
+
 def test_factory_requires_live_and_separate_broker_gates(monkeypatch):
     from app.brokers.robinhood_execution import load_agentic_order_transport
     from app.core.config import Settings, TradingMode, AutonomyLevel

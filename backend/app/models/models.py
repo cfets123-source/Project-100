@@ -257,6 +257,25 @@ class ExternalLiveProtection(Base):
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
+class RobinhoodTradeLifecycle(Base):
+    """Broker-linked entry and stop for one Agentic account trade."""
+    __tablename__ = "robinhood_trade_lifecycles"
+    trade_id = Column(String, primary_key=True)
+    account_id = Column(String, nullable=False, index=True)
+    asset_class = Column(String, nullable=False)
+    symbol = Column(String, nullable=False, index=True)
+    quantity = Column(Float, nullable=False)
+    stop_price = Column(Float, nullable=False)
+    entry_order_id = Column(String, nullable=False, unique=True)
+    stop_ref_id = Column(String, nullable=False, unique=True)
+    stop_order_id = Column(String, nullable=True, unique=True)
+    status = Column(String, nullable=False, default="entry_pending")
+    last_error = Column(String, nullable=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow,
+                        nullable=False)
+
+
 class ExternalLiveExit(Base):
     """Idempotent live target-exit request tied to one original entry."""
     __tablename__ = "external_live_exits"

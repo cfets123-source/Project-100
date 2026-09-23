@@ -41,37 +41,48 @@ class RobinhoodOrderTransport:
         self.allow_crypto = allow_crypto
 
     def equity_arguments(self, *, symbol: str, side: str, quantity: object,
-                         order_type: str = "market", limit_price: object | None = None) -> dict:
+                         order_type: str = "market", limit_price: object | None = None,
+                         stop_price: object | None = None) -> dict:
         if not symbol or not symbol.isalnum() or len(symbol) > 8:
             raise RobinhoodMcpError("Invalid equity symbol")
-        if side not in {"buy", "sell"} or order_type not in {"market", "limit"}:
+        if side not in {"buy", "sell"} or order_type not in {"market", "limit", "stop_market", "stop_limit"}:
             raise RobinhoodMcpError("Unsupported equity order")
         args = {"account_number": self.adapter.designated_account_id,
                 "symbol": symbol.upper(), "side": side, "type": order_type,
-                "quantity": _positive(quantity, "quantity"), "time_in_force": "gfd",
+                "quantity": _positive(quantity, "quantity"),
+                "time_in_force": "gtc" if order_type.startswith("stop_") else "gfd",
                 "market_hours": "regular_hours"}
-        if order_type == "limit":
+        if order_type in {"limit", "stop_limit"}:
             args["limit_price"] = _positive(limit_price, "limit price")
         elif limit_price is not None:
             raise RobinhoodMcpError("Market order cannot include a limit price")
+        if order_type.startswith("stop_"):
+            args["stop_price"] = _positive(stop_price, "stop price")
+        elif stop_price is not None:
+            raise RobinhoodMcpError("Non-stop order cannot include a stop price")
         if order_type != "market" and Decimal(args["quantity"]) % 1:
             raise RobinhoodMcpError("Fractional equity orders require market type")
         return args
 
     def crypto_arguments(self, *, symbol: str, side: str, quantity: object,
-                         order_type: str = "market", limit_price: object | None = None) -> dict:
+                         order_type: str = "market", limit_price: object | None = None,
+                         stop_price: object | None = None) -> dict:
         rhs = self.adapter._crypto_account()
         if not symbol or not symbol.upper().endswith("USD") or not symbol.replace("-", "").isalnum():
             raise RobinhoodMcpError("Invalid crypto pair")
-        if side not in {"buy", "sell"} or order_type not in {"market", "limit"}:
+        if side not in {"buy", "sell"} or order_type not in {"market", "limit", "stop_loss", "stop_limit"}:
             raise RobinhoodMcpError("Unsupported crypto order")
         args = {"rhs_account_number": rhs, "symbol": symbol.upper().replace("-", ""),
                 "side": side, "type": order_type, "quantity": _positive(quantity, "quantity"),
                 "time_in_force": "gtc"}
-        if order_type == "limit":
+        if order_type in {"limit", "stop_limit"}:
             args["limit_price"] = _positive(limit_price, "limit price")
         elif limit_price is not None:
             raise RobinhoodMcpError("Market order cannot include a limit price")
+        if order_type in {"stop_loss", "stop_limit"}:
+            args["stop_price"] = _positive(stop_price, "stop price")
+        elif stop_price is not None:
+            raise RobinhoodMcpError("Non-stop order cannot include a stop price")
         return args
 
     def preview_equity(self, **order) -> dict:
@@ -109,6 +120,34 @@ class RobinhoodOrderTransport:
         self._owned_order("get_crypto_orders", "results", "rhs_account_number", rhs, order_id)
         return self.adapter._tool("cancel_crypto_order", {
             "rhs_account_number": rhs, "order_id": order_id})
+
+    def get_equity_order(self, order_id: str) -> dict:
+        return self._owned_order("get_equity_orders", "orders", "account_number",
+                                 self.adapter.designated_account_id, order_id)
+
+    def get_crypto_order(self, order_id: str) -> dict:
+        return self._owned_order("get_crypto_orders", "results", "rhs_account_number",
+                                 self.adapter._crypto_account(), order_id)
+
+    def find_order_by_ref(self, asset_class: str, ref_id: str) -> dict | None:
+        """Resolve an uncertain submission by the broker idempotency reference."""
+        ref = _ref_id(ref_id)
+        if asset_class == "equity":
+            tool, key, args = "get_equity_orders", "orders", {
+                "account_number": self.adapter.designated_account_id}
+        elif asset_class == "crypto":
+            tool, key, args = "get_crypto_orders", "results", {
+                "rhs_account_number": self.adapter._crypto_account()}
+        else:
+            raise RobinhoodMcpError("Unsupported asset class")
+        rows = self.adapter._tool(tool, args).get(key)
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Broker order history is unavailable")
+        matches = [row for row in rows if isinstance(row, dict)
+                   and str(row.get("ref_id") or row.get("client_order_id") or "") == ref]
+        if len(matches) > 1:
+            raise RobinhoodMcpError("Duplicate broker reference in order history")
+        return matches[0] if matches else None
 
     def _owned_order(self, tool: str, rows_key: str, account_key: str,
                      account_id: str, order_id: str) -> dict:
