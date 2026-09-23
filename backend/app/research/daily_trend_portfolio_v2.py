@@ -36,18 +36,19 @@ class PortfolioResult:
 
 
 def evaluate(data: dict[str, list[dict]], *, split: str,
-             risk_per_trade: float = 0.01) -> PortfolioResult:
+             risk_per_trade: float = 0.01,
+             universe: tuple[str, ...] = UNIVERSE) -> PortfolioResult:
     if not 0 < risk_per_trade <= 0.03:
         raise ValueError("risk_per_trade must be between 0 and 3%")
     position_fraction = min(MAX_POSITION_FRACTION, risk_per_trade / STOP_LOSS)
-    if not data or set(data) != set(UNIVERSE):
-        raise ValueError("exact broad universe required")
+    if not data or set(data) != set(universe):
+        raise ValueError("exact specified universe required")
     indexed = {symbol: {str(row["timestamp"]): row for row in bars}
                for symbol, bars in data.items()}
     dates = sorted(set.intersection(*(set(bars) for bars in indexed.values())))
     if len(dates) <= WARMUP_BARS + 2:
         return PortfolioResult([], [], 0)
-    series = {symbol: [indexed[symbol][day] for day in dates] for symbol in UNIVERSE}
+    series = {symbol: [indexed[symbol][day] for day in dates] for symbol in universe}
     cash = equity = 1.0
     # symbol -> entry, shares, principal, entry date
     positions: dict[str, tuple[float, float, float, str]] = {}
@@ -97,7 +98,7 @@ def evaluate(data: dict[str, list[dict]], *, split: str,
         if index >= len(dates) - 1 or day < split:
             continue
         candidates: list[tuple[float, str]] = []
-        for symbol in UNIVERSE:
+        for symbol in universe:
             if symbol in positions:
                 continue
             rows = series[symbol]

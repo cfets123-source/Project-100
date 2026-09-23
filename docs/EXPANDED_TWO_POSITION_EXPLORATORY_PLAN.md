@@ -1,0 +1,5 @@
+# Expanded two-position daily portfolio: exploratory comparison
+
+Before fetching this comparison, fix the portfolio evaluator to its existing next-open entry, 3% stop, 6% target, 0.1% round-trip cost, two simultaneous positions, shared cash, and maximum 50% allocation per position. Use exactly the 79 symbols of `daily-trend-pullback-expanded-equity-etf-v1`, with all paginated Alpaca IEX adjusted daily bars from January 1, 2023 through September 22, 2026, and a January 1, 2025 return split. Compare fixed 0.5%, 1%, and 2% nominal risk per entry. Report completed trades, compounded portfolio return, and maximum drawdown for each case.
+
+This period was already inspected for the one-position strategy. These scenarios are therefore exploratory, not independent validation of a two-position strategy. Even an attractive result would require a new exact-version paper worker, full broker lifecycle, and forward evidence before live capital. No risk setting will be selected from this comparison and called an untouched holdout winner.

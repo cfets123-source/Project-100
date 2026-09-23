@@ -41,3 +41,13 @@ def test_gap_below_stop_uses_open_not_optimistic_stop_fill():
     assert len(result.trades) == 1
     assert result.trades[0].exit_reason == "stop"
     assert result.trades[0].raw_return == pytest.approx(-.101)
+
+
+def test_expanded_research_requires_exact_requested_universe():
+    dates = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(55)]
+    rows = [{"timestamp": day, "open": 100, "high": 100,
+             "low": 100, "close": 100, "volume": 1000} for day in dates]
+    data = {"SPY": rows, "AAPL": rows}
+    assert evaluate(data, split=dates[50], universe=("SPY", "AAPL")).trades == []
+    with pytest.raises(ValueError, match="exact specified universe"):
+        evaluate(data, split=dates[50], universe=("SPY", "AAPL", "MSFT"))
