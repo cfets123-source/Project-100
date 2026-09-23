@@ -6,7 +6,7 @@ broker state and updates our own records to match reality.
 """
 from sqlalchemy.orm import Session
 from app.db.transactions import persist
-from app.models.models import OrderIntent
+from app.models.models import OrderIntent, TradeDecisionRecord
 from app.brokers.base import BrokerAdapter
 from app.audit.logger import log_and_commit
 
@@ -35,6 +35,10 @@ def reconcile_intent(db: Session, broker: BrokerAdapter, intent: OrderIntent) ->
     if broker_status == "filled" or filled_qty >= intent.quantity:
         intent.status = "filled"
         intent.quantity_filled = intent.quantity
+        if fill_price is not None and intent.trade_id:
+            trade = db.get(TradeDecisionRecord, intent.trade_id)
+            if trade is not None and trade.fill_price is None:
+                trade.fill_price = float(fill_price)
     elif broker_status in ("partial", "partially_filled") or (0 < filled_qty < intent.quantity):
         intent.status = "partial"
         intent.quantity_filled = filled_qty

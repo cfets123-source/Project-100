@@ -275,5 +275,9 @@ class ExecutionGateway:
             "status": result.status,
         })
 
-        return GatewayResult(submitted=result.status == "filled", reason=result.status,
+        # A broker-accepted pending order was submitted even if it has not
+        # filled yet. The worker must not rescan and re-attempt that day.
+        accepted_statuses = {"new", "pending_new", "accepted", "pending", "open",
+                             "partially_filled", "partial", "filled"}
+        return GatewayResult(submitted=result.status in accepted_statuses, reason=result.status,
                               trade_id=rec.trade_id, order_id=result.order_id, risk_decision=decision)

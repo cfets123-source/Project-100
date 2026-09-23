@@ -112,9 +112,16 @@ def test_account_scoped_reconciliation_never_queries_another_broker_account(db):
 
 def test_alpaca_string_fill_quantity_and_price_are_reconciled(db):
     intent = make_intent(db, quantity=0.263462957, status="pending_new")
+    trade = models.TradeDecisionRecord(symbol="TST", strategy="test", direction="long",
+                                       entry_price=126.0, status="open")
+    db.add(trade)
+    db.commit()
+    intent.trade_id = trade.trade_id
+    db.commit()
     broker = MagicMock()
     broker.get_order_status.return_value = {"status": "filled", "filled_qty": "0.263462957",
                                             "filled_avg_price": "126.554"}
 
     assert reconcile_intent(db, broker, intent) == "filled"
     assert intent.quantity_filled == 0.263462957
+    assert trade.fill_price == 126.554
