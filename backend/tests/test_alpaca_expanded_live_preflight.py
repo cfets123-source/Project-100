@@ -36,10 +36,12 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
         paper, live = MagicMock(), MagicMock()
         paper.get_positions.return_value = [{"symbol": "CVX", "qty": ".2"}]
         paper.get_orders.return_value = [{"id": "stop-1", "status": "accepted"}]
+        paper.get_account_capabilities.return_value = {"status": "ACTIVE"}
         live.get_positions.return_value = []
         live.get_orders.return_value = []
+        live.get_account_capabilities.return_value = {"status": "ACTIVE"}
         with patch("app.runtime.alpaca_expanded_live_preflight.load_read_only_adapter",
-                   side_effect=[(paper, True), (live, False)] * 3):
+                   side_effect=[(paper, True), (live, False)] * 4):
             cfg = SimpleNamespace(BROKER_TOKEN_ENCRYPTION_KEY="test")
             pending = report(db, cfg)
             assert not pending["ready"]
@@ -49,7 +51,8 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
             paper.get_positions.return_value = []
             paper.get_orders.return_value = [
                 {"id": "stop-1", "status": "canceled"},
-                {"id": "exit-1", "status": "filled", "filled_qty": ".2"},
+                {"id": "exit-1", "status": "filled", "filled_qty": ".2",
+                 "filled_avg_price": "207"},
             ]
             trade.status = "closed"
             trade.exit_price = 207
@@ -68,3 +71,9 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
             assert ready["ready"] is True
             assert ready["paper_lifecycle"]["exit_order_id"] == "exit-1"
             assert ready["order_submission"] is False
+
+            live.get_account_capabilities.return_value = {
+                "status": "ACTIVE", "trade_suspended_by_user": True,
+            }
+            blocked = report(db, cfg)
+            assert "live broker account does not permit orders" in blocked["blockers"]

@@ -101,6 +101,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         return {
             "status": account.get("status"),
             "trading_blocked": bool(account.get("trading_blocked")),
+            "trade_suspended_by_user": bool(account.get("trade_suspended_by_user")),
             "account_blocked": bool(account.get("account_blocked")),
             "crypto_status": account.get("crypto_status"),
             "options_approved_level": account.get("options_approved_level"),

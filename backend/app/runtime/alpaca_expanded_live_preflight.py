@@ -36,6 +36,13 @@ def report(db, cfg) -> dict:
     live, live_is_paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
     if not is_paper or live_is_paper:
         blockers.append("paper and live credentials are not isolated")
+    for label, adapter in (("paper", paper), ("live", live)):
+        capabilities = adapter.get_account_capabilities()
+        if capabilities.get("status") != "ACTIVE" or any(
+            capabilities.get(flag) for flag in
+            ("trading_blocked", "trade_suspended_by_user", "account_blocked")
+        ):
+            blockers.append(f"{label} broker account does not permit orders")
     paper_positions, live_positions = paper.get_positions(), live.get_positions()
     paper_orders, live_orders = paper.get_orders(), live.get_orders()
     if any(float(p.get("qty") or 0) != 0 for p in paper_positions):
@@ -67,7 +74,9 @@ def report(db, cfg) -> dict:
             RiskReservation.status == "active").first() for intent in intents)
         if not (protection and stop and str(stop.get("status")) in TERMINAL_STOP):
             blockers.append("exact paper protective stop is not terminal")
-        if not (exit_order and str(exit_order.get("status")) == "filled"):
+        if not (exit_order and str(exit_order.get("status")) == "filled"
+                and float(exit_order.get("filled_qty") or 0) > 0
+                and float(exit_order.get("filled_avg_price") or 0) > 0):
             blockers.append("paper exit fill is not verified")
         if not (analysis.get("broker_reconciled") is True and trade.fill_price is not None
                 and trade.exit_price is not None and trade.pnl is not None):
