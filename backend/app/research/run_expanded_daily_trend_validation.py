@@ -39,7 +39,7 @@ def main() -> int:
         adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, paper=True)
         if not paper:
             raise RuntimeError("research requires the paper/read-only data credential")
-        data = {symbol: adapter.get_daily_bars(symbol, args.start, args.end) for symbol in UNIVERSE}
+        data = adapter.get_daily_bars_many(list(UNIVERSE), args.start, args.end)
         trades = evaluate(data, split=args.split)
         result = assess_out_of_sample([trade.applied_return for trade in trades])
         record_validation(db, strategy=STRATEGY_VERSION, result=result,
