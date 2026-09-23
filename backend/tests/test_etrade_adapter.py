@@ -48,3 +48,26 @@ def test_no_access_token_fails_before_network():
         assert "incomplete" in str(exc)
     else:
         raise AssertionError("unauthorized E*TRADE read succeeded")
+
+
+def test_option_chain_preserves_delayed_feed_and_quotes_without_trading():
+    def handler(request):
+        assert request.method == "GET"
+        assert request.url.path == "/v1/market/optionchains"
+        assert request.url.params["symbol"] == "SPY"
+        assert request.url.params["expiryYear"] == "2026"
+        return httpx.Response(200, text="""<OptionChainResponse>
+            <OptionPair><Call><osiKey>SPY260925C00660000</osiKey>
+            <strikePrice>660</strikePrice><bid>0.42</bid><ask>0.45</ask>
+            <bidSize>20</bidSize><askSize>15</askSize><volume>400</volume>
+            <openInterest>2100</openInterest><timeStamp>1790366400</timeStamp>
+            <adjustedFlag>false</adjustedFlag></Call></OptionPair>
+            <timeStamp>1790366400</timeStamp><quoteType>DELAYED</quoteType>
+            </OptionChainResponse>""")
+    reader = ETradeReadOnlyAdapter("key", "secret", access_token="token",
+        access_secret="secret", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    chain = reader.option_chain("SPY", expiry_year=2026, expiry_month=9, expiry_day=25)
+    assert chain["quote_type"] == "DELAYED"
+    assert chain["contracts"][0]["ask"] == "0.45"
+    assert chain["contracts"][0]["osi_key"] == "SPY260925C00660000"
+    assert not hasattr(reader, "place_order")

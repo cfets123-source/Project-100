@@ -448,6 +448,22 @@ def etrade_accounts(db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.get("/brokers/etrade/options/chain", dependencies=[Depends(require_dashboard_access)])
+def etrade_option_chain(symbol: str = Query(min_length=1, max_length=10),
+                        year: int = Query(ge=2020, le=2100),
+                        month: int = Query(ge=1, le=12),
+                        day: int = Query(ge=1, le=31),
+                        db: Session = Depends(get_db)):
+    """Inspect account-authorized option quotes without inferring trading readiness."""
+    try:
+        adapter = etrade_connection.reader(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        chain = adapter.option_chain(symbol, expiry_year=year, expiry_month=month,
+                                     expiry_day=day)
+        return {**chain, "execution_enabled": False}
+    except ETradeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.get("/brokers/robinhood/status", dependencies=[Depends(require_dashboard_access)])
 def robinhood_status(db: Session = Depends(get_db)):
     """Connection state without exposing credentials or account data."""

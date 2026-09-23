@@ -1,7 +1,10 @@
 # Connect a personal E*TRADE account
 
 Veloikos has a read-only E*TRADE OAuth 1.0a connection. It reads brokerage
-accounts, balances, and a quote. It cannot submit or cancel orders. E*TRADE
+accounts, balances, stock quotes, and option chains. After authorization, a
+chain is available at `/brokers/etrade/options/chain?symbol=SPY&year=2026&month=9&day=25`.
+The response includes the broker's `quote_type`: a `DELAYED` response must not
+be used as an executable price. It cannot submit or cancel orders. E*TRADE
 account access does not add any asset class to live execution.
 
 1. From your E*TRADE login, complete the [Individual live API key application](https://developer.etrade.com/getting-started), including the API User Intent Survey and Developer Agreement. Complete the Market Data Agreement for quote access. Use an individual key for your own account.

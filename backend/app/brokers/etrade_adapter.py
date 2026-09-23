@@ -10,7 +10,7 @@ import hashlib
 import hmac
 import secrets
 import time
-from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 import httpx
@@ -143,3 +143,34 @@ class ETradeReadOnlyAdapter:
                 "timestamp": item.findtext("dateTimeUTC"),
                 "bid": item.findtext(".//All/bid"), "ask": item.findtext(".//All/ask"),
                 "last": item.findtext(".//All/lastTrade")}
+
+    def option_chain(self, symbol: str, *, expiry_year: int, expiry_month: int,
+                     expiry_day: int, strikes: int = 20) -> dict:
+        """Read executable-price candidates; preserve the broker's quote-type label."""
+        if not symbol or len(symbol) > 10 or not symbol.replace(".", "").isalnum():
+            raise ETradeError("E*TRADE option underlying is invalid")
+        if not (2020 <= expiry_year <= 2100 and 1 <= expiry_month <= 12
+                and 1 <= expiry_day <= 31 and 1 <= strikes <= 50):
+            raise ETradeError("E*TRADE option-chain parameters are invalid")
+        params = urlencode({"symbol": symbol.upper(), "expiryYear": expiry_year,
+                            "expiryMonth": expiry_month, "expiryDay": expiry_day,
+                            "noOfStrikes": strikes, "chainType": "CALLPUT",
+                            "skipAdjusted": "true", "includeWeekly": "true"})
+        root = self._api("/v1/market/optionchains?" + params)
+        contracts = []
+        for pair in root.findall(".//OptionPair"):
+            for side in ("Call", "Put"):
+                item = pair.find(side)
+                if item is None:
+                    continue
+                contracts.append({"side": side.upper(), "osi_key": item.findtext("osiKey"),
+                                  "strike": item.findtext("strikePrice"),
+                                  "bid": item.findtext("bid"), "ask": item.findtext("ask"),
+                                  "bid_size": item.findtext("bidSize"),
+                                  "ask_size": item.findtext("askSize"),
+                                  "volume": item.findtext("volume"),
+                                  "open_interest": item.findtext("openInterest"),
+                                  "timestamp": item.findtext("timeStamp"),
+                                  "adjusted": item.findtext("adjustedFlag")})
+        return {"underlying": symbol.upper(), "quote_type": root.findtext("quoteType"),
+                "timestamp": root.findtext("timeStamp"), "contracts": contracts}
