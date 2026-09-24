@@ -1,6 +1,6 @@
 import uuid
 import datetime as dt
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, JSON, event
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, JSON, UniqueConstraint, event
 from app.db.session import Base
 
 
@@ -292,6 +292,28 @@ class RobinhoodOptionLifecycle(Base):
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow,
                         nullable=False)
+
+
+class RobinhoodOptionQuoteObservation(Base):
+    """Broker bid/ask observation for forward option research; never an order."""
+    __tablename__ = "robinhood_option_quote_observations"
+    __table_args__ = (UniqueConstraint("option_id", "broker_as_of"),)
+    id = Column(String, primary_key=True, default=gen_id)
+    option_id = Column(String, nullable=False, index=True)
+    symbol = Column(String, nullable=False, index=True)
+    expiration = Column(String, nullable=False)
+    option_type = Column(String, nullable=False)
+    strike = Column(Float, nullable=False)
+    multiplier = Column(Float, nullable=False)
+    bid = Column(Float, nullable=False)
+    ask = Column(Float, nullable=False)
+    bid_size = Column(Integer, nullable=True)
+    ask_size = Column(Integer, nullable=True)
+    volume = Column(Integer, nullable=True)
+    open_interest = Column(Integer, nullable=True)
+    quality_reason = Column(String, nullable=False)
+    broker_as_of = Column(String, nullable=False)
+    observed_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
 class RobinhoodEmergencyExit(Base):

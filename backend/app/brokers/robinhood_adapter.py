@@ -246,10 +246,27 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
                            "expiration": contract.get("expiration_date"), "type": contract.get("type"),
                            "strike": contract.get("strike_price"), "multiplier": multiplier,
                            "bid": bid, "ask": ask, "one_contract_ask_cost": round(ask * multiplier, 2),
+                           "bid_size": raw.get("bid_size"), "ask_size": raw.get("ask_size"),
+                           "volume": raw.get("volume"), "open_interest": raw.get("open_interest"),
                            "spread_pct": spread, "as_of": raw["updated_at"],
                            "age_seconds": max(0, age), "quality_reason": reason,
                            "quote_current": reason == "current", "execution_enabled": False})
         return output
+
+    def get_option_instruments_by_ids(self, option_ids: list[str]) -> list[dict]:
+        """Resolve a small, fixed research watchlist without discovering new trades."""
+        if not option_ids or len(option_ids) > 20 or len(set(option_ids)) != len(option_ids):
+            raise RobinhoodMcpError("Option research needs 1 to 20 distinct contracts")
+        if any(not re.fullmatch(r"[0-9a-fA-F-]{36}", value) for value in option_ids):
+            raise RobinhoodMcpError("Invalid option research contract ID")
+        result = self._tool("get_option_instruments", {"ids": ",".join(option_ids)})
+        rows = result.get("instruments")
+        if result.get("next") or not isinstance(rows, list) or len(rows) != len(option_ids):
+            raise RobinhoodMcpError("Incomplete option research contracts")
+        by_id = {row.get("id"): row for row in rows if isinstance(row, dict)}
+        if set(by_id) != set(option_ids):
+            raise RobinhoodMcpError("Option research contract mismatch")
+        return [by_id[option_id] for option_id in option_ids]
 
     def _crypto_account(self) -> str:
         if not self.crypto_account_id:
