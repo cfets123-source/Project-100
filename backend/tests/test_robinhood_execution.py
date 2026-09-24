@@ -13,6 +13,9 @@ def transport(monkeypatch, **flags):
 
     def tool(name, args=None):
         calls.append((name, args))
+        if name == "get_accounts":
+            return {"accounts": [{"account_number": "equity-6395", "agentic_allowed": True,
+                                  "state": "active", "option_level": "option_level_2"}]}
         if name == "get_equity_orders":
             return {"orders": [{"id": "owned", "account_number": "equity-6395"}]}
         if name == "get_crypto_orders":
@@ -36,6 +39,34 @@ def test_default_off_previews_without_mutating(monkeypatch):
     with pytest.raises(RobinhoodMcpError, match="disabled"):
         client.submit_crypto(ref_id=str(uuid4()), symbol="BTCUSD", side="buy", quantity="0.001")
     assert len(calls) == 2
+
+
+def test_level_two_option_review_builds_single_leg_limit_without_order(monkeypatch):
+    client, calls = transport(monkeypatch)
+    option_id = str(uuid4())
+    contract = {"id": option_id, "chain_symbol": "SPY", "underlying_type": "equity",
+                "state": "active", "tradability": "tradable"}
+    client.preview_long_option(contract=contract, quantity=1, side="buy", limit_price="0.29")
+    assert calls[-1] == ("review_option_order", {
+        "account_number": "equity-6395", "chain_symbol": "SPY", "underlying_type": "equity",
+        "legs": [{"option_id": option_id, "side": "buy", "position_effect": "open"}],
+        "quantity": "1", "type": "limit", "price": "0.29",
+        "time_in_force": "gfd", "market_hours": "regular_hours"})
+    assert all(name != "place_option_order" for name, _ in calls)
+
+
+def test_option_review_rejects_fractional_and_unapproved_accounts(monkeypatch):
+    client, calls = transport(monkeypatch)
+    contract = {"id": str(uuid4()), "chain_symbol": "SPY", "underlying_type": "equity",
+                "state": "active", "tradability": "tradable"}
+    with pytest.raises(RobinhoodMcpError, match="whole contracts"):
+        client.preview_long_option(contract=contract, quantity="0.5", side="buy", limit_price="0.29")
+    monkeypatch.setattr(client.adapter, "_tool", lambda name, args=None: {
+        "accounts": [{"account_number": "equity-6395", "agentic_allowed": True,
+                      "state": "active", "option_level": "option_level_0"}]})
+    with pytest.raises(RobinhoodMcpError, match="not approved"):
+        client.preview_long_option(contract=contract, quantity=1, side="buy", limit_price="0.29")
+    assert all(name != "place_option_order" for name, _ in calls)
 
 
 def test_enabled_transport_uses_stable_uuid_and_correct_account(monkeypatch):

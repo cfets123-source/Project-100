@@ -91,6 +91,38 @@ class RobinhoodOrderTransport:
     def preview_crypto(self, **order) -> dict:
         return self.adapter._tool("preview_crypto_order", self.crypto_arguments(**order))
 
+    def long_option_review_arguments(self, *, contract: dict, quantity: object,
+                                     side: str, limit_price: object) -> dict:
+        """Build only a single-leg, bounded-price long-option review request."""
+        try:
+            option_id = str(UUID(str(contract["id"])))
+            count = Decimal(str(quantity))
+        except (KeyError, ValueError, TypeError, InvalidOperation) as exc:
+            raise RobinhoodMcpError("Invalid option contract or quantity") from exc
+        if not count.is_finite() or count <= 0 or count % 1 or side not in {"buy", "sell"}:
+            raise RobinhoodMcpError("Long-option review requires whole contracts and buy or sell")
+        if contract.get("state") != "active" or contract.get("tradability") != "tradable":
+            raise RobinhoodMcpError("Option contract is not active and tradable")
+        symbol = str(contract.get("chain_symbol") or "")
+        if not symbol.isalnum() or len(symbol) > 8 or contract.get("underlying_type") not in {"equity", "index"}:
+            raise RobinhoodMcpError("Invalid option underlying")
+        accounts = self.adapter.get_accounts()
+        matches = [a for a in accounts if a.get("account_id") == self.adapter.designated_account_id
+                   and a.get("agentic_allowed") is True and a.get("state") == "active"]
+        if len(matches) != 1 or (matches[0].get("user_option_level") or matches[0].get("option_level")) not in {
+                "option_level_2", "option_level_3"}:
+            raise RobinhoodMcpError("Agentic account is not approved for long options")
+        return {"account_number": self.adapter.designated_account_id,
+                "chain_symbol": symbol, "underlying_type": contract["underlying_type"],
+                "legs": [{"option_id": option_id, "side": side,
+                          "position_effect": "open" if side == "buy" else "close"}],
+                "quantity": str(int(count)), "type": "limit", "price": _positive(limit_price, "limit price"),
+                "time_in_force": "gfd", "market_hours": "regular_hours"}
+
+    def preview_long_option(self, **order) -> dict:
+        """Ask Robinhood for live pre-trade checks; never submit an order."""
+        return self.adapter._tool("review_option_order", self.long_option_review_arguments(**order))
+
     def submit_equity(self, *, ref_id: str, **order) -> dict:
         if not self.allow_equity:
             raise RobinhoodMcpError("Robinhood equity execution is disabled")
