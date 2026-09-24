@@ -69,6 +69,60 @@ def test_option_review_rejects_fractional_and_unapproved_accounts(monkeypatch):
     assert all(name != "place_option_order" for name, _ in calls)
 
 
+def test_option_reads_bind_exact_account_order_and_contract(monkeypatch):
+    client, calls = transport(monkeypatch)
+    option_id, order_id = str(uuid4()), str(uuid4())
+    order = {"id": order_id, "state": "confirmed", "legs": [
+        {"option_id": option_id, "side": "sell", "position_effect": "close"}]}
+    def tool(name, args=None):
+        calls.append((name, args))
+        if name == "get_option_orders":
+            return {"orders": [order], "next": None}
+        if name == "get_option_positions":
+            return {"positions": [{"option_id": option_id, "quantity": "1"}], "next": None}
+        raise AssertionError(name)
+    monkeypatch.setattr(client.adapter, "_tool", tool)
+    assert client.get_option_order(order_id, option_id) == order
+    assert client.get_option_position(option_id)["quantity"] == "1"
+    assert client.active_option_exit_orders(option_id) == [order]
+    assert all(args["account_number"] == "equity-6395" for _, args in calls)
+    assert all(name not in {"place_option_order", "cancel_option_order"} for name, _ in calls)
+
+
+def test_option_reads_fail_closed_on_mismatch_or_incomplete_history(monkeypatch):
+    client, _ = transport(monkeypatch)
+    option_id, other_id, order_id = str(uuid4()), str(uuid4()), str(uuid4())
+    monkeypatch.setattr(client.adapter, "_tool", lambda name, args=None: {
+        "orders": [{"id": order_id, "legs": [{"option_id": other_id}]}], "next": None})
+    with pytest.raises(RobinhoodMcpError, match="contract mismatch"):
+        client.get_option_order(order_id, option_id)
+    monkeypatch.setattr(client.adapter, "_tool", lambda name, args=None: {
+        "orders": [], "next": "more"})
+    with pytest.raises(RobinhoodMcpError, match="incomplete"):
+        client.active_option_exit_orders(option_id)
+    monkeypatch.setattr(client.adapter, "_tool", lambda name, args=None: {
+        "positions": [{"option_id": other_id, "quantity": "1"}], "next": None})
+    with pytest.raises(RobinhoodMcpError, match="contract mismatch"):
+        client.get_option_position(option_id)
+
+
+def test_option_submission_mapping_has_separate_default_off_gate(monkeypatch):
+    contract = {"id": str(uuid4()), "chain_symbol": "SPY", "underlying_type": "equity",
+                "state": "active", "tradability": "tradable"}
+    order = {"contract": contract, "quantity": 1, "side": "buy", "limit_price": "0.29"}
+    client, calls = transport(monkeypatch, allow_equity=True)
+    with pytest.raises(RobinhoodMcpError, match="options execution is disabled"):
+        client.submit_long_option(ref_id=str(uuid4()), **order)
+    assert not calls
+    client, calls = transport(monkeypatch, allow_options=True)
+    ref = str(uuid4())
+    client.submit_long_option(ref_id=ref, **order)
+    assert calls[-1] == ("place_option_order", {
+        "account_number": "equity-6395", "legs": [{"option_id": contract["id"],
+        "side": "buy", "position_effect": "open"}], "quantity": "1", "type": "limit",
+        "price": "0.29", "time_in_force": "gfd", "market_hours": "regular_hours", "ref_id": ref})
+
+
 def test_enabled_transport_uses_stable_uuid_and_correct_account(monkeypatch):
     client, calls = transport(monkeypatch, allow_equity=True, allow_crypto=True)
     ref = str(uuid4())
@@ -133,8 +187,14 @@ def test_factory_requires_live_and_separate_broker_gates(monkeypatch):
     client = load_agentic_order_transport(object(), "key", cfg)
     assert client.allow_equity is True
     assert client.allow_crypto is False
+    assert client.allow_options is False
+    cfg.ROBINHOOD_OPTIONS_EXECUTION_ENABLED = True
+    assert load_agentic_order_transport(object(), "key", cfg).allow_options is False
+    cfg.ALLOW_OPTIONS = True
+    assert load_agentic_order_transport(object(), "key", cfg).allow_options is True
     cfg.LIVE_TRADING_ENABLED = False
     assert load_agentic_order_transport(object(), "key", cfg).allow_equity is False
+    assert load_agentic_order_transport(object(), "key", cfg).allow_options is False
 
 
 def test_emergency_sell_scan_requires_broker_order_list(monkeypatch):

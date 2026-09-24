@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     # Broker-specific live gates. Building a transport never enables a worker.
     ROBINHOOD_EQUITY_EXECUTION_ENABLED: bool = False
     ROBINHOOD_CRYPTO_EXECUTION_ENABLED: bool = False
+    ROBINHOOD_OPTIONS_EXECUTION_ENABLED: bool = False
 
     # --- Capital ---
     STARTING_CAPITAL: float = 100.0

@@ -33,12 +33,13 @@ class RobinhoodOrderTransport:
     """Low-level broker mapping; no strategy or live authorization is implied."""
 
     def __init__(self, adapter: RobinhoodMcpReadOnlyAdapter, *, allow_equity: bool = False,
-                 allow_crypto: bool = False):
+                 allow_crypto: bool = False, allow_options: bool = False):
         if not adapter.designated_account_id:
             raise RobinhoodMcpError("Agentic equity account is unavailable")
         self.adapter = adapter
         self.allow_equity = allow_equity
         self.allow_crypto = allow_crypto
+        self.allow_options = allow_options
 
     def equity_arguments(self, *, symbol: str, side: str, quantity: object,
                          order_type: str = "market", limit_price: object | None = None,
@@ -122,6 +123,71 @@ class RobinhoodOrderTransport:
     def preview_long_option(self, **order) -> dict:
         """Ask Robinhood for live pre-trade checks; never submit an order."""
         return self.adapter._tool("review_option_order", self.long_option_review_arguments(**order))
+
+    def submit_long_option(self, *, ref_id: str, **order) -> dict:
+        """Map a reviewed single-leg request; no worker currently invokes this."""
+        if not self.allow_options:
+            raise RobinhoodMcpError("Robinhood options execution is disabled")
+        args = self.long_option_review_arguments(**order)
+        # Fee/collateral context belongs to the review call, not the order API.
+        args.pop("chain_symbol")
+        args.pop("underlying_type")
+        args["ref_id"] = _ref_id(ref_id)
+        return self.adapter._tool("place_option_order", args)
+
+    def get_option_order(self, order_id: str, option_id: str) -> dict:
+        """Read one account-bound, single-contract option order."""
+        order_id = _ref_id(order_id)
+        option_id = _ref_id(option_id)
+        data = self.adapter._tool("get_option_orders", {
+            "account_number": self.adapter.designated_account_id, "order_id": order_id})
+        rows = data.get("orders")
+        if data.get("next") or not isinstance(rows, list) or len(rows) != 1:
+            raise RobinhoodMcpError("Option order ownership could not be verified")
+        row = rows[0]
+        legs = row.get("legs") if isinstance(row, dict) else None
+        if (not isinstance(row, dict) or row.get("id") != order_id
+                or not isinstance(legs, list) or len(legs) != 1
+                or not isinstance(legs[0], dict) or legs[0].get("option_id") != option_id):
+            raise RobinhoodMcpError("Option order contract mismatch")
+        return row
+
+    def get_option_position(self, option_id: str) -> dict | None:
+        """Read exact contract exposure, refusing an incomplete broker page."""
+        option_id = _ref_id(option_id)
+        data = self.adapter._tool("get_option_positions", {
+            "account_number": self.adapter.designated_account_id,
+            "option_ids": option_id, "nonzero": True})
+        rows = data.get("positions")
+        if data.get("next") or not isinstance(rows, list):
+            raise RobinhoodMcpError("Option positions are incomplete")
+        if len(rows) > 1 or any(not isinstance(row, dict) or row.get("option_id") != option_id
+                                 for row in rows):
+            raise RobinhoodMcpError("Option position contract mismatch")
+        return rows[0] if rows else None
+
+    def active_option_exit_orders(self, option_id: str) -> list[dict]:
+        """Find working sells for an exact contract before any exit is planned."""
+        option_id = _ref_id(option_id)
+        data = self.adapter._tool("get_option_orders", {
+            "account_number": self.adapter.designated_account_id})
+        rows = data.get("orders")
+        if data.get("next") or not isinstance(rows, list):
+            raise RobinhoodMcpError("Option order history is incomplete")
+        active = {"queued", "confirmed", "partially_filled", "pending_cancelled"}
+        matches = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise RobinhoodMcpError("Option order history is malformed")
+            if row.get("state") not in active:
+                continue
+            legs = row.get("legs")
+            if not isinstance(legs, list) or not all(isinstance(leg, dict) for leg in legs):
+                raise RobinhoodMcpError("Active option order has unknown legs")
+            if any(leg.get("option_id") == option_id and leg.get("side") == "sell"
+                   and leg.get("position_effect") == "close" for leg in legs):
+                matches.append(row)
+        return matches
 
     def submit_equity(self, *, ref_id: str, **order) -> dict:
         if not self.allow_equity:
@@ -231,4 +297,6 @@ def load_agentic_order_transport(db, encryption_key: str, cfg) -> RobinhoodOrder
         adapter,
         allow_equity=live and bool(cfg.ROBINHOOD_EQUITY_EXECUTION_ENABLED),
         allow_crypto=live and bool(cfg.ROBINHOOD_CRYPTO_EXECUTION_ENABLED),
+        allow_options=(live and bool(cfg.ALLOW_OPTIONS)
+                       and bool(cfg.ROBINHOOD_OPTIONS_EXECUTION_ENABLED)),
     )
