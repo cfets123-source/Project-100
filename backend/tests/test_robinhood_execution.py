@@ -123,6 +123,65 @@ def test_option_submission_mapping_has_separate_default_off_gate(monkeypatch):
         "price": "0.29", "time_in_force": "gfd", "market_hours": "regular_hours", "ref_id": ref})
 
 
+def test_option_stop_requires_exact_long_position_and_no_active_exit(monkeypatch):
+    client, calls = transport(monkeypatch, allow_options=True)
+    option_id = str(uuid4())
+    contract = {"id": option_id, "chain_symbol": "SPY", "underlying_type": "equity",
+                "state": "active", "tradability": "tradable"}
+    position = {"option_id": option_id, "type": "long", "quantity": "1"}
+    exits = []
+    original_tool = client.adapter._tool
+
+    def tool(name, args=None):
+        if name == "get_option_positions":
+            return {"positions": [position], "next": None}
+        if name == "get_option_orders":
+            return {"orders": exits, "next": None}
+        return original_tool(name, args)
+
+    monkeypatch.setattr(client.adapter, "_tool", tool)
+    client.preview_option_stop(contract=contract, quantity=1, stop_price="0.20")
+    assert calls[-1] == ("review_option_order", {
+        "account_number": "equity-6395", "chain_symbol": "SPY", "underlying_type": "equity",
+        "legs": [{"option_id": option_id, "side": "sell", "position_effect": "close"}],
+        "quantity": "1", "type": "stop_market", "stop_price": "0.20",
+        "time_in_force": "gfd", "market_hours": "regular_hours"})
+    with pytest.raises(RobinhoodMcpError, match="quantity"):
+        client.preview_option_stop(contract=contract, quantity=2, stop_price="0.20")
+    exits.append({"id": str(uuid4()), "state": "confirmed", "legs": [
+        {"option_id": option_id, "side": "sell", "position_effect": "close"}]})
+    with pytest.raises(RobinhoodMcpError, match="active close order"):
+        client.submit_option_stop(ref_id=str(uuid4()), contract=contract,
+                                  quantity=1, stop_price="0.20")
+    assert all(name != "place_option_order" for name, _ in calls)
+
+
+def test_option_stop_submission_and_ref_recovery_are_account_bound(monkeypatch):
+    client, calls = transport(monkeypatch, allow_options=True)
+    option_id, ref = str(uuid4()), str(uuid4())
+    contract = {"id": option_id, "chain_symbol": "SPY", "underlying_type": "equity",
+                "state": "active", "tradability": "tradable"}
+    original_tool = client.adapter._tool
+
+    def tool(name, args=None):
+        if name == "get_option_positions":
+            return {"positions": [{"option_id": option_id, "type": "long",
+                                    "quantity": "1"}], "next": None}
+        if name == "get_option_orders":
+            return {"orders": [], "next": None}
+        return original_tool(name, args)
+
+    monkeypatch.setattr(client.adapter, "_tool", tool)
+    client.submit_option_stop(ref_id=ref, contract=contract, quantity=1,
+                              stop_price="0.20")
+    assert calls[-1] == ("place_option_order", {
+        "account_number": "equity-6395",
+        "legs": [{"option_id": option_id, "side": "sell", "position_effect": "close"}],
+        "quantity": "1", "type": "stop_market", "stop_price": "0.20",
+        "time_in_force": "gfd", "market_hours": "regular_hours", "ref_id": ref})
+    assert client.find_order_by_ref("option", ref) is None
+
+
 def test_enabled_transport_uses_stable_uuid_and_correct_account(monkeypatch):
     client, calls = transport(monkeypatch, allow_equity=True, allow_crypto=True)
     ref = str(uuid4())

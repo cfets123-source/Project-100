@@ -135,6 +135,41 @@ class RobinhoodOrderTransport:
         args["ref_id"] = _ref_id(ref_id)
         return self.adapter._tool("place_option_order", args)
 
+    def option_stop_arguments(self, *, contract: dict, quantity: object,
+                              stop_price: object) -> dict:
+        """Build a day-only stop-market close for an exact held long contract."""
+        args = self.long_option_review_arguments(
+            contract=contract, quantity=quantity, side="sell", limit_price="1")
+        args.pop("price")
+        args["type"] = "stop_market"
+        args["stop_price"] = _positive(stop_price, "stop price")
+        option_id = args["legs"][0]["option_id"]
+        position = self.get_option_position(option_id)
+        if position is None or position.get("type") != "long":
+            raise RobinhoodMcpError("Exact long option position is unavailable")
+        try:
+            held = Decimal(str(position["quantity"]))
+        except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
+            raise RobinhoodMcpError("Invalid exact option position quantity") from exc
+        if not held.is_finite() or held != Decimal(args["quantity"]):
+            raise RobinhoodMcpError("Stop quantity does not match exact option position")
+        if self.active_option_exit_orders(option_id):
+            raise RobinhoodMcpError("An active close order already exists for this option")
+        return args
+
+    def preview_option_stop(self, **order) -> dict:
+        """Review a day-only stop; this never submits a broker order."""
+        return self.adapter._tool("review_option_order", self.option_stop_arguments(**order))
+
+    def submit_option_stop(self, *, ref_id: str, **order) -> dict:
+        if not self.allow_options:
+            raise RobinhoodMcpError("Robinhood options execution is disabled")
+        args = self.option_stop_arguments(**order)
+        args.pop("chain_symbol")
+        args.pop("underlying_type")
+        args["ref_id"] = _ref_id(ref_id)
+        return self.adapter._tool("place_option_order", args)
+
     def get_option_order(self, order_id: str, option_id: str) -> dict:
         """Read one account-bound, single-contract option order."""
         order_id = _ref_id(order_id)
@@ -236,6 +271,9 @@ class RobinhoodOrderTransport:
         elif asset_class == "crypto":
             tool, key, args = "get_crypto_orders", "results", {
                 "rhs_account_number": self.adapter._crypto_account()}
+        elif asset_class == "option":
+            tool, key, args = "get_option_orders", "orders", {
+                "account_number": self.adapter.designated_account_id}
         else:
             raise RobinhoodMcpError("Unsupported asset class")
         response = self.adapter._tool(tool, args)
