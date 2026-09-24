@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 from app.core.config import Settings, TradingMode, AutonomyLevel
 from app.db.session import Base
 from app.models import models  # noqa: F401
-from app.models.models import (OrderIntent, RiskReservation, RobinhoodTradeLifecycle,
+from app.models.models import (OrderIntent, RiskReservation, RobinhoodOptionLifecycle,
+                               RobinhoodTradeLifecycle,
                                SystemStateRecord, TradeDecisionRecord)
 from app.runtime.robinhood_lifecycle_worker import run_cycle
 
@@ -76,5 +77,57 @@ def test_pending_emergency_exit_halts_new_entries_but_keeps_lifecycle_running(mo
                    AUTONOMY_LEVEL=AutonomyLevel.LEVEL_4_LIVE_AUTONOMOUS,
                    LIVE_TRADING_ENABLED=True, ROBINHOOD_EQUITY_EXECUTION_ENABLED=True)
     assert run_cycle(db, cfg)["outcomes"][0]["status"] == "emergency_pending"
+    assert db.get(SystemStateRecord, "current").state == "halted"
+    db.close()
+
+
+def test_option_worker_is_read_only_and_halts_on_unprotected_fill(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(RobinhoodOptionLifecycle(trade_id="option-trade", account_id="agentic",
+                                   option_id="option-contract", underlying_symbol="SPY",
+                                   quantity=1, multiplier=100, entry_order_id="entry-option",
+                                   status="entry_pending"))
+    db.commit()
+    transport = object()
+    monkeypatch.setattr("app.runtime.robinhood_lifecycle_worker.load_agentic_order_transport",
+                        lambda *_: transport)
+    calls = []
+    def reconcile(_db, seen_transport, trade_id):
+        calls.append((seen_transport, trade_id))
+        return {"status": "safety_failure", "reason": "option_fill_without_stop",
+                "trade_id": trade_id}
+    monkeypatch.setattr("app.runtime.robinhood_lifecycle_worker.reconcile_option_trade", reconcile)
+    cfg = Settings(TRADING_MODE=TradingMode.LIVE,
+                   AUTONOMY_LEVEL=AutonomyLevel.LEVEL_4_LIVE_AUTONOMOUS,
+                   LIVE_TRADING_ENABLED=True, ROBINHOOD_OPTIONS_EXECUTION_ENABLED=True)
+    result = run_cycle(db, cfg)
+    assert result["outcomes"][0]["reason"] == "option_fill_without_stop"
+    assert calls == [(transport, "option-trade")]
+    assert db.get(SystemStateRecord, "current").state == "halted"
+    db.close()
+
+
+def test_option_submitted_without_lifecycle_halts_without_broker_call(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    trade = TradeDecisionRecord(symbol="SPY", asset_class="option",
+                                strategy="robinhood-option-test", status="open")
+    db.add(trade)
+    db.commit()
+    db.add(OrderIntent(intent_key="option-orphan", decision_id="option-decision",
+                       trade_id=trade.trade_id, account_id="agentic", symbol="SPY",
+                       side="buy", quantity=1, status="submitted",
+                       broker_order_id="option-entry"))
+    db.commit()
+    monkeypatch.setattr("app.runtime.robinhood_lifecycle_worker.load_agentic_order_transport",
+                        lambda *_: (_ for _ in ()).throw(AssertionError("broker touched")))
+    cfg = Settings(TRADING_MODE=TradingMode.LIVE,
+                   AUTONOMY_LEVEL=AutonomyLevel.LEVEL_4_LIVE_AUTONOMOUS,
+                   LIVE_TRADING_ENABLED=True, ROBINHOOD_OPTIONS_EXECUTION_ENABLED=True)
+    result = run_cycle(db, cfg)
+    assert result["outcomes"][0]["reason"] == "option_entry_lifecycle_missing"
     assert db.get(SystemStateRecord, "current").state == "halted"
     db.close()

@@ -276,6 +276,24 @@ class RobinhoodTradeLifecycle(Base):
                         nullable=False)
 
 
+class RobinhoodOptionLifecycle(Base):
+    """Exact long contract and broker order IDs for read-only fill reconciliation."""
+    __tablename__ = "robinhood_option_lifecycles"
+    trade_id = Column(String, primary_key=True)
+    account_id = Column(String, nullable=False, index=True)
+    option_id = Column(String, nullable=False, index=True)
+    underlying_symbol = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    multiplier = Column(Float, nullable=False)
+    entry_order_id = Column(String, nullable=False, unique=True)
+    exit_order_id = Column(String, nullable=True, unique=True)
+    status = Column(String, nullable=False, default="entry_pending")
+    last_error = Column(String, nullable=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow,
+                        nullable=False)
+
+
 class RobinhoodEmergencyExit(Base):
     """Durable, one-per-trade emergency sell after protection fails."""
     __tablename__ = "robinhood_emergency_exits"

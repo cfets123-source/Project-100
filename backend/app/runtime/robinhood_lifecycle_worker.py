@@ -11,15 +11,18 @@ from app.audit.logger import log_and_commit
 from app.brokers.robinhood_execution import load_agentic_order_transport
 from app.core.config import Settings
 from app.db.session import initialize_schema
-from app.models.models import OrderIntent, RiskReservation, RobinhoodTradeLifecycle, TradeDecisionRecord
+from app.models.models import (OrderIntent, RiskReservation, RobinhoodOptionLifecycle,
+                               RobinhoodTradeLifecycle, TradeDecisionRecord)
 from app.services.robinhood_entry import recover_uncertain_entry
 from app.services.robinhood_lifecycle import reconcile_trade
+from app.services.robinhood_option_lifecycle import reconcile_option_trade
 from app.services.state_machine import StateManager
 
 
 def run_cycle(db, cfg: Settings) -> dict:
     if not (cfg.LIVE_TRADING_ENABLED and
-            (cfg.ROBINHOOD_EQUITY_EXECUTION_ENABLED or cfg.ROBINHOOD_CRYPTO_EXECUTION_ENABLED)):
+            (cfg.ROBINHOOD_EQUITY_EXECUTION_ENABLED or cfg.ROBINHOOD_CRYPTO_EXECUTION_ENABLED
+             or cfg.ROBINHOOD_OPTIONS_EXECUTION_ENABLED)):
         return {"status": "disabled", "processed": 0}
     # A persisted preparing intent is provably before the broker-send boundary.
     # Expire it only after network preview timeouts have long passed. The entry
@@ -46,8 +49,26 @@ def run_cycle(db, cfg: Settings) -> dict:
     uncertain = [intent for intent in uncertain
                  if db.get(TradeDecisionRecord, intent.trade_id) is not None and
                  str(db.get(TradeDecisionRecord, intent.trade_id).strategy or "").startswith("robinhood-") and
-                 db.get(RobinhoodTradeLifecycle, intent.trade_id) is None]
-    if not rows and not uncertain:
+                 db.get(RobinhoodTradeLifecycle, intent.trade_id) is None and
+                 db.get(RobinhoodOptionLifecycle, intent.trade_id) is None and
+                 db.get(TradeDecisionRecord, intent.trade_id).asset_class != "option"]
+    option_orphans = [intent for intent in db.query(OrderIntent).filter(
+        OrderIntent.status.in_(["submitting", "unknown", "submitted"])).all()
+        if db.get(TradeDecisionRecord, intent.trade_id) is not None
+        and db.get(TradeDecisionRecord, intent.trade_id).asset_class == "option"
+        and str(db.get(TradeDecisionRecord, intent.trade_id).strategy or "").startswith("robinhood-option-")
+        and db.get(RobinhoodOptionLifecycle, intent.trade_id) is None]
+    if option_orphans:
+        result = {"status": "safety_failure", "reason": "option_entry_lifecycle_missing",
+                  "trade_ids": [intent.trade_id for intent in option_orphans]}
+        StateManager(db, cfg).activate_kill_switch("Robinhood option entry lifecycle missing")
+        log_and_commit(db, "robinhood_option_entry_lifecycle_missing", result)
+        return {"status": "safety_failure", "processed": len(option_orphans),
+                "outcomes": [result]}
+    option_rows = db.query(RobinhoodOptionLifecycle).filter(
+        RobinhoodOptionLifecycle.status.notin_(["closed", "entry_failed",
+                                               "exit_filled_fee_pending"])).all()
+    if not rows and not uncertain and not option_rows:
         return {"status": "idle", "processed": 0}
     transport = load_agentic_order_transport(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY, cfg)
     outcomes = []
@@ -77,6 +98,15 @@ def run_cycle(db, cfg: Settings) -> dict:
             StateManager(db, cfg).activate_kill_switch(
                 f"Robinhood lifecycle safety failure: {result['reason']}")
             log_and_commit(db, "robinhood_lifecycle_safety_failure", result)
+            return {"status": "safety_failure", "processed": len(outcomes),
+                    "outcomes": outcomes}
+    for row in option_rows:
+        result = reconcile_option_trade(db, transport, row.trade_id)
+        outcomes.append(result)
+        if result["status"] == "safety_failure":
+            StateManager(db, cfg).activate_kill_switch(
+                f"Robinhood option lifecycle safety failure: {result['reason']}")
+            log_and_commit(db, "robinhood_option_lifecycle_safety_failure", result)
             break
     return {"status": "checked", "processed": len(outcomes), "outcomes": outcomes}
 
