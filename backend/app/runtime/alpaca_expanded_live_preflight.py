@@ -100,7 +100,8 @@ def report(db, cfg) -> dict:
                          "realized_pnl": live_trade.pnl if live_trade else None}
 
     trade = (db.query(TradeDecisionRecord)
-             .filter(TradeDecisionRecord.strategy == EXPANDED_STRATEGY_VERSION)
+             .filter(TradeDecisionRecord.strategy == EXPANDED_STRATEGY_VERSION,
+                     TradeDecisionRecord.order_id.isnot(None))
              .order_by(TradeDecisionRecord.timestamp.desc()).first())
     evidence = None
     if trade is None or trade.status != "closed" or not trade.order_id:

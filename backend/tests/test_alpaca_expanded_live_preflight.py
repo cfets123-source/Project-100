@@ -91,6 +91,11 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
             ]
             db.add(ExternalLiveExit(entry_order_id="live-entry", symbol="GOOGL", quantity=.1,
                                     target_price=0, exit_order_id="live-exit", status="filled"))
+            # A newer shadow proposal has no broker order and cannot replace the
+            # last actual paper lifecycle as the preflight evidence.
+            db.add(TradeDecisionRecord(trade_id="shadow-trade", symbol="ORCL",
+                                       strategy=EXPANDED_STRATEGY_VERSION,
+                                       direction="long", status="shadow_only"))
             db.commit()
             ready = report(db, cfg)
             assert ready["ready"] is False
