@@ -20,6 +20,8 @@ def transport(monkeypatch, **flags):
             return {"orders": [{"id": "owned", "account_number": "equity-6395"}]}
         if name == "get_crypto_orders":
             return {"results": [{"id": "owned", "rhs_account_number": "crypto-6395"}]}
+        if name == "review_option_order":
+            return {"order_checks": None, "fees": {"total_fee": "0.04"}}
         return {"id": "broker-order", "state": "queued"}
 
     monkeypatch.setattr(adapter, "_tool", tool)
@@ -66,6 +68,24 @@ def test_option_review_rejects_fractional_and_unapproved_accounts(monkeypatch):
                       "state": "active", "option_level": "option_level_0"}]})
     with pytest.raises(RobinhoodMcpError, match="not approved"):
         client.preview_long_option(contract=contract, quantity=1, side="buy", limit_price="0.29")
+    assert all(name != "place_option_order" for name, _ in calls)
+
+
+def test_option_review_fails_closed_on_broker_buying_power_alert(monkeypatch):
+    client, calls = transport(monkeypatch)
+    contract = {"id": str(uuid4()), "chain_symbol": "SPY", "underlying_type": "equity",
+                "state": "active", "tradability": "tradable"}
+    def tool(name, args=None):
+        calls.append((name, args))
+        if name == "get_accounts":
+            return {"accounts": [{"account_number": "equity-6395", "agentic_allowed": True,
+                                  "state": "active", "option_level": "option_level_2"}]}
+        if name == "review_option_order":
+            return {"order_checks": {"alertType": "OPTION_NOT_ENOUGH_BP_FOR_PREMIUM"}}
+        raise AssertionError(name)
+    monkeypatch.setattr(client.adapter, "_tool", tool)
+    with pytest.raises(RobinhoodMcpError, match="OPTION_NOT_ENOUGH_BP_FOR_PREMIUM"):
+        client.preview_long_option(contract=contract, quantity=1, side="buy", limit_price="0.37")
     assert all(name != "place_option_order" for name, _ in calls)
 
 

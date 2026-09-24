@@ -29,6 +29,17 @@ def _ref_id(value: str) -> str:
         raise RobinhoodMcpError("A durable UUID order reference is required") from exc
 
 
+def _checked_option_review(result: object) -> dict:
+    """Robinhood may return a review payload with a blocking order_checks alert."""
+    if not isinstance(result, dict) or "order_checks" not in result:
+        raise RobinhoodMcpError("Option review result is incomplete")
+    checks = result["order_checks"]
+    if result.get("errors") or result.get("rejected") or checks:
+        code = checks.get("alertType") if isinstance(checks, dict) else None
+        raise RobinhoodMcpError(f"Option review blocked: {code or 'broker_order_check'}")
+    return result
+
+
 class RobinhoodOrderTransport:
     """Low-level broker mapping; no strategy or live authorization is implied."""
 
@@ -122,7 +133,8 @@ class RobinhoodOrderTransport:
 
     def preview_long_option(self, **order) -> dict:
         """Ask Robinhood for live pre-trade checks; never submit an order."""
-        return self.adapter._tool("review_option_order", self.long_option_review_arguments(**order))
+        return _checked_option_review(self.adapter._tool(
+            "review_option_order", self.long_option_review_arguments(**order)))
 
     def submit_long_option(self, *, ref_id: str, **order) -> dict:
         """Map a reviewed single-leg request; no worker currently invokes this."""
@@ -159,7 +171,8 @@ class RobinhoodOrderTransport:
 
     def preview_option_stop(self, **order) -> dict:
         """Review a day-only stop; this never submits a broker order."""
-        return self.adapter._tool("review_option_order", self.option_stop_arguments(**order))
+        return _checked_option_review(self.adapter._tool(
+            "review_option_order", self.option_stop_arguments(**order)))
 
     def submit_option_stop(self, *, ref_id: str, **order) -> dict:
         if not self.allow_options:
