@@ -1,6 +1,7 @@
 from app.brokers.robinhood_adapter import RobinhoodMcpReadOnlyAdapter
 from app.brokers.robinhood_mcp import RobinhoodMcpError
 from datetime import datetime, timezone
+import uuid
 
 
 def adapter(monkeypatch):
@@ -93,3 +94,31 @@ def test_crypto_reads_use_only_designated_agentic_account(monkeypatch):
     assert a.get_crypto_positions() == []
     assert a.get_crypto_orders() == []
     assert all(arguments['rhs_account_number'] == 'crypto-1' for _, arguments in calls)
+
+
+def test_option_quote_reports_multiplier_cost_and_staleness_without_execution(monkeypatch):
+    a = adapter(monkeypatch)
+    contract_id = str(uuid.uuid4())
+    contract = {'id': contract_id, 'chain_symbol': 'SPY', 'expiration_date': '2026-10-02',
+                'strike_price': '790.0000', 'type': 'call', 'trade_value_multiplier': '100'}
+    at = datetime.now(timezone.utc).isoformat()
+    quote = {'instrument_id': contract_id, 'bid_price': '.28', 'ask_price': '.29', 'updated_at': at}
+    monkeypatch.setattr(a, '_tool', lambda name, arguments=None: {'results': [{'quote': quote}]})
+    result = a.get_option_quotes([contract])[0]
+    assert result['one_contract_ask_cost'] == 29.0
+    assert result['quote_current'] is True
+    assert result['execution_enabled'] is False
+    quote['updated_at'] = '2026-09-22T15:00:00Z'
+    assert a.get_option_quotes([contract])[0]['quality_reason'] == 'stale_quote'
+
+
+def test_option_quote_rejects_omitted_contract(monkeypatch):
+    a = adapter(monkeypatch)
+    monkeypatch.setattr(a, '_tool', lambda name, arguments=None: {'results': []})
+    contract = {'id': str(uuid.uuid4()), 'trade_value_multiplier': '100'}
+    try:
+        a.get_option_quotes([contract])
+    except RobinhoodMcpError as exc:
+        assert 'omitted' in str(exc)
+    else:
+        raise AssertionError('missing option quote was accepted')

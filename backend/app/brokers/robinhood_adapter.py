@@ -7,6 +7,8 @@ be considered.  Order mutation methods deliberately fail closed.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
+import re
 from typing import Any
 
 from app.brokers.base import BrokerAdapter, OrderRequest, OrderResult, Quote
@@ -178,6 +180,76 @@ class RobinhoodMcpReadOnlyAdapter(BrokerAdapter):
         if len(quotes) != len(symbols):
             raise RobinhoodMcpError("Robinhood omitted a requested crypto quote")
         return quotes
+
+    def get_option_chains(self, symbol: str) -> list[dict]:
+        """Discover contracts; a chain's tradability does not grant account approval."""
+        if not re.fullmatch(r"[A-Z]{1,6}", symbol):
+            raise RobinhoodMcpError("Invalid options underlying")
+        rows = self._tool("get_option_chains", {"underlying_symbol": symbol}).get("chains")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed option chains")
+        return [row for row in rows if isinstance(row, dict)]
+
+    def get_option_instruments(self, chain_id: str, expiration: str,
+                               strike: str, option_type: str) -> list[dict]:
+        if (not re.fullmatch(r"[0-9a-fA-F-]{36}", chain_id)
+                or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", expiration)
+                or option_type not in {"call", "put"}):
+            raise RobinhoodMcpError("Invalid options contract filter")
+        try:
+            strike_value = float(strike)
+        except (TypeError, ValueError) as exc:
+            raise RobinhoodMcpError("Invalid options strike") from exc
+        if not math.isfinite(strike_value) or strike_value <= 0:
+            raise RobinhoodMcpError("Invalid options strike")
+        rows = self._tool("get_option_instruments", {
+            "chain_id": chain_id, "expiration_dates": expiration,
+            "strike_price": f"{strike_value:.4f}", "type": option_type,
+        }).get("instruments")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed option contracts")
+        return [row for row in rows if isinstance(row, dict)]
+
+    def get_option_quotes(self, instruments: list[dict], *, max_age_seconds: float = 15) -> list[dict]:
+        """Mark quotes as observations only, with actual contract multipliers."""
+        if not instruments or len(instruments) > 20:
+            raise RobinhoodMcpError("Option quote check requires 1 to 20 contracts")
+        ids = [str(row.get("id", "")) for row in instruments]
+        if any(not re.fullmatch(r"[0-9a-fA-F-]{36}", value) for value in ids) or len(ids) != len(set(ids)):
+            raise RobinhoodMcpError("Invalid option contract identifiers")
+        rows = self._tool("get_option_quotes", {"instrument_ids": ids}).get("results")
+        if not isinstance(rows, list):
+            raise RobinhoodMcpError("Robinhood returned malformed option quotes")
+        by_id = {row["quote"]["instrument_id"]: row["quote"] for row in rows
+                 if isinstance(row, dict) and isinstance(row.get("quote"), dict)
+                 and isinstance(row["quote"].get("instrument_id"), str)}
+        if set(by_id) != set(ids) or len(rows) != len(ids):
+            raise RobinhoodMcpError("Robinhood omitted or duplicated an option quote")
+        output = []
+        for contract in instruments:
+            raw = by_id[contract["id"]]
+            try:
+                bid, ask = float(raw["bid_price"]), float(raw["ask_price"])
+                multiplier = float(contract["trade_value_multiplier"])
+                at = datetime.fromisoformat(raw["updated_at"].replace("Z", "+00:00"))
+                age = (datetime.now(timezone.utc) - at).total_seconds()
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RobinhoodMcpError("Robinhood returned invalid option quote data") from exc
+            if not all(math.isfinite(v) for v in (bid, ask, multiplier, age)) or multiplier <= 0:
+                raise RobinhoodMcpError("Robinhood returned invalid option quote values")
+            spread = (ask - bid) / ((ask + bid) / 2) if bid > 0 and ask > 0 else None
+            reason = ("missing_price" if bid <= 0 or ask <= 0 else
+                      "crossed_market" if ask < bid else
+                      "stale_quote" if age < 0 or age > max_age_seconds else
+                      "wide_spread" if spread is None or spread > .10 else "current")
+            output.append({"instrument_id": contract["id"], "symbol": contract.get("chain_symbol"),
+                           "expiration": contract.get("expiration_date"), "type": contract.get("type"),
+                           "strike": contract.get("strike_price"), "multiplier": multiplier,
+                           "bid": bid, "ask": ask, "one_contract_ask_cost": round(ask * multiplier, 2),
+                           "spread_pct": spread, "as_of": raw["updated_at"],
+                           "age_seconds": max(0, age), "quality_reason": reason,
+                           "quote_current": reason == "current", "execution_enabled": False})
+        return output
 
     def _crypto_account(self) -> str:
         if not self.crypto_account_id:

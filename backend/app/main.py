@@ -557,7 +557,12 @@ def robinhood_market_access(db: Session = Depends(get_db)):
                 crypto["open_orders"] = len(adapter.get_crypto_orders())
             except (RobinhoodMcpError, KeyError, TypeError, ValueError) as exc:
                 crypto["data_error"] = type(exc).__name__
+        option_level = account.get("user_option_level") or account.get("option_level") or "option_level_0"
         payload = {"broker": "robinhood_agentic_trading", "account_last4": str(account["account_id"])[-4:],
+                   "options": {"approved_level": option_level,
+                               "long_options_approved": option_level in {"option_level_2", "option_level_3"},
+                               "spreads_approved": option_level == "option_level_3",
+                               "execution_enabled": False},
                    "etfs": [{"symbol": row.get("symbol"), "tradable": row.get("tradeable") is True
                              and row.get("state") == "active",
                              "fractional": row.get("fractional_tradability") == "tradable"}
@@ -567,6 +572,34 @@ def robinhood_market_access(db: Session = Depends(get_db)):
         # cache made a fresh broker quote look stale on a quick page reload.
         _robinhood_market_cache.update(expires_at=time.monotonic() + 4, payload=payload)
         return payload
+    except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/brokers/robinhood/options/quote", dependencies=[Depends(require_dashboard_access)])
+def robinhood_option_quote(symbol: str = Query(min_length=1, max_length=6),
+                           expiration: str = Query(min_length=10, max_length=10),
+                           strike: str = Query(min_length=1, max_length=20),
+                           option_type: str = Query(pattern="^(call|put)$"),
+                           db: Session = Depends(get_db)):
+    """User-triggered read-only option quote; never routes an order."""
+    try:
+        adapter, account = load_agentic_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+        chains = [chain for chain in adapter.get_option_chains(symbol.upper())
+                  if expiration in (chain.get("expiration_dates") or [])]
+        contracts = [contract for chain in chains
+                     for contract in adapter.get_option_instruments(chain["id"], expiration,
+                                                                    strike, option_type)
+                     if contract.get("state") == "active"
+                     and contract.get("tradability") == "tradable"]
+        if not contracts:
+            return {"symbol": symbol.upper(), "contracts": [], "execution_enabled": False,
+                    "reason": "No active tradable contract matched the filter"}
+        if len(contracts) > 20:
+            raise RobinhoodMcpError("Too many matching option contracts; narrow the filter")
+        return {"symbol": symbol.upper(), "account_last4": str(account["account_id"])[-4:],
+                "approved_level": account.get("user_option_level") or account.get("option_level") or "option_level_0",
+                "contracts": adapter.get_option_quotes(contracts), "execution_enabled": False}
     except (BrokerOAuthConfigurationError, RobinhoodMcpError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
