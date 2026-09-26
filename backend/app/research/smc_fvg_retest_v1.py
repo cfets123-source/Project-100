@@ -43,6 +43,9 @@ class SimConfig:
     htf_min: int = 20
     min_bars: int = 60
     htf_required: bool = True  # test hook only; the frozen study keeps True
+    htf_bucket_seconds: int = 300  # v1: 5-minute buckets over 1-minute bars
+    anchor_target_to_fill: bool = False  # v2: re-anchor the signal's R multiple at the fill
+    target_equity: float = 500.0
 
 
 @dataclass(frozen=True)
@@ -94,7 +97,7 @@ def _htf_bias_by_minute(candles: list[Candle], cfg: SimConfig) -> list[int]:
     buckets: list[list[float]] = []  # [bucket_id, high, low, close]
     bucket_pos: list[int] = []  # for each minute: index of its bucket in `buckets`
     for c in candles:
-        b = c.ts // 300
+        b = c.ts // cfg.htf_bucket_seconds
         if not buckets or buckets[-1][0] != b:
             buckets.append([b, c.high, c.low, c.close])
         else:
@@ -198,7 +201,7 @@ _SIGNAL_CACHE: dict[tuple, dict[int, Signal]] = {}
 
 
 def signals_for(coin: str, candles: list[Candle], cfg: SimConfig) -> dict[int, Signal]:
-    key = (coin, len(candles), candles[0].ts if candles else 0, cfg.k, cfg.window, cfg.expiry,
+    key = (coin, len(candles), candles[0].ts if candles else 0, cfg.htf_bucket_seconds, cfg.k, cfg.window, cfg.expiry,
            cfg.min_fvg_atr, cfg.htf_buckets, cfg.htf_min, cfg.min_rr, cfg.max_rr)
     if key not in _SIGNAL_CACHE:
         _SIGNAL_CACHE[key] = compute_signals(candles, cfg)
@@ -266,7 +269,11 @@ def simulate_window(series: dict[str, list[Candle]], start: int, end: int, cfg: 
                 pending = None
                 fill = bars[bi].open * (1 + cfg.slippage)
                 risk_u = fill - sig.stop
-                if fill <= sig.stop or fill >= sig.target or risk_u <= 0 or (sig.target - fill) / risk_u < cfg.min_rr:
+                target = sig.target
+                if cfg.anchor_target_to_fill and risk_u > 0:
+                    multiple = (sig.target - sig.close) / (sig.close - sig.stop)
+                    target = fill + multiple * risk_u
+                if fill <= sig.stop or fill >= target or risk_u <= 0 or (target - fill) / risk_u < cfg.min_rr - 1e-9:
                     stats["skipped_drift"] += 1
                 elif risk_u / fill < cfg.min_stop_pct:
                     stats["skipped_stop_pct"] += 1
@@ -279,7 +286,7 @@ def simulate_window(series: dict[str, list[Candle]], start: int, end: int, cfg: 
                     else:
                         fee = qty * fill * cfg.fee_per_leg
                         cash -= qty * fill + fee
-                        pos = _Pos(coin, qty, fill, sig.stop, sig.target, ts, qty * risk_u, fee)
+                        pos = _Pos(coin, qty, fill, sig.stop, target, ts, qty * risk_u, fee)
             elif bi >= len(bars) or bars[bi].ts < ts:
                 pending = None
 
@@ -306,7 +313,7 @@ def simulate_window(series: dict[str, list[Candle]], start: int, end: int, cfg: 
             halted_until = ts + cfg.halt_seconds
         peak = max(peak, marked)
         max_dd = max(max_dd, 1 - marked / peak if peak > 0 else 0.0)
-        if reached_ts is None and marked >= 500.0:
+        if reached_ts is None and marked >= cfg.target_equity:
             reached_ts = ts
 
         # 4) new signals at this bar's close
