@@ -44,3 +44,17 @@ def test_simulation_is_flat_without_signals_and_counts_idle_days():
     s = summarize(sim)
     assert s["trades"] == 0 and s["ending_equity"] == 100.0
     assert len(sim["daily_returns"]) >= 3 and all(r == 0 for r in sim["daily_returns"])
+
+
+def test_v2_anchor_moves_target_with_fill_and_keeps_multiple():
+    """v2: a higher fill keeps the signal's R multiple instead of being rejected as drift."""
+    rows = OHLC + [(102.4, 104.0, 102.3, 103.0)]  # next open 0.5 above signal close
+    candles = _candles(rows)
+    series = {"BTC": candles}
+    base = dict(min_bars=10, htf_required=False, min_stop_pct=0.0, daily_dd=0.99)
+    start, end = candles[0].ts, candles[-1].ts + 60
+    v1 = simulate_window(series, start, end, SimConfig(**base), ("BTC",))
+    v2 = simulate_window(series, start, end, SimConfig(**base, anchor_target_to_fill=True), ("BTC",))
+    assert v1["stats"]["skipped_drift"] == 1 and not v1["trades"]
+    t = v2["trades"][0]
+    assert abs((t["target"] - t["entry"]) / (t["entry"] - t["stop"]) - 3.0) < 1e-9
