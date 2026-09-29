@@ -219,6 +219,25 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  robinhood-option-watchlist:
+    build: .
+    profiles: ["option-research"]
+    command: ["python", "-m", "app.runtime.robinhood_option_watchlist", "--database", "sqlite:////data/paper.db", "--interval", "120"]
+    env_file: .env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
+      LIVE_TRADING_ENABLED: "false"
+      ROBINHOOD_OPTION_WATCHLIST_UNDERLYINGS: "${ROBINHOOD_OPTION_WATCHLIST_UNDERLYINGS:-SPY,QQQ,IWM,NVDA,TSLA,AAPL}"
+      ROBINHOOD_OPTION_WATCHLIST_MAX_PREMIUM_USD: "${ROBINHOOD_OPTION_WATCHLIST_MAX_PREMIUM_USD:-100}"
+    volumes: ["paper-data:/data"]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
   api:
     build: .
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
