@@ -50,7 +50,8 @@ def test_candidate_strikes_move_out_of_the_money():
     assert w.strike_increment(20) == 0.5 and w.strike_increment(600) == 5.0
 
 
-def test_selects_only_affordable_contracts_and_caps_per_underlying():
+def test_selects_only_affordable_contracts_and_caps_per_underlying(monkeypatch):
+    monkeypatch.setattr(w.time, "sleep", lambda s: None)
     # contracts further out of the money are cheaper; only asks <= $1.00 fit a $100 budget
     adapter = _adapter(price_for=lambda strike, typ: max(0.0, 3.0 - 0.5 * abs(strike - 100)))
     cfg = w.WatchlistConfig(underlyings=("XYZ",), per_underlying=5)
@@ -61,7 +62,8 @@ def test_selects_only_affordable_contracts_and_caps_per_underlying():
     assert {e for (_, _, e) in adapter.made.values()} == {"2026-09-30", "2026-10-02"}
 
 
-def test_one_failing_underlying_does_not_stop_the_others():
+def test_one_failing_underlying_does_not_stop_the_others(monkeypatch):
+    monkeypatch.setattr(w.time, "sleep", lambda s: None)
     good = _adapter()
     bad = MagicMock()
     bad.get_quotes.side_effect = RuntimeError("boom")
@@ -84,21 +86,46 @@ def test_market_hours_gate():
     assert not w.market_open(dt.datetime(2026, 9, 29, 21, 0, tzinfo=dt.timezone.utc))  # 17:00 ET
 
 
-def test_collection_batches_by_twenty_and_isolates_failures(monkeypatch):
+def test_collection_isolates_one_bad_contract(monkeypatch):
+    monkeypatch.setattr(w.time, "sleep", lambda s: None)
+    ids = [str(uuid4()) for _ in range(45)]
+    bad = ids[25]
     calls = []
 
     def fake_collect(db, adapter, batch):
         calls.append(len(batch))
-        if len(calls) == 2:
+        if bad in batch:
             raise ValueError("expired contract")
         return {"new_quotes": len(batch)}
 
     monkeypatch.setattr(w, "collect_once", fake_collect)
     db = MagicMock()
-    out = w.collect_watchlist(db, MagicMock(), [str(uuid4()) for _ in range(45)])
-    assert calls == [20, 20, 5]
-    assert out["new_quotes"] == 25 and out["failed_contracts"] == 20 and out["order_submission"] is False
-    db.rollback.assert_called_once()
+    out = w.collect_watchlist(db, MagicMock(), ids)
+    assert out["new_quotes"] == 44 and out["failed_ids"] == [bad] and out["order_submission"] is False
+    assert calls[:1] == [20] and calls[-1] == 5
+
+
+def test_broker_calls_retry_then_succeed(monkeypatch):
+    slept = []
+    attempts = {"n": 0}
+
+    def flaky():
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise RuntimeError("rate limited")
+        return "ok"
+
+    assert w._call(flaky, sleep=slept.append) == "ok"
+    assert attempts["n"] == 3 and slept[:2] == [1, 2]
+
+
+def test_merge_keeps_existing_and_adds_retried_symbols():
+    current = {"option_ids": ["a", "b"], "per_symbol": {"SPY": 2}, "failures": {"NVDA": "X"}}
+    rebuilt = {"date": "d", "option_ids": ["b", "c"], "per_symbol": {"NVDA": 1}, "failures": {},
+               "order_submission": False}
+    merged = w.merge_watchlist(current, rebuilt)
+    assert merged["option_ids"] == ["a", "b", "c"] and merged["per_symbol"] == {"SPY": 2, "NVDA": 1}
+    assert merged["failures"] == {}
 
 
 def test_module_has_no_order_methods():
