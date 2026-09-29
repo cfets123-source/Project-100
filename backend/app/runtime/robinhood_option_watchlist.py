@@ -25,6 +25,9 @@ from app.runtime.robinhood_option_quote_worker import collect_once
 
 ET = ZoneInfo("America/New_York")
 QUOTE_BATCH = 20
+CALL_PAUSE_SECONDS = 0.25   # spread ~200 discovery lookups instead of bursting the broker
+RETRIES = 3
+RETRY_FAILED_SECONDS = 1800  # re-try symbols that failed discovery every 30 minutes
 DEFAULT_UNDERLYINGS = ("SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL")
 
 
@@ -77,6 +80,20 @@ def _chain_for(chains: list[dict], symbol: str) -> dict | None:
     return None
 
 
+def _call(fn, *args, sleep=None):
+    """Broker read with pacing and bounded retries; the last error is re-raised."""
+    sleep = sleep or time.sleep
+    for attempt in range(RETRIES):
+        try:
+            result = fn(*args)
+            sleep(CALL_PAUSE_SECONDS)
+            return result
+        except Exception:
+            if attempt == RETRIES - 1:
+                raise
+            sleep(2 ** attempt)
+
+
 def _batches(items: list, size: int):
     for i in range(0, len(items), size):
         yield items[i:i + size]
@@ -84,24 +101,24 @@ def _batches(items: list, size: int):
 
 def select_underlying(adapter, symbol: str, today: dt.date, cfg: WatchlistConfig) -> list[dict]:
     """Return up to cfg.per_underlying affordable, quoted, tradable contracts for one symbol."""
-    quotes = adapter.get_quotes([symbol])
+    quotes = _call(adapter.get_quotes, [symbol])
     if not quotes:
         return []
     spot = (quotes[0].bid + quotes[0].ask) / 2
-    chain = _chain_for(adapter.get_option_chains(symbol), symbol)
+    chain = _chain_for(_call(adapter.get_option_chains, symbol), symbol)
     if chain is None or not isfinite(spot) or spot <= 0:
         return []
     contracts: dict[str, dict] = {}
     for expiration in pick_expirations(chain["expiration_dates"], today, cfg):
         for option_type in ("call", "put"):
             for strike in candidate_strikes(spot, option_type, cfg.strikes_per_side):
-                for row in adapter.get_option_instruments(chain["id"], expiration, f"{strike}", option_type):
+                for row in _call(adapter.get_option_instruments, chain["id"], expiration, f"{strike}", option_type):
                     if (row.get("state") == "active" and row.get("tradability") == "tradable"
                             and isinstance(row.get("id"), str)):
                         contracts[row["id"]] = row
     affordable = []
     for batch in _batches(list(contracts.values()), QUOTE_BATCH):
-        for quote in adapter.get_option_quotes(batch):
+        for quote in _call(adapter.get_option_quotes, batch):
             cost = quote["ask"] * quote["multiplier"]
             if (quote["bid"] > 0 and quote["ask"] >= cfg.min_ask and cost <= cfg.max_premium_usd
                     and quote["quality_reason"] != "crossed_market"):
@@ -134,15 +151,31 @@ def market_open(now: dt.datetime) -> bool:
 
 
 def collect_watchlist(db: Session, adapter, option_ids: list[str]) -> dict:
-    inserted, failed = 0, 0
+    """Collect in batches of 20; if a batch fails, retry its contracts one by one so a
+    single expired or malformed contract cannot discard the other nineteen quotes."""
+    inserted, failed = 0, []
     for batch in _batches(option_ids, QUOTE_BATCH):
         try:
-            inserted += collect_once(db, adapter, batch)["new_quotes"]
+            inserted += _call(collect_once, db, adapter, batch)["new_quotes"]
+            continue
         except Exception:
             db.rollback()
-            failed += len(batch)
+        for option_id in batch:
+            try:
+                inserted += _call(collect_once, db, adapter, [option_id])["new_quotes"]
+            except Exception:
+                db.rollback()
+                failed.append(option_id)
     return {"status": "observed", "contracts": len(option_ids), "new_quotes": inserted,
-            "failed_contracts": failed, "order_submission": False}
+            "failed_contracts": len(failed), "failed_ids": failed, "order_submission": False}
+
+
+def merge_watchlist(current: dict, rebuilt: dict) -> dict:
+    """Keep contracts already chosen today and add symbols that failed earlier."""
+    ids = list(current.get("option_ids", []))
+    ids += [i for i in rebuilt["option_ids"] if i not in ids]
+    per_symbol = {**current.get("per_symbol", {}), **rebuilt["per_symbol"]}
+    return {**rebuilt, "option_ids": ids, "per_symbol": per_symbol}
 
 
 def _config_from_env() -> WatchlistConfig:
@@ -170,13 +203,26 @@ def main() -> int:
                 with Session(engine) as db:
                     adapter, _ = load_agentic_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)
                     today = now.astimezone(ET).date()
-                    if watchlist["date"] != today.isoformat() or not watchlist["option_ids"]:
-                        watchlist = build_watchlist(adapter, today, cfg)
+                    new_day = watchlist["date"] != today.isoformat()
+                    retry_due = (watchlist.get("failures") and
+                                 time.monotonic() - watchlist.get("built_at", 0) > RETRY_FAILED_SECONDS)
+                    if new_day or not watchlist["option_ids"] or retry_due:
+                        if new_day or not watchlist["option_ids"]:
+                            watchlist = build_watchlist(adapter, today, cfg)
+                        else:
+                            retry_cfg = WatchlistConfig(**{**cfg.__dict__,
+                                                           "underlyings": tuple(watchlist["failures"])})
+                            watchlist = merge_watchlist(watchlist, build_watchlist(adapter, today, retry_cfg))
+                        watchlist["built_at"] = time.monotonic()
                         print({"event": "watchlist_built", **{k: v for k, v in watchlist.items()
-                                                             if k != "option_ids"},
+                                                             if k not in ("option_ids", "built_at")},
                                "contracts": len(watchlist["option_ids"])}, flush=True)
                     if watchlist["option_ids"]:
-                        print(collect_watchlist(db, adapter, watchlist["option_ids"]), flush=True)
+                        result = collect_watchlist(db, adapter, watchlist["option_ids"])
+                        dropped = set(result.pop("failed_ids"))
+                        watchlist["option_ids"] = [i for i in watchlist["option_ids"] if i not in dropped
+                                                   or result["new_quotes"] == 0]
+                        print(result, flush=True)
             except Exception as exc:
                 print({"status": "read_failed", "error_type": type(exc).__name__,
                        "order_submission": False}, flush=True)
