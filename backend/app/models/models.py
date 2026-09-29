@@ -42,7 +42,7 @@ def _block_audit_delete(mapper, connection, target):
 
 
 class SystemStateRecord(Base):
-    """Persisted current autonomous-mode state. Singleton row (id='current')."""
+    """Persisted state per configured broker/account/mode scope; legacy id=current."""
     __tablename__ = "system_state"
     id = Column(String, primary_key=True, default=lambda: "current")
     state = Column(String, default="off")
@@ -118,6 +118,14 @@ class StrategyValidationRecord(Base):
     reasons = Column(JSON, nullable=False, default=list)
 
 
+class StrategyExecutionEvidence(Base):
+    """Execution contract attached to one particular validation run."""
+    __tablename__ = "strategy_execution_evidence"
+    strategy = Column(String, primary_key=True)
+    evaluated_at = Column(DateTime, nullable=False)
+    execution_contract = Column(String, nullable=False)
+
+
 class OrderIntent(Base):
     """Durable, idempotent record of a submission attempt. intent_key is the primary
     key and is derived from the ORIGINATING DECISION (decision_id), not wall-clock
@@ -173,6 +181,27 @@ class AccountSnapshot(Base):
     realized_pnl = Column(Float, default=0.0)
     unrealized_pnl = Column(Float, default=0.0)
     stage = Column(Integer, default=0)
+
+
+class AccountRiskObservation(Base):
+    """Reconciled, cash-flow-adjusted account risk evidence, isolated by scope."""
+    __tablename__ = "account_risk_observations"
+    scope = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False)
+
+
+class DefensiveOrderIntent(Base):
+    """Durable intent before an exposure-reducing POST, including unknown results."""
+    __tablename__ = "defensive_order_intents"
+    client_order_id = Column(String, primary_key=True)
+    account_id = Column(String, nullable=False, index=True)
+    symbol = Column(String, nullable=False)
+    quantity = Column(Float, nullable=False)
+    status = Column(String, nullable=False)
+    broker_order_id = Column(String, nullable=True)
+    entry_order_id = Column(String, nullable=True)
+    filled_quantity = Column(Float, nullable=False, default=0)
+    fill_price = Column(Float, nullable=True)
 
 
 class PaperRuntimeState(Base):

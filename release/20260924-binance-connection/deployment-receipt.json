@@ -1,0 +1,22 @@
+{
+  "deployed_at": "2026-09-24T19:34:00Z",
+  "image": "sha256:403ff6d62caae24c90c73dfcd7c9ef58e546f815aa32e4cf54fc85886248d4ab",
+  "previous_image": "sha256:ec63bd5be9bc7eb7b6dd9f309db757d85f8b0ce57450e1e573e97b8ac713affc",
+  "backup": "/data/backups/pre-binance-connection-20260924T193349Z.db",
+  "backup_integrity": "ok",
+  "server_directory": "/opt/veloikos-releases/20260924-binance-connection",
+  "package_sha256": "e324cb21ed12b88ea660c6b25ade32cf2f6b83c0f84bdc984d20cf52f60af28b",
+  "local_tests_passed": 451,
+  "server_tests_passed": 451,
+  "health_http_status": 200,
+  "dashboard_http_status": 200,
+  "observer_healthy": true,
+  "binance_public_markets_verified": [
+    "BTCUSD",
+    "ETHUSD"
+  ],
+  "browser_setup_verified": true,
+  "binance_credentials_saved": false,
+  "execution_enabled": false,
+  "state": "shadow"
+}

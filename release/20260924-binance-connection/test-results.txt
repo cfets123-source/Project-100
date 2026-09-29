@@ -1,0 +1,121 @@
+/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+........................................................................ [ 15%]
+........................................................................ [ 31%]
+........................................................................ [ 47%]
+........................................................................ [ 63%]
+........................................................................ [ 79%]
+........................................................................ [ 95%]
+...................                                                      [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:291
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:291: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.9/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+.venv/lib/python3.12/site-packages/starlette/testclient.py:40
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/.venv/lib/python3.12/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+backend/app/strategies/test_dip_buy.py:15
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/strategies/test_dip_buy.py:15: PytestCollectionWarning: cannot collect test class 'TestDipBuyStrategy' because it has a __init__ constructor (from: backend/tests/test_autonomous_loop.py)
+    class TestDipBuyStrategy(BaseStrategy):
+
+backend/tests/test_alpaca_connection.py: 3 warnings
+backend/tests/test_alpaca_expanded_live_preflight.py: 14 warnings
+backend/tests/test_alpaca_live_emergency_exit.py: 8 warnings
+backend/tests/test_alpaca_live_position_manager.py: 34 warnings
+backend/tests/test_alpaca_paper_execution_worker.py: 2 warnings
+backend/tests/test_alpaca_paper_monitor.py: 6 warnings
+backend/tests/test_alpaca_paper_protection.py: 22 warnings
+backend/tests/test_audit_and_api.py: 1 warning
+backend/tests/test_audit_immutability.py: 4 warnings
+backend/tests/test_autonomous_loop.py: 22 warnings
+backend/tests/test_binance_us.py: 2 warnings
+backend/tests/test_capital_stages.py: 148 warnings
+backend/tests/test_dashboard.py: 7 warnings
+backend/tests/test_execution_gateway.py: 128 warnings
+backend/tests/test_execution_repairs.py: 14 warnings
+backend/tests/test_paper_backup.py: 15 warnings
+backend/tests/test_paper_runtime.py: 217 warnings
+backend/tests/test_protective_exit.py: 15 warnings
+backend/tests/test_reconciliation.py: 36 warnings
+backend/tests/test_robinhood_entry.py: 34 warnings
+backend/tests/test_robinhood_lifecycle.py: 110 warnings
+backend/tests/test_robinhood_lifecycle_worker.py: 19 warnings
+backend/tests/test_robinhood_mcp.py: 3 warnings
+backend/tests/test_robinhood_oauth.py: 1 warning
+backend/tests/test_robinhood_option_lifecycle.py: 44 warnings
+backend/tests/test_robinhood_option_quote_worker.py: 1 warning
+backend/tests/test_safety_regressions.py: 78 warnings
+backend/tests/test_strategy_validation.py: 9 warnings
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/.venv/lib/python3.12/site-packages/sqlalchemy/sql/schema.py:3596: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore
+
+backend/tests/test_alpaca_expanded_live_preflight.py: 1 warning
+backend/tests/test_strategy_validation.py: 9 warnings
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/research/strategy_validation.py:82: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    record.evaluated_at = dt.datetime.utcnow()
+
+backend/tests/test_alpaca_live_emergency_exit.py::test_reconcile_emergency_exit_only_after_broker_fill_and_flat
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/tests/test_alpaca_live_emergency_exit.py:67: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    opened_at = dt.datetime.utcnow() - dt.timedelta(minutes=2)
+
+backend/tests/test_alpaca_paper_protection.py: 1 warning
+backend/tests/test_execution_gateway.py: 3 warnings
+backend/tests/test_execution_repairs.py: 1 warning
+backend/tests/test_paper_runtime.py: 7 warnings
+backend/tests/test_robinhood_lifecycle_worker.py: 3 warnings
+backend/tests/test_safety_regressions.py: 3 warnings
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/services/state_machine.py:79: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    rec.updated_at = dt.datetime.utcnow()
+
+backend/tests/test_autonomous_loop.py: 3 warnings
+backend/tests/test_execution_gateway.py: 17 warnings
+backend/tests/test_paper_backup.py: 1 warning
+backend/tests/test_paper_runtime.py: 22 warnings
+backend/tests/test_protective_exit.py: 4 warnings
+backend/tests/test_safety_regressions.py: 8 warnings
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/services/state_machine.py:68: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    rec.updated_at = dt.datetime.utcnow()
+
+backend/tests/test_autonomous_loop.py::test_safe_mode_blocks_new_entries_but_not_defensive_exit
+backend/tests/test_execution_gateway.py::test_safe_blocks_new_entries
+backend/tests/test_paper_runtime.py::test_stale_input_pauses_and_fresh_input_recovers
+backend/tests/test_paper_runtime.py::test_missing_open_position_quote_enters_safe_without_losing_position
+backend/tests/test_protective_exit.py::test_broker_exception_on_stop_placement_enters_safe_mode
+backend/tests/test_protective_exit.py::test_rejected_stop_placement_enters_safe_mode
+backend/tests/test_protective_exit.py::test_safe_mode_after_protective_failure_blocks_new_entries
+backend/tests/test_safety_regressions.py::test_nonpaper_adapter_cannot_use_defensive_paper_or_safe_path[safe]
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/services/state_machine.py:107: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    rec.updated_at = dt.datetime.utcnow()
+
+backend/tests/test_execution_gateway.py::test_halted_cannot_be_exited_without_explicit_confirm
+backend/tests/test_paper_runtime.py::test_halt_survives_worker_restart_and_enable_cannot_reset
+backend/tests/test_safety_regressions.py::test_sticky_halt_survives_new_session_and_still_requires_reset
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/services/state_machine.py:94: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    rec.updated_at = dt.datetime.utcnow()
+
+backend/tests/test_robinhood_lifecycle_worker.py::test_enabled_worker_with_no_recorded_entry_remains_idle
+backend/tests/test_robinhood_lifecycle_worker.py::test_stale_preparing_intent_releases_only_its_reservation
+backend/tests/test_robinhood_lifecycle_worker.py::test_pending_emergency_exit_halts_new_entries_but_keeps_lifecycle_running
+backend/tests/test_robinhood_lifecycle_worker.py::test_option_worker_is_read_only_and_halts_on_unprotected_fill
+backend/tests/test_robinhood_lifecycle_worker.py::test_option_submitted_without_lifecycle_halts_without_broker_call
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/runtime/robinhood_lifecycle_worker.py:30: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    cutoff = datetime.utcnow() - timedelta(minutes=2)
+
+backend/tests/test_robinhood_lifecycle_worker.py::test_stale_preparing_intent_releases_only_its_reservation
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/tests/test_robinhood_lifecycle_worker.py:47: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    created_at=datetime.utcnow() - timedelta(minutes=3)))
+
+backend/tests/test_robinhood_oauth.py::test_oauth_pkce_and_encrypted_refresh_token
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/brokers/robinhood_oauth.py:68: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expires_at=dt.datetime.utcnow() + dt.timedelta(minutes=10)))
+
+backend/tests/test_robinhood_oauth.py::test_oauth_pkce_and_encrypted_refresh_token
+  /Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/backend/app/brokers/robinhood_oauth.py:79: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    if pending is None or pending.expires_at < dt.datetime.utcnow():
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+451 passed, 1103 warnings in 6.95s

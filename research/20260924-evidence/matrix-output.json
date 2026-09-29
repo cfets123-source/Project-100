@@ -1,0 +1,324 @@
+{
+  "source_sha256": "ea33363fff443d18da89c8551b403117577bbd354c1b9c63fb29257f0f51ced5",
+  "plan_sha256": "ed1bc59fd01b0f399b4c7bbf1c0a001b497bf2921c7948a58469107b2ea5d9de",
+  "warmup_only_splits": [
+    {
+      "symbol": "EWU",
+      "day": "2016-11-07",
+      "factor": 0.5
+    },
+    {
+      "symbol": "EWJ",
+      "day": "2016-11-07",
+      "factor": 0.25
+    }
+  ],
+  "split_events": [
+    {
+      "symbol": "XLE",
+      "day": "2025-12-05",
+      "factor": 2
+    },
+    {
+      "symbol": "XLU",
+      "day": "2025-12-05",
+      "factor": 2
+    }
+  ],
+  "historical_screen_passed": false,
+  "reasons": [
+    "2017-2021:nonpositive_return",
+    "2017-2021:drawdown_at_least_25_percent"
+  ],
+  "live_approval": false,
+  "results": [
+    {
+      "version": "v3",
+      "window": "2017-2021",
+      "cost": 0.001,
+      "trades": 50,
+      "ending_equity": 87.14278760000037,
+      "return": -0.1285721239999963,
+      "max_drawdown": -0.2604827905649253,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 5,
+      "breaker_events": 1
+    },
+    {
+      "version": "v3",
+      "window": "2017-2021",
+      "cost": 0.002,
+      "trades": 50,
+      "ending_equity": 84.95747520000039,
+      "return": -0.15042524799999613,
+      "max_drawdown": -0.2740220887085427,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 5,
+      "breaker_events": 1
+    },
+    {
+      "version": "v3",
+      "window": "2017-2021",
+      "cost": 0.005,
+      "trades": 47,
+      "ending_equity": 69.84181300000043,
+      "return": -0.3015818699999957,
+      "max_drawdown": -0.3582981228557779,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 5,
+      "breaker_events": 2
+    },
+    {
+      "version": "v3",
+      "window": "2022-2024",
+      "cost": 0.001,
+      "trades": 30,
+      "ending_equity": 112.65920400000033,
+      "return": 0.12659204000000335,
+      "max_drawdown": -0.23193140601508722,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": false,
+      "unavailable_entries": 0,
+      "breaker_events": 1
+    },
+    {
+      "version": "v3",
+      "window": "2022-2024",
+      "cost": 0.002,
+      "trades": 30,
+      "ending_equity": 112.04466800000029,
+      "return": 0.1204466800000028,
+      "max_drawdown": -0.22596125419957036,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": false,
+      "unavailable_entries": 0,
+      "breaker_events": 1
+    },
+    {
+      "version": "v3",
+      "window": "2022-2024",
+      "cost": 0.005,
+      "trades": 30,
+      "ending_equity": 107.96232000000025,
+      "return": 0.07962320000000256,
+      "max_drawdown": -0.22762608613813007,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": false,
+      "unavailable_entries": 0,
+      "breaker_events": 1
+    },
+    {
+      "version": "v3",
+      "window": "2025-2026",
+      "cost": 0.001,
+      "trades": 19,
+      "ending_equity": 106.21965100000011,
+      "return": 0.06219651000000104,
+      "max_drawdown": -0.12469513297665569,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 0,
+      "breaker_events": 0
+    },
+    {
+      "version": "v3",
+      "window": "2025-2026",
+      "cost": 0.002,
+      "trades": 19,
+      "ending_equity": 104.84130200000016,
+      "return": 0.04841302000000147,
+      "max_drawdown": -0.1349919209057635,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 0,
+      "breaker_events": 0
+    },
+    {
+      "version": "v3",
+      "window": "2025-2026",
+      "cost": 0.005,
+      "trades": 19,
+      "ending_equity": 100.70625500000013,
+      "return": 0.007062550000001222,
+      "max_drawdown": -0.16599448833885577,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 0,
+      "breaker_events": 0
+    },
+    {
+      "version": "v4",
+      "window": "2017-2021",
+      "cost": 0.001,
+      "trades": 50,
+      "ending_equity": 88.48772305000028,
+      "return": -0.11512276949999711,
+      "max_drawdown": -0.26593725958286585,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 5,
+      "breaker_events": 1
+    },
+    {
+      "version": "v4",
+      "window": "2017-2021",
+      "cost": 0.002,
+      "trades": 50,
+      "ending_equity": 84.99348410000047,
+      "return": -0.15006515899999529,
+      "max_drawdown": -0.2874468195659602,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 5,
+      "breaker_events": 1
+    },
+    {
+      "version": "v4",
+      "window": "2017-2021",
+      "cost": 0.005,
+      "trades": 50,
+      "ending_equity": 79.14526525000042,
+      "return": -0.20854734749999582,
+      "max_drawdown": -0.31603758285869366,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 5,
+      "breaker_events": 1
+    },
+    {
+      "version": "v4",
+      "window": "2022-2024",
+      "cost": 0.001,
+      "trades": 30,
+      "ending_equity": 110.8763355000003,
+      "return": 0.10876335500000289,
+      "max_drawdown": -0.23733206102836402,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": false,
+      "unavailable_entries": 0,
+      "breaker_events": 1
+    },
+    {
+      "version": "v4",
+      "window": "2022-2024",
+      "cost": 0.002,
+      "trades": 30,
+      "ending_equity": 108.53367100000033,
+      "return": 0.08533671000000331,
+      "max_drawdown": -0.24523770724082672,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": false,
+      "unavailable_entries": 0,
+      "breaker_events": 1
+    },
+    {
+      "version": "v4",
+      "window": "2022-2024",
+      "cost": 0.005,
+      "trades": 30,
+      "ending_equity": 106.33010250000028,
+      "return": 0.06330102500000279,
+      "max_drawdown": -0.22803856729372973,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": false,
+      "unavailable_entries": 0,
+      "breaker_events": 1
+    },
+    {
+      "version": "v4",
+      "window": "2025-2026",
+      "cost": 0.001,
+      "trades": 19,
+      "ending_equity": 106.21965100000011,
+      "return": 0.06219651000000104,
+      "max_drawdown": -0.12469513297665569,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 0,
+      "breaker_events": 0
+    },
+    {
+      "version": "v4",
+      "window": "2025-2026",
+      "cost": 0.002,
+      "trades": 19,
+      "ending_equity": 104.84130200000016,
+      "return": 0.04841302000000147,
+      "max_drawdown": -0.1349919209057635,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 0,
+      "breaker_events": 0
+    },
+    {
+      "version": "v4",
+      "window": "2025-2026",
+      "cost": 0.005,
+      "trades": 19,
+      "ending_equity": 100.70625500000013,
+      "return": 0.007062550000001222,
+      "max_drawdown": -0.16599448833885577,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "open_at_end": true,
+      "unavailable_entries": 0,
+      "breaker_events": 0
+    }
+  ]
+}

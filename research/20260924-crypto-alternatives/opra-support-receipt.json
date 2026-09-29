@@ -1,0 +1,12 @@
+{
+  "status": "sent_verified",
+  "sent_at": "2026-09-24T19:23:21Z",
+  "recipient": "support@alpaca.markets",
+  "subject": "OPRA agreement unavailable in active Level 3 options account",
+  "gmail_message_id": "1a0d4df55a37b99a",
+  "gmail_labels": [
+    "SENT"
+  ],
+  "verification": "Full sent-message read-back; exact body verified",
+  "opra_signed": false
+}

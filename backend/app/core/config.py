@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     # --- Core ---
     APP_ENV: str = "development"
     DATABASE_URL: str = "sqlite:///./project100.db"  # Postgres in prod, sqlite for local/test
+    # Deployment scopes identify one broker/account/mode. Legacy local databases
+    # retain 'current'; deployed workers must use separate explicit scopes.
+    STATE_SCOPE: str = Field(default="current", min_length=1)
+    ALPACA_LIVE_STATE_SCOPE: str = "alpaca:live"
+    LIVE_POSITION_MANAGEMENT_ENABLED: bool = False
     SECRET_KEY: str = Field(default="dev-only-change-me")
 
     # --- Trading mode / autonomy (defaults are the SAFE defaults) ---
@@ -58,6 +63,7 @@ class Settings(BaseSettings):
 
     # --- Capital ---
     STARTING_CAPITAL: float = 100.0
+    FIRST_MILESTONE: float = Field(default=200.0, ge=200.0, le=500.0)
 
     # --- Risk Engine defaults (per spec) ---
     MAX_RISK_PER_TRADE: float = 0.01          # 1% of equity

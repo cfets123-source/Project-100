@@ -1,0 +1,27 @@
+{
+  "changed_or_added_release_files": [
+    "backend/app/dashboard_html.py",
+    "backend/app/main.py",
+    "backend/app/brokers/reduce_only.py",
+    "backend/app/core/config.py",
+    "backend/app/runtime/alpaca_live_position_manager.py",
+    "backend/app/runtime/milestone_execution.py",
+    "backend/app/runtime/alpaca_position_supervisor.py",
+    "backend/app/runtime/alpaca_live_worker.py",
+    "backend/app/runtime/alpaca_expanded_live_preflight.py",
+    "backend/app/models/models.py",
+    "backend/app/db/session.py",
+    "backend/app/services/account_risk.py",
+    "backend/app/services/state_machine.py",
+    "backend/app/services/alpaca_paper_protection.py",
+    "backend/app/services/live_readiness.py",
+    "backend/app/services/milestone_lifecycle.py",
+    "backend/app/services/alpaca_risk_reconciliation.py",
+    "backend/tests/test_alpaca_risk_reconciliation.py",
+    "backend/tests/test_execution_repairs.py",
+    "backend/tests/test_milestone_execution.py",
+    "backend/tests/test_milestone_lifecycle.py",
+    "release/compose.api.yml",
+    "release/verify_reconciler.py"
+  ]
+}

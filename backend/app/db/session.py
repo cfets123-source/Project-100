@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
@@ -14,6 +14,14 @@ def initialize_schema(target_engine=engine):
         if target_engine.dialect.name == "sqlite":
             conn.exec_driver_sql("BEGIN IMMEDIATE")
         Base.metadata.create_all(bind=conn)
+        # Additive migration for the development-era defensive-intent table.
+        # No existing order, halt or account data is deleted or reset.
+        columns = {c['name'] for c in inspect(conn).get_columns('defensive_order_intents')}
+        for name, declaration in (
+            ('entry_order_id', 'VARCHAR'), ('filled_quantity', 'FLOAT NOT NULL DEFAULT 0'),
+            ('fill_price', 'FLOAT')):
+            if name not in columns:
+                conn.exec_driver_sql(f'ALTER TABLE defensive_order_intents ADD COLUMN {name} {declaration}')
         conn.commit()
 
 

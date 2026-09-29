@@ -27,7 +27,7 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
                                          fill_price=341)
         db.add_all([
             StrategyValidationRecord(strategy=EXPANDED_STRATEGY_VERSION,
-                                     methodology_version="test", trades=126, win_rate=.5,
+                                     methodology_version="walk-forward-v1", trades=126, win_rate=.5,
                                      total_return=.22, max_drawdown=.1, passed=True, reasons=[]),
             SystemStateRecord(id="current", state="live"), trade, live_trade,
             ExternalPaperProtection(entry_order_id="entry-1", symbol="CVX", quantity=.2,
@@ -52,7 +52,7 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
         live.get_accounts.return_value = [{"account_id": "live-account"}]
         live.get_account_capabilities.return_value = {"status": "ACTIVE"}
         with patch("app.runtime.alpaca_expanded_live_preflight.load_read_only_adapter",
-                   side_effect=[(paper, True), (live, False)] * 4):
+                   side_effect=[(paper, True), (live, False)] * 5):
             cfg = SimpleNamespace(BROKER_TOKEN_ENCRYPTION_KEY="test")
             pending = report(db, cfg)
             assert not pending["ready"]
@@ -99,10 +99,17 @@ def test_preflight_requires_closed_broker_reconciled_paper_lifecycle_and_flat_ac
             db.commit()
             ready = report(db, cfg)
             assert ready["ready"] is False
-            assert "strategy_execution_horizon_mismatch_fractional_day_stop" in ready["blockers"]
+            assert f"strategy_execution_contract_mismatch:{EXPANDED_STRATEGY_VERSION}" in ready["blockers"]
             assert ready["paper_lifecycle"]["exit_order_id"] == "exit-1"
             assert ready["live_lifecycle"]["exit_order_id"] == "live-exit"
             assert ready["order_submission"] is False
+
+            from app.research.strategy_validation import record_validation, assess_out_of_sample
+            from app.runtime.alpaca_live_execution import DAILY_PULLBACK_EXECUTION_CONTRACT
+            record_validation(db, strategy=EXPANDED_STRATEGY_VERSION,
+                              result=assess_out_of_sample([.01] * 30),
+                              execution_contract=DAILY_PULLBACK_EXECUTION_CONTRACT)
+            assert report(db, cfg)["ready"] is True
 
             live.get_account_capabilities.return_value = {
                 "status": "ACTIVE", "trade_suspended_by_user": True,

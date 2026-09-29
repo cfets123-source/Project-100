@@ -100,7 +100,11 @@ def ensure_protective_stops(db, adapter, cfg, *, mode: str = "paper") -> dict:
     if mode == "live":
         if getattr(adapter, "paper", True):
             raise RuntimeError("live protective-stop manager refuses paper adapter")
-        allowed, reason = StateManager(db, cfg).live_broker_mutation_allowed()
+        from app.brokers.reduce_only import ReduceOnlyAdapter
+        if isinstance(adapter, ReduceOnlyAdapter) and getattr(cfg, "LIVE_POSITION_MANAGEMENT_ENABLED", False):
+            allowed, reason = True, ""
+        else:
+            allowed, reason = StateManager(db, cfg).live_broker_mutation_allowed()
         if not allowed:
             raise RuntimeError(f"live protective-stop manager blocked: {reason}")
     ledger = ExternalPaperProtection if mode == "paper" else ExternalLiveProtection

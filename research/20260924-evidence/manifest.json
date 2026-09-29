@@ -1,0 +1,14 @@
+{
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/RESULT.md": "fae95ddbadb40c33d7f5a5bd8bfc19eda4f86f035e77ea1734962634951f7770",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/results.json": "85c482423fd89d3f4fa04d7cb2702ee994d4157d6d22438f14f288bad632f10b",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/sip-bars.json": "ea33363fff443d18da89c8551b403117577bbd354c1b9c63fb29257f0f51ced5",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/fetch_sip.py": "0b21142c81e50d4338524781f06a34df30d0e82c699d78fcf608a83d8791db18",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/comparison.csv": "3f9a010033af8cf0cbaf4ded565c18700ba7a703906a18892e637d7a9d9e12d9",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/matrix-output.json": "e1a4f3d7fa9504e0d054317e43229175c67ff581f9c7e2c20c2ce2164352e29c",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/PLAN.md": "ed1bc59fd01b0f399b4c7bbf1c0a001b497bf2921c7948a58469107b2ea5d9de",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/test-results.txt": "b082d5202333c367999fe78bec4b3c970b8d4c8b2506d2698bbac88f5b944b97",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/run_matrix.py": "ee82b2c7b977527856e2e32b5b1306ad6e2b7dabe3ddaad1dc45446ce5318128",
+  "/Users/macneoeduardo/Documents/ChatGPT/Veloikos 100/research/20260924-evidence/write_report.py": "e9db1ad8ac8f4d153c0e0dea8f81590ba42db90c9eab8c8496188d4efe757630",
+  "backend/app/research/monthly_etf_time_series_momentum_v4.py": "9aa739c6cb627bc369d198320d5cf636c28489e76670fefc9b290c58e8a5adf6",
+  "backend/tests/test_monthly_etf_tsm_v4.py": "59222bd882de99841ddd31c29f33af93ea487bdbd8c7cd62e51cf33e34988e0c"
+}

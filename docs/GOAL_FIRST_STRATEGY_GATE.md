@@ -1,26 +1,52 @@
-# Goal-first strategy gate
+# Stage-by-stage strategy evaluation
 
-Objective: grow **$100 to $1,000,000 within one year** through the sequence $100 → $500 → $1,000 → $5,000–$10,000 → $100,000 → $200,000–$300,000 → $500,000 → $1,000,000. This requires 10,000× total account growth, **not one instrument or one unchanged strategy that returns 10,000×**. Gains at each stage become the capital for the next. The gate is a screening tool, not a prediction or an automatic live-trading authorization.
+Current mandate: start with $100, trade toward a first target in the $200–$500
+range, sell, reconcile proceeds, and reinvest for the next milestone. The current
+application default is $200. Continue through $1,000, $3,000, $5,000, $10,000,
+$50,000, $100,000, $300,000, $500,000, and $1,000,000. Each stage can use a
+separate strategy. No deadline was supplied in the current mandate.
 
-The annual target is a chain of separate account-level milestones. Each stage needs its own executable strategy, net-return evidence, capital requirement, capacity limit, and transition trigger. The stage must be assessed on its own time budget and costs; a later stage cannot retroactively rescue a failed first stage. With no losing trades, withdrawals, deposits, or costs, the whole ladder would require a constant 19.38% net gain across 52 weekly periods or 3.72% across 252 trading days. These are whole-plan arithmetic references, **not the required return for every strategy or trade**.
+This document supersedes the earlier one-year plan. Historical experiment plans
+and results retain their original thresholds for reproducibility; they do not
+set the current product mandate. Failing to reach $500 within a historical year
+is not by itself evidence that a strategy loses money or is technically unusable.
 
-| Stage | Multiple needed | Research lane to investigate | Transition requirement |
-| --- | ---: | --- | --- |
-| $100 → $500 → $1,000 | 5× then 2×; 10× combined | Small-order routes with meaningful, defined account risk, such as approved long options or event contracts; compare with liquid ETF and crypto setups. | Record the first $500 touch, then reach $1,000 using the resulting capital. A profitable instrument position is not the same as total account growth. |
-| $1,000 → $5,000 → $10,000 | 5× then 2× | More contract choice and position diversification; test a separate ruleset if the first stage cannot scale. | Record $5,000 waypoint and $10,000 equity, including all costs and open liabilities. |
-| $10,000 → $100,000 | 10× | Broader liquid instruments and multiple uncorrelated setups, subject to actual broker permissions. | Demonstrate the new rules at the larger size, including fills, loss controls, and liquidity. |
-| $100,000 → $200,000 → $300,000 | 2× then 1.5× | Capacity and drawdown management become as important as return; retain only setups whose net edge survives larger orders. | Record both waypoints and rerun capacity and broker reconciliation. |
-| $300,000 → $500,000 → $1,000,000 | 1.67× then 2× | Diversified liquid routes and execution quality at scale. | Verify account equity and realized results; paper milestones alone do not count. |
+Assess the next stage against executable account conditions: usable capital,
+instrument and order affordability, broker permissions, entry and exit timing,
+quantity rounding, costs, liquidity, and defined account loss limits. Freeze
+candidate rules and acceptance criteria before evaluating untouched data. Report
+net account return, drawdown, turnover, and milestone touches separately. Neither
+a milestone touch nor a positive development result proves future profitability.
 
-The research lanes above are hypotheses, not approved strategies. A stage switch is an explicit new decision supported by its own evidence; crossing a balance number does not automatically turn on a new market, increase risk, or reset an execution halt.
+A strategy does not need to demonstrate the entire ladder, or a 5x historical
+return, to satisfy an engineering release check. Strategy evidence, operational
+readiness, and operator activation are distinct. Never clear a failed test merely
+to reach deployment; never convert a development result into untouched evidence.
 
-Screen candidates in this order:
+## Existing evidence and specific remaining work
 
-1. **Executable with the capital at that stage:** instrument, minimum order, broker permission, real quote access, trade frequency, cash settlement, and funding must work with the actual account. An available market-data feed or paper key alone does not qualify.
-2. **Net edge with a defined loss:** the setup must explain why its expected payoff could exceed spread, slippage, fees, and losing trades. A large maximum payoff or a lucky backtest is not an edge. Count account-level return, not the percentage gain on a tiny option premium.
-3. **Stage handoff:** a rule only needs to work for the stage it serves. Before capital moves into the next stage's rule, show how position size, liquidity, available broker routes, and risk change at that threshold. Do not force the first-stage instrument to carry the whole ladder.
-4. **Test only after those screens:** freeze the rule, use price/quote data matching the broker route, separate development from untouched confirmation, and record cost stress, drawdown, ruin frequency, and comparison with a passive benchmark. A candidate advances to paper only after it clears those tests; broker fills and protective exits then need their own lifecycle evidence.
+- Daily pullback: the historical overnight evaluation differs from the worker's
+  fractional DAY-stop/session-exit behavior. The same-day diagnostic lost 20.69%
+  after modeled costs in 2025–September 2026. A matching evaluator must cover
+  integer brackets as well as fractional exits. See
+  [execution gate repair](../audit/EXECUTION_GATE_REPAIR.md).
+- Whole-share overnight: its frozen confirmation failed. Preserve that result;
+  changing the target does not change its return sequence.
+- Monthly ETF V3: +6.19% in the inspected recent development window, with 19
+  completed trades. This is a positive development result, not a failed strategy
+  solely because it did not reach $500. It lacks untouched confirmation and a
+  complete operational lifecycle. See [original result](MONTHLY_ETF_TSM_V3_RESULT.md).
+- Weekly crypto and leveraged Nasdaq rotation: both lost money in their later
+  inspected periods, independently of the original $500 milestone criterion.
+  Preserve the original cost/data limitations and results.
 
-Current status: the corrected monthly ETF V3 returned +6.19% over the inspected 2025–September 2026 window and trades roughly monthly. It has not demonstrated the $100 → $500 opening stage; that does not rule out a different role at a later stage. The frozen morning-momentum, opening-range, and intraday trend candidates produced hundreds of trades but negative modeled account returns after costs. The [weekly six-coin crypto rotation](CRYPTO_WEEKLY_BREAKOUT_STAGE_V3_RESULT.md) and [weekly leveraged ETF rotation](LEVERAGED_NASDAQ_WEEKLY_STAGE_V1_RESULT.md) were measured against both $500 and $1,000; neither reached $500 in either observed year. Those failures are actual negative test results, **not** an artifact of comparing them with the full $1 million target. Options presently lack a complete live execution/data path in Veloikos; crypto trading was broker-inactive at the last verified check; Robinhood execution was off. Those broker facts must be refreshed before using them as current gates. No candidate has passed an opening-stage evaluation. **Do not promote a failed candidate by changing its test threshold or by choosing its best historical period after viewing results.**
+Next engineering work must close a named execution or evidence defect. Do not
+launch an endless series of parameter searches on already inspected periods.
+A new strategy investigation requires a frozen hypothesis, appropriate data,
+untouched confirmation, and a stopping rule before execution. No strategy is
+currently represented as validated for live use by this document.
 
-Relevant evidence: [corrected ETF result](MONTHLY_ETF_TSM_V3_RESULT.md), [morning-momentum result](INTRADAY_MORNING_MOMENTUM_V1_RESULT.md), [opening-range result](INTRADAY_OPENING_RANGE_V2_ANNUAL_RESULT.md), [intraday trend result](INTRADAY_TREND_V3_ANNUAL_RESULT.md). Free Alpaca equity data cover the IEX venue rather than the consolidated SIP tape ([Alpaca market-data FAQ](https://docs.alpaca.markets/us/docs/market-data-faq)). Robinhood's crypto API and fee tier vary by route and account; market and stop orders can incur taker fees ([Robinhood crypto API](https://robinhood.com/us/en/support/articles/crypto-api/), [fee tiers](https://robinhood.com/us/en/support/articles/crypto-fee-tiers/)).
+At a milestone, stop new entries, reconcile liquidation and outstanding orders,
+verify available proceeds, then advance the stage. A balance crossing alone is
+not a completed sale, and a new stage must not silently increase risk limits or
+expand trading permissions.

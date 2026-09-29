@@ -157,3 +157,12 @@ def test_dashboard_requires_password_when_configured(monkeypatch):
         token = base64.b64encode(b"operator:test-password").decode()
         assert client.get('/dashboard', headers={"Authorization": f"Basic {token}"}).status_code == 200
         assert client.get('/brokers/robinhood/connect').status_code == 401
+
+def test_dashboard_stage_cycle_and_unknown_balances_are_explicit():
+    with TestClient(app) as client:
+        page=client.get('/dashboard').text
+        assert 'Stage-by-stage trading' in page
+        assert 'Sell &amp; reconcile' in page
+        assert 'annual target' not in page
+        assert 'This does not mean the account is empty' in page
+        assert '/live/milestones' in page and '/live/observer' in page

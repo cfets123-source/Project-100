@@ -1,44 +1,32 @@
 # Veloikos Trading
 
-Experimental autonomous-trading software under development. The repository now
-contains Alpaca broker adapters and paper/live worker paths alongside research
-code. The state of any deployed worker or broker account must be checked in
-that environment; source code alone does not prove that a route is active.
-Live execution is off by default in local configuration. The project objective
-and the rules for stage-specific strategy work are in [Project 100 working
-instructions](AGENTS.md). The account-equity ladder starts at **$100 → $500 →
-$1,000** and continues to $1,000,000 within a year. This is an aggressive
-research objective, not an expected or guaranteed return.
+Stage-by-stage trading software: trade toward the next account milestone, sell, reconcile actual proceeds, then fund the next stage. The initial target is configurable within $200–$500, followed by $1,000, $3,000, $5,000, $10,000, $50,000, $100,000, $300,000, $500,000 and $1,000,000. A strategy can differ between stages. Returns are not guaranteed.
 
-## Local tests
+This workspace contains an imported development snapshot of Project 100, preserving its prior uncommitted source. Source provenance is in `audit/import-manifest.json`; the older checkout is unchanged. Account databases and credentials were not imported.
 
-Use Python 3.12 or newer in an isolated environment. Python 3.9 is not
-supported because the application uses modern type syntax:
+## Run locally
+
+Use Python 3.12. Install pinned dependencies into a virtual environment, then run:
 
 ```sh
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r backend/requirements.txt
-cd backend
-python -m pytest tests/ -q
+.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8765
 ```
 
-The backend suite includes simulated-data and broker-double tests; run it for
-the current count rather than relying on an older README number. Tests alone
-do not verify a live broker account. Some dependencies emit deprecation warnings.
+Open http://127.0.0.1:8765/dashboard . Without a connected broker, balances and positions show unavailable rather than zero. Live execution defaults off. This local preview is separate from the existing server account.
 
-See [architecture](docs/ARCHITECTURE.md) and [safety limits](docs/THREAT_MODEL.md).
-Never commit credentials, account databases, or private trading records.
+```sh
+.venv/bin/python -m pytest backend/tests -q --tb=short --disable-warnings
+```
 
-Run the [persistent paper worker](docs/PAPER_RUNTIME.md) to replay simulated trades with restart recovery and a durable ledger.
+## September 24 repairs
 
-See [performance and stage policy](docs/PERFORMANCE_AND_STAGES.md) and [container preparation](docs/DEPLOYMENT.md). Container execution has not yet been verified.
+- Separate configured paper/live state scopes, preserving existing emergency halts during migration.
+- Account-bound, fresh, cash-flow-adjusted risk observations instead of hardcoded zero losses.
+- Read-only broker risk collection, rejecting ambiguous transfers and incomplete evidence.
+- Existing-position supervision before entry-strategy approval, with separate default-off management permission.
+- Restricted sell adapter with durable submission intent and reconciliation after unknown outcomes.
+- Persisted milestone liquidation/reconciliation/available-proceeds lifecycle; no milestone credit for additional deposits.
+- Dynamic dashboard targets and explicit unavailable account data.
+- Read-only account observer that forces all order-execution flags off in code.
 
-## Operations dashboard
-
-Start the API with the same isolated environment used for tests, then open
-`http://127.0.0.1:8000/dashboard`. The dashboard refreshes paper-runtime
-health, cash, equity, positions, drawdown, closed-trade metrics, and recent
-append-only actions every second. It is read-only and clearly labels simulated
-data. Its Robinhood card stays disconnected until a real, authenticated
-capability check succeeds; see [Robinhood onboarding](docs/ROBINHOOD_ONBOARDING.md).
+`release/compose.api.yml` starts only the web API and read-only account observer. It does not launch a trading worker. Code tests, connection checks, broker lifecycle evidence, deployment, live activation, fills and profitability are separate facts. See `audit/IMPLEMENTATION_STATUS.md` for verified release state and outstanding work.

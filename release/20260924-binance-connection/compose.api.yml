@@ -1,0 +1,57 @@
+# Replaces only the existing web/API service; never starts a trading worker.
+services:
+  api:
+    image: veloikos-binance-connection:20260924
+    pull_policy: never
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file: /opt/project-100/.env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      STATE_SCOPE: current
+      # Existing workers still use the legacy key until their separate migration.
+      ALPACA_LIVE_STATE_SCOPE: current
+      TRADING_MODE: paper
+      AUTONOMY_LEVEL: "0"
+      AUTO_EXECUTION: "false"
+      LIVE_TRADING_ENABLED: "false"
+      LIVE_POSITION_MANAGEMENT_ENABLED: "false"
+      ALPACA_PAPER_EXECUTION_ENABLED: "false"
+      ROBINHOOD_EQUITY_EXECUTION_ENABLED: "false"
+      ROBINHOOD_CRYPTO_EXECUTION_ENABLED: "false"
+      ROBINHOOD_OPTIONS_EXECUTION_ENABLED: "false"
+      FIRST_MILESTONE: "200"
+    volumes: ["account-data:/data"]
+    ports: ["127.0.0.1:8000:8000"]
+    restart: "on-failure:3"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+  account-observer:
+    image: veloikos-binance-connection:20260924
+    pull_policy: never
+    command: ["python", "-m", "app.runtime.account_observer", "--interval", "60"]
+    env_file: /opt/project-100/.env.host
+    environment:
+      DATABASE_URL: sqlite:////data/paper.db
+      STATE_SCOPE: alpaca:live
+      TRADING_MODE: paper
+      AUTONOMY_LEVEL: "0"
+      AUTO_EXECUTION: "false"
+      LIVE_TRADING_ENABLED: "false"
+      LIVE_POSITION_MANAGEMENT_ENABLED: "false"
+      ALPACA_PAPER_EXECUTION_ENABLED: "false"
+      ROBINHOOD_EQUITY_EXECUTION_ENABLED: "false"
+      ROBINHOOD_CRYPTO_EXECUTION_ENABLED: "false"
+      ROBINHOOD_OPTIONS_EXECUTION_ENABLED: "false"
+      FIRST_MILESTONE: "200"
+    volumes: ["account-data:/data"]
+    restart: "on-failure:3"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+volumes:
+  account-data:
+    external: true
+    name: project-100_paper-data

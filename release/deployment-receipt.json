@@ -1,0 +1,31 @@
+{
+  "deployment_date": "2026-09-24",
+  "url": "https://trade.veloikos.com/dashboard",
+  "release_directory": "/opt/veloikos-releases/20260924-stage-repair",
+  "package_sha256": "87bd69edd55405735d28a99d53ac786c3635b9002fd3241e562f3a8053a8c0b6",
+  "image": "sha256:c2a8cad40a40c1825b9d8a853d82c69ba648795feff45e59ad8ba1536173cfe8",
+  "previous_api_image": "sha256:9a7507a60002a93649b434dfe8abfd0f5908f57001aea2b5ab9b92415b2b1fd0",
+  "backup": "/data/backups/pre-veloikos-release-20260924T184826Z.db",
+  "backup_integrity": "ok",
+  "server_tests_passed": 418,
+  "services": {
+    "project-100-api-1": "running",
+    "project-100-account-observer-1": "running",
+    "project-100-alpaca-live-1": "exited"
+  },
+  "authenticated_dashboard_http_status": 200,
+  "health_http_status": 200,
+  "public_https_login_verified": true,
+  "observer": {
+    "read_only": true,
+    "order_execution_enabled": false,
+    "risk_ready": true,
+    "observed_at": "2026-09-24T18:49:11.991920",
+    "position_count": 0,
+    "next_target": 200.0
+  },
+  "equity_at_verification": 99.83,
+  "state": "shadow",
+  "reason": "live strategy historical holding period does not match fractional DAY-stop session exits",
+  "trading_enabled_by_this_deployment": false
+}

@@ -1,5 +1,6 @@
 """Isolated live worker. The compose profile remains default-off."""
 import time
+from datetime import datetime, timedelta, timezone
 from app.runtime.alpaca_live_execution import load_finally_authorized_adapter
 from app.strategies.daily_trend_pullback import DailyTrendPullback
 from app.services.execution_gateway import ExecutionGateway
@@ -12,6 +13,9 @@ from app.runtime.alpaca_live_position_manager import (
     release_flat_account_reservations,
 )
 from app.brokers.alpaca_adapter import AlpacaBrokerError
+from app.runtime.alpaca_position_supervisor import supervise_positions
+from app.services.account_risk import measured_risk_context, RiskEvidenceUnavailable
+from app.services.alpaca_risk_reconciliation import collect_risk_observation
 
 LIVE_SYMBOLS=("SPY","QQQ","IWM","GLD","TLT")
 
@@ -39,7 +43,20 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
               symbols: tuple[str, ...] = LIVE_SYMBOLS):
     """One guarded live cycle; disabled gates fail before any broker mutation."""
     strategy = strategy or DailyTrendPullback()
-    adapter=start_live_worker(db,cfg,strategy)
+    # Position supervision comes before entry approval. A strategy failure must
+    # not stop observing/managing already held exposure.
+    supervision = supervise_positions(db, cfg)
+    if supervision.get('risk_ready') is False:
+        return {'started': True, 'entries': [], 'reason': 'risk_reconciliation_unavailable',
+                'supervision': supervision}
+    stage = supervision.get('milestone', {})
+    if stage.get('phase') in {'liquidating', 'waiting_for_available_funds', 'stage_complete', 'complete'}:
+        return {'started': True, 'entries': [], 'reason': 'milestone_' + stage['phase'],
+                'supervision': supervision}
+    try:
+        adapter=start_live_worker(db,cfg,strategy)
+    except RuntimeError as exc:
+        return {'started': True, 'entries': [], 'reason': str(exc), 'supervision': supervision}
     account_id=str(adapter.get_accounts()[0]['account_id'])
     released_reservations = release_flat_account_reservations(db, adapter, account_id)
     protection=ensure_protective_stops(db, adapter, cfg, mode="live")
@@ -71,10 +88,24 @@ def run_cycle(db, cfg, *, strategy: DailyTrendPullback | None = None,
                 "bracket_reconciliation": bracket_reconciliation}
     quote=adapter.get_quotes([signal['symbol']])[0]
     balances=adapter.get_balances(); equity=allocated_live_equity(balances, cfg)
+    now = datetime.now(timezone.utc)
+    bars = adapter.get_daily_bars(signal['symbol'],
+                                 (now - timedelta(days=45)).date().isoformat(),
+                                 now.date().isoformat())
+    try:
+        collect_risk_observation(db, adapter, getattr(cfg, 'STATE_SCOPE', 'current'))
+        if len(bars) < 20:
+            raise RiskEvidenceUnavailable('observed liquidity history is incomplete')
+        liquidity = sum(float(b['close']) * float(b['volume']) for b in bars[-20:]) / 20
+        risk_context = measured_risk_context(db, scope=getattr(cfg, 'STATE_SCOPE', 'current'),
+                                             account_id=account_id, equity=equity,
+                                             avg_dollar_volume=liquidity)
+    except (RiskEvidenceUnavailable, KeyError, TypeError, ValueError) as exc:
+        log_and_commit(db, 'live_entry_blocked_risk_evidence', {'reason': str(exc)})
+        return {'started': True, 'entries': [], 'reason': str(exc), 'supervision': supervision}
     result=ExecutionGateway(db,adapter,RiskEngine(cfg),StateManager(db,cfg),account_id).submit(
         signal, account_id, quote,
-        {'avg_dollar_volume':5_000_000,'sector':'unclassified','open_position_count':0,
-         'daily_pnl_pct':0,'weekly_drawdown_pct':0,'total_drawdown_pct':0},
+        risk_context,
         equity, min(float(balances['buying_power']), equity*cfg.MAX_POSITION_PCT))
     log_and_commit(db, "alpaca_live_worker_cycle_completed", {"strategy": strategy.name,
                    "submitted": result.submitted, "reason": result.reason, "trade_id": result.trade_id})
