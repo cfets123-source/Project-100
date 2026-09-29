@@ -42,6 +42,8 @@ from app.research.intraday_trend_pullback import STRATEGY_VERSION as INTRADAY_RE
 initialize_schema(engine)
 
 app = FastAPI(title="Veloikos Trading", version="1.0.0")
+from app.binance_routes import router as binance_router
+app.include_router(binance_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
 MARKET_CONTEXT_ETFS = ("FXI", "EWU")  # US-listed China/UK exposure, not local exchange quotes.
@@ -650,13 +652,8 @@ def health():
 
 @app.get("/system/state", dependencies=[Depends(require_dashboard_access)])
 def get_state(db: Session = Depends(get_db)):
-    rec = db.get(models.SystemStateRecord, "current")
-    if not rec:
-        rec = models.SystemStateRecord(id="current", state="off", reason="initial")
-        db.add(rec)
-        db.commit()
-        db.refresh(rec)
-    return {"state": rec.state, "reason": rec.reason, "updated_at": rec.updated_at}
+    rec = StateManager(db, settings).get_record()
+    return {"scope": rec.id, "state": rec.state, "reason": rec.reason, "updated_at": rec.updated_at}
 
 
 @app.get("/config/risk", dependencies=[Depends(require_dashboard_access)])
@@ -697,7 +694,8 @@ def live_readiness(db: Session = Depends(get_db)):
     report = live_readiness_report(
         settings, broker, market_open=False,
         external_paper_lifecycle_verified=evidence is not None,
-        current_state=StateManager(db, settings).get_state(),
+        current_state=(db.get(models.SystemStateRecord, settings.ALPACA_LIVE_STATE_SCOPE).state
+                       if db.get(models.SystemStateRecord, settings.ALPACA_LIVE_STATE_SCOPE) else None),
     )
     report["external_paper_lifecycle_evidence"] = evidence.payload if evidence else None
     return report
@@ -812,7 +810,7 @@ def live_decision_context(db: Session = Depends(get_db)):
              .order_by(models.TradeDecisionRecord.timestamp.desc()).first()) if live_ids else None
     validation = db.get(models.StrategyValidationRecord, BroadDailyTrendPullback.name)
     intraday = db.get(models.StrategyValidationRecord, INTRADAY_RESEARCH_VERSION)
-    state = db.get(models.SystemStateRecord, "current")
+    state = db.get(models.SystemStateRecord, settings.ALPACA_LIVE_STATE_SCOPE)
     last_scan = (db.query(models.AuditLogEntry)
                  .filter(models.AuditLogEntry.event_type.in_((
                      "alpaca_live_worker_cycle_completed", "alpaca_live_worker_no_qualifying_signal",
@@ -849,3 +847,37 @@ def live_decision_context(db: Session = Depends(get_db)):
             "timestamp": last_scan.timestamp, "payload": last_scan.payload},
         "capabilities": CapabilityRegistry().report(),
     }
+
+
+@app.get("/live/milestones", dependencies=[Depends(require_dashboard_access)])
+def live_milestones(db: Session = Depends(get_db)):
+    from app.services.milestone_lifecycle import MilestonePolicy, read_stage
+    policy = MilestonePolicy(first_target=settings.FIRST_MILESTONE,
+                             starting_capital=settings.STARTING_CAPITAL)
+    result = {"targets": policy.targets, "starting_capital": policy.starting_capital,
+              "first_target": policy.first_target, "first_target_is_configured_default": True,
+              "next_target": policy.first_target, "achieved": [], "phase": "account_unavailable",
+              "broker_verified": False, "runtime_verified": False}
+    try:
+        reader, paper = alpaca_connection.load_read_only_adapter(
+            db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
+        accounts = reader.get_accounts()
+        if paper or len(accounts) != 1 or not accounts[0].get('account_id'):
+            return result
+        stored = read_stage(db, 'live', str(accounts[0]['account_id']), policy)
+        return {**result, **stored, "broker_verified": True,
+                "recorded_observation_only": True}
+    except Exception:
+        return result
+
+
+@app.get("/live/observer", dependencies=[Depends(require_dashboard_access)])
+def live_observer(db: Session = Depends(get_db)):
+    event=(db.query(models.AuditLogEntry)
+           .filter(models.AuditLogEntry.event_type == 'live_account_observed')
+           .order_by(models.AuditLogEntry.timestamp.desc()).first())
+    if not event:
+        return {'observed':False, 'healthy':False, 'order_execution_enabled':False}
+    age=(datetime.now(timezone.utc)-event.timestamp.replace(tzinfo=timezone.utc)).total_seconds()
+    return {**event.payload, 'observed':True, 'observed_at':event.timestamp,
+            'age_seconds':age, 'healthy':0 <= age <= 180 and bool(event.payload.get('risk_ready'))}
