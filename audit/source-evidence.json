@@ -1,0 +1,58 @@
+{
+  "audited_at_utc": "2026-09-24T18:25:44.936684+00:00",
+  "source_root": "/Users/macneoeduardo/Documents/Codex/2026-09-17/referenced-chatgpt-conversation-this-is-an/work/Project-100",
+  "method": "Read-only source inspection; no broker or deployment verification; no runtime tests executed",
+  "files": {
+    "AGENTS.md": {
+      "sha256": "2f398bb57f5eed094f19f867002dbfbe4336df064fca97811b14ee7ff8175e28"
+    },
+    "README.md": {
+      "sha256": "e4dc28e9c1ab521ac611907a2609a4a62f65505ea24e56065d2714c350dbb681"
+    },
+    "compose.host.paper.yml": {
+      "sha256": "398b60800b4fdd02346202ae8ea38b1e084ea2847b7308afa3ba822fd70605cf"
+    },
+    "backend/app/runtime/alpaca_live_worker.py": {
+      "sha256": "39012ddeaabfbc24cec824d59ccd22a57c7f1a62155b477c0200d7471e9495a6"
+    },
+    "backend/app/runtime/alpaca_live_execution.py": {
+      "sha256": "09a0af7aef6dbb418139f13c62b830c37d6186d29707a391dd214ff0e4b68705"
+    },
+    "backend/app/services/state_machine.py": {
+      "sha256": "a195bf599fd0b99759f18f1405f2e68bbf7df8f55d2d7103b0a6c6991a79201a"
+    },
+    "backend/app/services/execution_gateway.py": {
+      "sha256": "b0248adc1a0c1121e0a407642ec545b200f0ee0c976b5d7a714233ddc74775b0"
+    },
+    "backend/app/services/capital_stages.py": {
+      "sha256": "7bd10d63d1a37787c1e2c57940fce320330e4567102c2475a2d74b7ba9de7249"
+    },
+    "backend/app/dashboard_html.py": {
+      "sha256": "127c0c39716530991c0a6a4e9d80e05741a543185b400905dffd10cc11b9836a"
+    },
+    "docs/RELEASE_GATE.md": {
+      "sha256": "4aeb8891e37ce3d8487fe96dcf4c0a9238cfa6480cf33bacd5b1fd16c764a93c"
+    },
+    "docs/WHOLE_SHARE_OVERNIGHT_V1_RESULT.md": {
+      "sha256": "fc4e95b307bc49bd3c7c6d64e37c344571766943e6df7a3ecad99da66b1cfe14"
+    },
+    "docs/TEST_EVIDENCE_2026_09_24.md": {
+      "sha256": "c9269757e22c052c232082711a4c29cf07bfdc12e80eb862f9536771a061341f"
+    }
+  },
+  "verified_literal_risk_contexts": [
+    {
+      "line": 76,
+      "literal_risk_context": {
+        "avg_dollar_volume": 5000000,
+        "sector": "unclassified",
+        "open_position_count": 0,
+        "daily_pnl_pct": 0,
+        "weekly_drawdown_pct": 0,
+        "total_drawdown_pct": 0
+      }
+    }
+  ],
+  "shared_state_key": "current",
+  "deployment_database": "sqlite:////data/paper.db shared across configured paper/live services"
+}
