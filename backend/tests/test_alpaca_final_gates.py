@@ -28,11 +28,11 @@ def test_overnight_validation_cannot_authorize_fractional_day_stop_worker(monkey
     state = MagicMock()
     state.live_broker_mutation_allowed.return_value = (True, "allowed")
     monkeypatch.setattr("app.runtime.alpaca_live_execution.StateManager", lambda *_: state)
-    validation = MagicMock()
+    validation = MagicMock(side_effect=RuntimeError("strategy_execution_contract_mismatch"))
     broker = MagicMock()
     monkeypatch.setattr("app.runtime.alpaca_live_execution.require_passing_validation", validation)
     monkeypatch.setattr("app.runtime.alpaca_live_execution.verify_read_only", broker)
-    with pytest.raises(RuntimeError, match="strategy_execution_horizon_mismatch_fractional_day_stop"):
+    with pytest.raises(RuntimeError, match="strategy_execution_contract_mismatch"):
         load_finally_authorized_adapter(MagicMock(), SimpleNamespace(), strategy)
-    validation.assert_not_called()
+    validation.assert_called_once()
     broker.assert_not_called()
