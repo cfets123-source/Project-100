@@ -10,6 +10,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: simulator:paper
       LIVE_TRADING_ENABLED: "false"
     volumes:
       - paper-data:/data
@@ -31,6 +32,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
       LIVE_TRADING_ENABLED: "false"
     volumes: ["paper-data:/data"]
     restart: "on-failure:3"
@@ -47,6 +49,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
       LIVE_TRADING_ENABLED: "false"
       ALPACA_PAPER_EXECUTION_ENABLED: "${ALPACA_BROAD_PAPER_EXECUTION_ENABLED:-false}"
     volumes: ["paper-data:/data"]
@@ -64,6 +67,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
       LIVE_TRADING_ENABLED: "false"
       ALPACA_PAPER_EXECUTION_ENABLED: "${ALPACA_EXPANDED_PAPER_EXECUTION_ENABLED:-false}"
     volumes: ["paper-data:/data"]
@@ -84,6 +88,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
       LIVE_TRADING_ENABLED: "false"
       ALPACA_PAPER_EXECUTION_ENABLED: "false"
     volumes:
@@ -103,6 +108,8 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: live
+      STATE_SCOPE: alpaca:live
+      LIVE_POSITION_MANAGEMENT_ENABLED: "${LIVE_POSITION_MANAGEMENT_ENABLED:-false}"
       AUTONOMY_LEVEL: "4"
       AUTO_EXECUTION: "true"
       # Activation is supplied only by the host-only environment file after
@@ -124,6 +131,8 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: live
+      STATE_SCOPE: alpaca:live
+      LIVE_POSITION_MANAGEMENT_ENABLED: "${LIVE_POSITION_MANAGEMENT_ENABLED:-false}"
       AUTONOMY_LEVEL: "4"
       AUTO_EXECUTION: "true"
       LIVE_TRADING_ENABLED: "${BROAD_LIVE_TRADING_ENABLED:-false}"
@@ -142,6 +151,8 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: live
+      STATE_SCOPE: alpaca:live
+      LIVE_POSITION_MANAGEMENT_ENABLED: "${LIVE_POSITION_MANAGEMENT_ENABLED:-false}"
       AUTONOMY_LEVEL: "4"
       AUTO_EXECUTION: "true"
       LIVE_TRADING_ENABLED: "${EXPANDED_LIVE_TRADING_ENABLED:-false}"
@@ -159,6 +170,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:live
       LIVE_TRADING_ENABLED: "false"
     volumes: ["paper-data:/data"]
     restart: "on-failure:3"
@@ -175,6 +187,8 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: live
+      STATE_SCOPE: robinhood:live
+      LIVE_POSITION_MANAGEMENT_ENABLED: "${LIVE_POSITION_MANAGEMENT_ENABLED:-false}"
       AUTONOMY_LEVEL: "4"
       AUTO_EXECUTION: "true"
       LIVE_TRADING_ENABLED: "${ROBINHOOD_LIVE_TRADING_ENABLED:-false}"
@@ -195,6 +209,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
       LIVE_TRADING_ENABLED: "false"
       ROBINHOOD_OPTION_RESEARCH_IDS: "${ROBINHOOD_OPTION_RESEARCH_IDS:-}"
     volumes: ["paper-data:/data"]
@@ -211,6 +226,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/paper.db
       TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
       LIVE_TRADING_ENABLED: "false"
     volumes:
       - paper-data:/data
