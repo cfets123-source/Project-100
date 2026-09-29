@@ -1,0 +1,25 @@
+{
+  "deployment_date": "2026-09-24",
+  "verified_at": "2026-09-24T19:00:01Z",
+  "url": "https://trade.veloikos.com/dashboard",
+  "release_directory": "/opt/veloikos-releases/20260924-validation-repair",
+  "package_sha256": "563fea22c86c0c4d89287bf4cadcc195edbbb55c437fd63c2c4ee1f5a32bc22a",
+  "image": "sha256:ec63bd5be9bc7eb7b6dd9f309db757d85f8b0ce57450e1e573e97b8ac713affc",
+  "previous_api_image": "sha256:c2a8cad40a40c1825b9d8a853d82c69ba648795feff45e59ad8ba1536173cfe8",
+  "backup": "/data/backups/pre-validation-repair-20260924T185938Z.db",
+  "backup_integrity": "ok",
+  "server_tests_passed": 430,
+  "authenticated_dashboard_http_status": 200,
+  "health_http_status": 200,
+  "observer": {
+    "healthy": true,
+    "read_only": true,
+    "order_execution_enabled": false,
+    "observed_at": "2026-09-24T18:59:54.895484"
+  },
+  "equity_at_verification": 99.83,
+  "position_count": 0,
+  "state": "shadow",
+  "trading_worker": "exited",
+  "trading_enabled_by_this_deployment": false
+}
