@@ -158,3 +158,18 @@ def test_gateway_bracket_uses_configured_time_in_force(db, tif):
     assert result.submitted, result.reason
     assert sent[0].order_class == "bracket" and sent[0].quantity == 1.0
     assert sent[0].time_in_force == tif
+
+
+def test_bracket_held_stop_leg_counts_as_protection():
+    from app.services.protective_order_verification import verify_protective_orders
+    a = MagicMock()
+    a.get_positions.return_value = [{"symbol": "TQQQ", "qty": "1"}]
+    a.get_orders.return_value = [{
+        "id": "p", "symbol": "TQQQ", "status": "filled", "type": "market", "side": "buy",
+        "legs": [{"id": "t", "symbol": "TQQQ", "status": "new", "type": "limit", "side": "sell"},
+                 {"id": "s", "symbol": "TQQQ", "status": "held", "type": "stop", "side": "sell"}]}]
+    out = verify_protective_orders(a)
+    assert out["protected"] and out["uncovered_positions"] == []
+    a.get_orders.return_value = [{"id": "p", "symbol": "TQQQ", "status": "filled", "type": "market",
+                                  "side": "buy", "legs": []}]
+    assert verify_protective_orders(a)["uncovered_positions"] == ["TQQQ"]
