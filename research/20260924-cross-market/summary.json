@@ -1,0 +1,680 @@
+{
+  "screens": {
+    "broad_equity_trend": {
+      "passed": true,
+      "reasons": []
+    },
+    "cross_asset_rotation": {
+      "passed": false,
+      "reasons": [
+        "2018-2021:nonpositive_return"
+      ]
+    },
+    "direct_stock_rotation": {
+      "passed": false,
+      "reasons": [
+        "2018-2021:drawdown_exceeds_35_percent",
+        "recent_stress_nonpositive_return"
+      ]
+    },
+    "crypto_rotation": {
+      "passed": false,
+      "reasons": [
+        "2018-2021:drawdown_exceeds_35_percent",
+        "2025-2026:nonpositive_return",
+        "2025-2026:drawdown_exceeds_35_percent",
+        "recent_stress_nonpositive_return"
+      ]
+    }
+  },
+  "results": [
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 136.29289605415184,
+      "return": 0.36292896054151846,
+      "max_drawdown": -0.14875638252229795,
+      "round_trips": 38,
+      "cash_fraction": 0.25992063492063494,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 262,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 113.50772046200726,
+      "return": 0.13507720462007256,
+      "max_drawdown": -0.23351057632716576,
+      "round_trips": 24,
+      "cash_fraction": 0.3652058432934927,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 275,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 107.43032118851286,
+      "return": 0.07430321188512856,
+      "max_drawdown": -0.09221262066813796,
+      "round_trips": 16,
+      "cash_fraction": 0.23201856148491878,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 100,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 126.5555626207676,
+      "return": 0.2655556262076759,
+      "max_drawdown": -0.151970669260589,
+      "round_trips": 38,
+      "cash_fraction": 0.25992063492063494,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 262,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 108.24121079244142,
+      "return": 0.08241210792441422,
+      "max_drawdown": -0.2392926897302683,
+      "round_trips": 24,
+      "cash_fraction": 0.3652058432934927,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 275,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 104.01522655684235,
+      "return": 0.04015226556842344,
+      "max_drawdown": -0.09564653158948278,
+      "round_trips": 16,
+      "cash_fraction": 0.23201856148491878,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 100,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": true,
+      "window": "2018-2021",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 173.29488242554604,
+      "return": 0.7329488242554603,
+      "max_drawdown": -0.32812101525652915,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": true,
+      "window": "2022-2024",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 121.77923621220691,
+      "return": 0.2177923621220692,
+      "max_drawdown": -0.24094899760316024,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": true,
+      "window": "2025-2026",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 129.5315760512327,
+      "return": 0.2953157605123269,
+      "max_drawdown": -0.1808281583704261,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": true,
+      "window": "2018-2021",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 172.95862869114822,
+      "return": 0.7295862869114822,
+      "max_drawdown": -0.3280947159387123,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": true,
+      "window": "2022-2024",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 121.54591087573058,
+      "return": 0.2154591087573059,
+      "max_drawdown": -0.2409566947775168,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "broad_equity_trend",
+      "benchmark": true,
+      "window": "2025-2026",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 129.28276148207965,
+      "return": 0.29282761482079644,
+      "max_drawdown": -0.18081070393980037,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "cross_asset_rotation",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 91.43338434419235,
+      "return": -0.08566615655807652,
+      "max_drawdown": -0.3429730605928568,
+      "round_trips": 45,
+      "cash_fraction": 0.13293650793650794,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 134,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "cross_asset_rotation",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 129.59574480778613,
+      "return": 0.2959574480778613,
+      "max_drawdown": -0.20891778308571607,
+      "round_trips": 32,
+      "cash_fraction": 0.16069057104913678,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 121,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "cross_asset_rotation",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 138.47513646587353,
+      "return": 0.3847513646587353,
+      "max_drawdown": -0.2697033458283741,
+      "round_trips": 19,
+      "cash_fraction": 0.09280742459396751,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 40,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "cross_asset_rotation",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 83.7828320389388,
+      "return": -0.16217167961061196,
+      "max_drawdown": -0.3729518924851507,
+      "round_trips": 45,
+      "cash_fraction": 0.13293650793650794,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 134,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "cross_asset_rotation",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 121.71717239004528,
+      "return": 0.2171717239004527,
+      "max_drawdown": -0.21763264483782796,
+      "round_trips": 32,
+      "cash_fraction": 0.16069057104913678,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 121,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "cross_asset_rotation",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 133.30810663467054,
+      "return": 0.3330810663467054,
+      "max_drawdown": -0.2779581332184514,
+      "round_trips": 19,
+      "cash_fraction": 0.09280742459396751,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 40,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "direct_stock_rotation",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 191.0516185650797,
+      "return": 0.9105161856507971,
+      "max_drawdown": -0.365127242919142,
+      "round_trips": 45,
+      "cash_fraction": 0.13293650793650794,
+      "milestones": {
+        "200": "2021-01-21",
+        "500": null
+      },
+      "cash_days": 134,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "direct_stock_rotation",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 164.863163281482,
+      "return": 0.6486316328148201,
+      "max_drawdown": -0.18226585971437692,
+      "round_trips": 34,
+      "cash_fraction": 0.1102257636122178,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 83,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "direct_stock_rotation",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "base",
+      "one_way_cost": 0.0005,
+      "ending_liquidation": 100.7472837381876,
+      "return": 0.007472837381875985,
+      "max_drawdown": -0.2112608602227689,
+      "round_trips": 19,
+      "cash_fraction": 0.09280742459396751,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 40,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "direct_stock_rotation",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 175.05433785861314,
+      "return": 0.7505433785861313,
+      "max_drawdown": -0.3675035724243457,
+      "round_trips": 45,
+      "cash_fraction": 0.13293650793650794,
+      "milestones": {
+        "200": "2021-01-25",
+        "500": null
+      },
+      "cash_days": 134,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "direct_stock_rotation",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 154.24998566750466,
+      "return": 0.5424998566750465,
+      "max_drawdown": -0.18380107952794167,
+      "round_trips": 34,
+      "cash_fraction": 0.1102257636122178,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 83,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "direct_stock_rotation",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0015,
+      "ending_liquidation": 96.99103907776693,
+      "return": -0.030089609222330727,
+      "max_drawdown": -0.21423278002842605,
+      "round_trips": 19,
+      "cash_fraction": 0.09280742459396751,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 40,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "base",
+      "one_way_cost": 0.0035,
+      "ending_liquidation": 129.53493056495472,
+      "return": 0.2953493056495473,
+      "max_drawdown": -0.882369192811187,
+      "round_trips": 28,
+      "cash_fraction": 0.39561943874058864,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 578,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "base",
+      "one_way_cost": 0.0035,
+      "ending_liquidation": 194.44129595043714,
+      "return": 0.9444129595043713,
+      "max_drawdown": -0.3436975900645344,
+      "round_trips": 18,
+      "cash_fraction": 0.4726277372262774,
+      "milestones": {
+        "200": "2024-03-11",
+        "500": null
+      },
+      "cash_days": 518,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "base",
+      "one_way_cost": 0.0035,
+      "ending_liquidation": 84.51187507547422,
+      "return": -0.1548812492452578,
+      "max_drawdown": -0.4219349015951812,
+      "round_trips": 9,
+      "cash_fraction": 0.5317460317460317,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 335,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": false,
+      "window": "2018-2021",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0075,
+      "ending_liquidation": 103.94986945259097,
+      "return": 0.039498694525909706,
+      "max_drawdown": -0.8900210264955275,
+      "round_trips": 28,
+      "cash_fraction": 0.39561943874058864,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 578,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": false,
+      "window": "2022-2024",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0075,
+      "ending_liquidation": 168.26762631484254,
+      "return": 0.6826762631484256,
+      "max_drawdown": -0.3680488573893109,
+      "round_trips": 18,
+      "cash_fraction": 0.4726277372262774,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 518,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": false,
+      "window": "2025-2026",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0075,
+      "ending_liquidation": 78.33578164847897,
+      "return": -0.21664218351521025,
+      "max_drawdown": -0.4348290413911158,
+      "round_trips": 9,
+      "cash_fraction": 0.5317460317460317,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 335,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": true,
+      "window": "2018-2021",
+      "cost_kind": "base",
+      "one_way_cost": 0.0035,
+      "ending_liquidation": 319.462879538496,
+      "return": 2.19462879538496,
+      "max_drawdown": -0.7803171308338592,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": "2020-12-30",
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": true,
+      "window": "2022-2024",
+      "cost_kind": "base",
+      "one_way_cost": 0.0035,
+      "ending_liquidation": 195.576410523254,
+      "return": 0.9557641052325401,
+      "max_drawdown": -0.6371358236404774,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": "2024-11-21",
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": true,
+      "window": "2025-2026",
+      "cost_kind": "base",
+      "one_way_cost": 0.0035,
+      "ending_liquidation": 92.11199227117899,
+      "return": -0.07888007728821012,
+      "max_drawdown": -0.5105055982541715,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": true,
+      "window": "2018-2021",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0075,
+      "ending_liquidation": 316.95719346623343,
+      "return": 2.1695719346623346,
+      "max_drawdown": -0.7800591538779749,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": "2020-12-30",
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": true,
+      "window": "2022-2024",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0075,
+      "ending_liquidation": 194.0579928943535,
+      "return": 0.940579928943535,
+      "max_drawdown": -0.6368871713956897,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": "2024-11-21",
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    },
+    {
+      "candidate": "crypto_rotation",
+      "benchmark": true,
+      "window": "2025-2026",
+      "cost_kind": "stress",
+      "one_way_cost": 0.0075,
+      "ending_liquidation": 91.417886841124,
+      "return": -0.08582113158876004,
+      "max_drawdown": -0.510347782844711,
+      "round_trips": 0,
+      "cash_fraction": 0.0,
+      "milestones": {
+        "200": null,
+        "500": null
+      },
+      "cash_days": 0,
+      "skipped_entries": 0
+    }
+  ]
+}
