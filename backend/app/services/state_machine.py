@@ -39,11 +39,17 @@ class StateManager:
     def __init__(self, db: Session, cfg=settings):
         self.db = db
         self.cfg = cfg
+        self.scope = getattr(cfg, "STATE_SCOPE", "current")
 
     def get_record(self) -> SystemStateRecord:
-        rec = self.db.get(SystemStateRecord, "current")
+        rec = self.db.get(SystemStateRecord, self.scope)
         if rec is None:
-            rec = SystemStateRecord(id="current", state=OFF, reason="initial")
+            legacy = self.db.get(SystemStateRecord, "current") if self.scope != "current" else None
+            # Preserve an existing emergency halt, but never migrate an old LIVE
+            # permission to a newly separated account automatically.
+            inherited_halt = legacy is not None and legacy.state == HALTED
+            rec = SystemStateRecord(id=self.scope, state=HALTED if inherited_halt else OFF,
+                                    reason=f"legacy_halt: {legacy.reason}" if inherited_halt else "initial")
             self.db.add(rec)
             persist(self.db)
             self.db.refresh(rec)
@@ -61,7 +67,7 @@ class StateManager:
         rec.reason = reason
         rec.updated_at = dt.datetime.utcnow()
         persist(self.db)
-        log_and_commit(self.db, "state_change", {"from": current, "to": new_state, "reason": reason}, actor=actor)
+        log_and_commit(self.db, "state_change", {"scope": self.scope, "from": current, "to": new_state, "reason": reason}, actor=actor)
         return rec
 
     # --- Kill switch: emergency, reachable from ANY state, bypasses ALLOWED_TRANSITIONS ---
@@ -72,7 +78,7 @@ class StateManager:
         rec.reason = f"KILL_SWITCH: {reason} (was {previous})"
         rec.updated_at = dt.datetime.utcnow()
         persist(self.db)
-        log_and_commit(self.db, "kill_switch_activated", {"previous_state": previous, "reason": reason}, actor=actor)
+        log_and_commit(self.db, "kill_switch_activated", {"scope": self.scope, "previous_state": previous, "reason": reason}, actor=actor)
         return rec
 
     def reset(self, actor: str, confirm: bool) -> SystemStateRecord:
