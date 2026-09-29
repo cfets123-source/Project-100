@@ -8,14 +8,21 @@ from app.strategies.daily_trend_pullback import (
 )
 
 
-# These historical tests allow positions to remain open across sessions. The
-# fractional-share live worker instead exits before each DAY stop expires.
-# A passing overnight record cannot authorize that different execution path.
-SESSION_MISMATCHED_STRATEGIES = frozenset({
+# A validation must explicitly model both execution branches: fractional DAY
+# stops with exit 45 minutes before close, and integer broker brackets. Never
+# attach this contract to an overnight-only or fractional-only evaluator.
+DAILY_PULLBACK_EXECUTION_CONTRACT = "alpaca-daily-pullback-mixed-quantity-day-stop-close45-bracket-v1"
+CONTRACT_REQUIRED_STRATEGIES = frozenset({
     STRATEGY_VERSION, BROAD_STRATEGY_VERSION, EXPANDED_STRATEGY_VERSION,
     PORTFOLIO_BROAD_STRATEGY_VERSION,
 })
-SESSION_MISMATCH_REASON = "strategy_execution_horizon_mismatch_fractional_day_stop"
+
+
+def require_execution_validation(db, strategy):
+    if strategy in CONTRACT_REQUIRED_STRATEGIES:
+        return require_passing_validation(
+            db, strategy, execution_contract=DAILY_PULLBACK_EXECUTION_CONTRACT)
+    return require_passing_validation(db, strategy)
 
 
 def load_finally_authorized_adapter(db, cfg, strategy: str):
@@ -28,9 +35,7 @@ def load_finally_authorized_adapter(db, cfg, strategy: str):
     allowed, reason = state.live_broker_mutation_allowed()
     if not allowed:
         raise RuntimeError(reason)
-    if strategy in SESSION_MISMATCHED_STRATEGIES:
-        raise RuntimeError(f"{SESSION_MISMATCH_REASON}:{strategy}")
-    require_passing_validation(db, strategy)
+    require_execution_validation(db, strategy)
     # A final flag alone is insufficient. Each live worker must prove the
     # distinct live account is readable before it can construct a mutating
     # adapter. This never submits or previews an order.

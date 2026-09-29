@@ -9,7 +9,7 @@ from app.models.models import (ExternalLiveExit, ExternalLiveProtection,
                                ExternalPaperExit, ExternalPaperProtection,
                                ExternalTargetExitRetry, OrderIntent, RiskReservation, TradeDecisionRecord)
 
-OPEN = {"new", "pending_new", "accepted", "pending", "open"}
+OPEN = {"new", "pending_new", "accepted", "pending", "open", "partially_filled", "partial", "held", "pending_cancel", "pending_replace"}
 FILLED = {"filled", "partially_filled", "partial"}
 
 
@@ -34,8 +34,11 @@ def release_flat_account_reservations(db, adapter, account_id: str) -> list[str]
                   OrderIntent.account_id == account_id,
                   OrderIntent.decision_id == reservation.decision_id)
                   .order_by(OrderIntent.updated_at.desc()).first())
-        if intent is not None and str(intent.broker_order_id or "") in active_ids:
-            continue
+        if intent is None:
+            continue  # no proof of a terminal originating decision
+        if (str(intent.broker_order_id or "") in active_ids
+                or intent.status in {'pending', 'submitted', 'accepted', 'partial', 'unknown'}):
+            continue  # a temporarily flat snapshot cannot resolve an uncertain POST
         reservation.status = "released"
         released.append(str(reservation.id))
     if released:
@@ -314,6 +317,7 @@ def reconcile_broker_bracket_exits(db, adapter, *, mode: str) -> dict:
     """
     if mode not in {"paper", "live"}:
         raise ValueError("mode must be paper or live")
+    positions = {str(p.get('symbol')) for p in adapter.get_positions() if float(p.get('qty') or 0) != 0}
     orders = adapter.get_orders()
     by_id = {str(order.get("id")): order for order in orders}
     closed = []
@@ -321,11 +325,13 @@ def reconcile_broker_bracket_exits(db, adapter, *, mode: str) -> dict:
         TradeDecisionRecord.status == "open", TradeDecisionRecord.order_id.isnot(None)
     ).all()
     for trade in trades:
+        if trade.symbol in positions:
+            continue
         parent = by_id.get(str(trade.order_id), {})
         legs = parent.get("legs") or [order for order in orders
                                        if str(order.get("parent_order_id")) == str(trade.order_id)]
         for leg in legs:
-            if str(leg.get("status")) not in FILLED:
+            if str(leg.get("status")) != "filled":
                 continue
             reason = "target_hit" if str(leg.get("type")) == "limit" else "stop_hit"
             if _finish_trade(db, str(trade.order_id), leg, reason, mode):
