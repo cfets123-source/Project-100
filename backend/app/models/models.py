@@ -118,6 +118,22 @@ class StrategyValidationRecord(Base):
     reasons = Column(JSON, nullable=False, default=list)
 
 
+class OwnerAcceptedExperiment(Base):
+    """Account owner's explicit acceptance to run an UNVALIDATED strategy live.
+
+    This is never a validation record and is never read by
+    require_passing_validation.  It is bounded by an equity cap and floor.
+    """
+    __tablename__ = "owner_accepted_experiments"
+    strategy = Column(String, primary_key=True)
+    accepted_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    accepted_by = Column(String, nullable=False)
+    max_equity = Column(Float, nullable=False)
+    floor_equity = Column(Float, nullable=False)
+    acknowledgement = Column(Text, nullable=False)
+    revoked = Column(Boolean, nullable=False, default=False)
+
+
 class StrategyExecutionEvidence(Base):
     """Execution contract attached to one particular validation run."""
     __tablename__ = "strategy_execution_evidence"
