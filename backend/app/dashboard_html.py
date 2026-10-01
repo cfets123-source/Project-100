@@ -24,7 +24,7 @@ button{font:inherit;color:inherit}
 .wl{max-height:520px;overflow-y:auto}
 .wrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;width:100%;padding:9px 14px;background:none;border:0;border-left:2px solid transparent;cursor:pointer;text-align:left;font-variant-numeric:tabular-nums}
 .wrow:hover{background:var(--panel2)}.wrow.on{background:var(--panel2);border-left-color:var(--gold)}.wrow small{display:block;font-size:11px;color:var(--sub)}
-.cards{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cards{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.tape{display:flex;gap:0;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line);scrollbar-width:none}.tape::-webkit-scrollbar{display:none}.tk{flex:0 0 auto;display:flex;gap:8px;align-items:baseline;padding:8px 16px;border:0;border-right:1px solid var(--line);background:none;cursor:pointer;font-variant-numeric:tabular-nums;font-size:13px}.tk:hover{background:var(--panel2)}.tk b{font-weight:600}.acct{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.acct:last-child{border:0}.acct small{display:block;color:var(--sub);font-size:11px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;background:#5e6673}.dot.on{background:var(--up)}.dot.warn{background:var(--gold)}.dot.off{background:#5e6673}.acct a{color:var(--gold);font-size:12px;white-space:nowrap}
 .body{padding:14px}.big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}.kv:last-child{border:0}.kv span{color:var(--sub)}
 .range{position:relative;height:8px;border-radius:4px;margin:16px 0 6px;background:linear-gradient(90deg,var(--down),#2b3139 45%,var(--up))}
@@ -43,6 +43,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 </style></head><body>
 <header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span>
 <div class="kpis"><div class="kpi"><span>Equity</span><b id="kEq">—</b></div><div class="kpi"><span>Open P&amp;L</span><b id="kPl">—</b></div><div class="kpi"><span>Cash</span><b id="kCash">—</b></div><div class="kpi"><span>Open positions</span><b id="kPos">—</b></div><div class="kpi"><span>Market</span><b id="kMkt">—</b></div></div></header>
+<div id="tape" class="tape"><span class="tk muted">Loading live markets…</span></div>
 <div class="wrap">
 <div id="banner" class="banner"></div>
 <section class="panel"><div class="chart-head"><span id="cSym" class="sym">TQQQ</span><span id="cPx" class="px">—</span><span id="cChg" class="chg muted"></span><span id="cFeed" class="muted" style="font-size:12px"></span>
@@ -58,10 +59,11 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div class="rule"><b>2</b><span>Sell automatically at <span class="up">+50% target</span> or <span class="down">−25% stop</span> (broker bracket, stays active overnight).</span></div>
 <div class="rule"><b>3</b><span>No new buys below $50 or above the $250 stage cap.</span></div>
 <div id="stratStatus" class="status muted">Checking…</div></div></article>
+<article class="panel card"><h3>Accounts</h3><div id="accts" class="body"><div class="muted">Checking connections…</div></div></article>
 </div>
 <section class="panel tabs"><div class="tabbar"><button class="tab on" data-t="orders">Open orders</button><button class="tab" data-t="trades">Trade history</button><button class="tab" data-t="log">Activity</button></div>
 <div id="t-orders" class="tblwrap"></div><div id="t-trades" class="tblwrap" hidden></div><div id="t-log" class="tblwrap" hidden></div></section>
-<footer class="foot"><span id="observer">Account observer: checking…</span><a href="/brokers/binance-us/connect">Binance.US connection</a><a href="/brokers/robinhood/status">Robinhood status</a><span>Read-only view · this page cannot place orders</span></footer>
+<footer class="foot"><span id="observer">Account observer: checking…</span><span>Read-only view · this page cannot place orders</span></footer>
 </div>
 <script>
 const q=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -108,7 +110,7 @@ function when(ts,dateOnly){if(!ts)return '';let s=String(ts);let d=new Date(/Z$|
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));['orders','trades','log'].forEach(k=>q('#t-'+k).hidden=k!==b.dataset.t)});
 
 /* ---------- watchlist ---------- */
-async function loadTicker(){try{let d=await api('/terminal/ticker');ticker=(d.items||[]).filter(x=>!String(x.symbol).includes('/'));q('#wlSrc').textContent=d.source||'';drawWatch()}catch(e){if(e.message!=='auth')q('#wl').innerHTML='<div class="empty">Prices unavailable — retrying.</div>'}}
+async function loadTicker(){try{let d=await api('/terminal/ticker');let all=d.items||[];ticker=all.filter(x=>!String(x.symbol).includes('/'));q('#wlSrc').textContent=d.source||'';drawWatch();drawTape(all)}catch(e){if(e.message!=='auth')q('#wl').innerHTML='<div class="empty">Prices unavailable — retrying.</div>'}}
 function drawWatch(){let rank=s=>{let i=PIN.indexOf(s);return i<0?99:i};let items=[...ticker].sort((a,b)=>rank(a.symbol)-rank(b.symbol)||String(a.symbol).localeCompare(b.symbol));
 if(!items.find(x=>x.symbol===sym))items.unshift({symbol:sym});
 q('#wl').innerHTML=items.map(x=>'<button class="wrow'+(x.symbol===sym?' on':'')+'" data-s="'+esc(x.symbol)+'"><span><b>'+esc(x.symbol)+'</b>'+(PIN.includes(x.symbol)?'<small>'+(x.symbol==='TQQQ'?'Traded':x.symbol==='QQQ'?'Trend signal':'Market')+'</small>':'')+'</span><span>'+money(x.price)+'</span><span class="'+cls(x.change_pct)+'">'+pct(x.change_pct)+'</span></button>').join('');
@@ -140,7 +142,17 @@ function pick(e){if(!bars.length)return;let r=cv.getBoundingClientRect(),pw=r.wi
 cv.addEventListener('pointermove',pick);cv.addEventListener('pointerdown',pick);cv.addEventListener('pointerleave',()=>{hover=null;draw()});
 new ResizeObserver(()=>draw()).observe(cv);
 
+
+function drawTape(items){q('#tape').innerHTML=items.map(x=>'<button class="tk" data-s="'+esc(x.symbol)+'"><b>'+esc(x.symbol)+'</b><span>'+money(x.price)+'</span><span class="'+cls(x.change_pct)+'">'+pct(x.change_pct)+'</span></button>').join('')||'<span class="tk muted">Markets unavailable</span>';
+document.querySelectorAll('.tk[data-s]').forEach(b=>{if(b.dataset.s.includes('/'))return;b.onclick=()=>{sym=b.dataset.s;hover=null;drawWatch();loadChart();window.scrollTo({top:0,behavior:'smooth'})}})}
+async function loadAccounts(){const get=u=>api(u).catch(()=>null);let [alp,rh,bn,et]=await Promise.all([get('/brokers/alpaca/live-portfolio'),get('/brokers/robinhood/status'),get('/brokers/binance-us/status'),get('/brokers/etrade/status')]);
+let row=(name,state,detail,link)=>'<div class="acct"><div><span class="dot '+state+'"></span><b>'+name+'</b><small>'+esc(detail)+'</small></div>'+(link||'')+'</div>';
+let h='';h+=row('Alpaca',alp?'on':'off',alp?'Live account · trading active ('+money(alp.balances?.equity)+')':'Not reachable');
+h+=row('Robinhood Agentic',rh?.read_only_ready?'on':rh?.application_authorized?'warn':'off',rh?.read_only_ready?'Connected · read-only':rh?.application_authorized?'Authorized · verification pending':'Not connected',rh?.read_only_ready?'':'<a href="/brokers/robinhood/connect">Connect</a>');
+h+=row('Binance.US',bn?.credentials_saved?'warn':'off',bn?.credentials_saved?'API key saved · read-only':'Not connected','<a href="/brokers/binance-us/connect">'+(bn?.credentials_saved?'Manage':'Connect')+'</a>');
+h+=row('E*TRADE',et?.application_authorized_today?'on':et?.api_key_configured?'warn':'off',et?.application_authorized_today?'Connected today · read-only':et?.api_key_configured?'Sign-in needed today (E*TRADE expires daily)':'API key not set up yet',et?.api_key_configured?'<a href="/brokers/etrade/connect">'+(et?.application_authorized_today?'Reconnect':'Connect')+'</a>':'');
+q('#accts').innerHTML=h}
 async function loadObserver(){try{let o=await api('/live/observer');q('#observer').textContent='Account observer: '+(o.healthy?'active, updated '+Math.round(o.age_seconds)+'s ago':o.observed?'needs attention':'not running')}catch(e){}}
-loadState();loadAccount();loadTicker();loadChart();loadObserver();
+loadState();loadAccount();loadTicker();loadChart();loadObserver();loadAccounts();setInterval(loadAccounts,60000);
 setInterval(loadState,10000);setInterval(loadAccount,10000);setInterval(loadTicker,30000);setInterval(()=>{if(!hover)loadChart()},tf==='1Day'?60000:15000);setInterval(loadObserver,30000);
 </script></body></html>'''
