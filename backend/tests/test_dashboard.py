@@ -16,12 +16,11 @@ def test_dashboard_is_read_only_and_identifies_operator_console():
         assert 'Open positions' in page.text
         assert '/live/activity' in page.text
         assert 'Checking execution state' in page.text
-        assert "fetch('/system/state')" in page.text
-        assert 'Connect Robinhood Agentic account' in page.text
-        assert '/market-capabilities/live-account' in page.text
-        assert '/terminal/ticker' in page.text
-        assert '/brokers/robinhood/market-access' in page.text
-        assert 'id="robinhoodAccess"' in page.text
+        assert "api('/system/state')" in page.text
+        assert '/terminal/ticker' in page.text and '/terminal/market' in page.text
+        assert 'devicePixelRatio' in page.text  # crisp canvas chart, not a stretched SVG
+        assert 'this page cannot place orders' in page.text
+        assert 'method:' not in page.text  # the console only issues GET requests
         broker = client.get('/brokers/robinhood/status').json()
         assert broker['connected'] is False
         assert broker['execution_enabled'] is False
@@ -48,9 +47,10 @@ def test_ticker_uses_one_bounded_iex_snapshot_batch(monkeypatch):
     assert calls[0][1] == '/v2/stocks/snapshots'
     assert calls[0][3]['feed'] == 'iex'
     assert result['source'] == 'Alpaca IEX + Crypto US'
-    assert result['items'][0]['symbol'] == 'SPY'
-    assert result['items'][0]['change_pct'] == 11.11
-    assert result['items'][1]['price'] is None
+    assert result['items'][0]['symbol'] == 'TQQQ'  # Stage Runner instrument first
+    spy = next(x for x in result['items'] if x['symbol'] == 'SPY')
+    assert spy['change_pct'] == 11.11
+    assert result['items'][0]['price'] is None
     assert next(x for x in result['items'] if x['symbol'] == 'BTC/USD')['price'] == 100.5
     assert next(x for x in result['items'] if x['symbol'] == 'BTC/USD')['in_strategy_universe'] is False
     assert terminal_ticker(db=object()) is result
@@ -161,8 +161,7 @@ def test_dashboard_requires_password_when_configured(monkeypatch):
 def test_dashboard_stage_cycle_and_unknown_balances_are_explicit():
     with TestClient(app) as client:
         page=client.get('/dashboard').text
-        assert 'Stage-by-stage trading' in page
-        assert 'Sell &amp; reconcile' in page
+        assert 'Milestone' in page and 'Stage Runner v1' in page
         assert 'annual target' not in page
         assert 'This does not mean the account is empty' in page
         assert '/live/milestones' in page and '/live/observer' in page
