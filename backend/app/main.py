@@ -25,6 +25,7 @@ from app.brokers import alpaca_connection
 from app.security.dashboard import (require_dashboard_access, dashboard_access_granted,
                                     issue_dashboard_session)
 from app.dashboard_html import DASHBOARD_HTML
+from app.strategies.stage_runner import STAGE_RUNNER_VERSION
 from app.services.live_readiness import report as live_readiness_report
 from app.services.state_machine import StateManager
 from app.audit.logger import log_and_commit
@@ -46,6 +47,7 @@ from app.binance_routes import router as binance_router
 app.include_router(binance_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
+STAGE_SYMBOLS = ("TQQQ",)  # Stage Runner instrument shown first in the terminal.
 MARKET_CONTEXT_ETFS = ("FXI", "EWU")  # US-listed China/UK exposure, not local exchange quotes.
 CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD")  # Read-only data; account crypto trading is inactive.
 
@@ -105,10 +107,10 @@ def terminal_ticker(db: Session = Depends(get_db)):
     try:
         adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
         raw = adapter._request("GET", "/v2/stocks/snapshots", data_api=True,
-                               params={"symbols": ",".join(BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
+                               params={"symbols": ",".join(STAGE_SYMBOLS + BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
         now = datetime.now(timezone.utc)
         items = []
-        for symbol in BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
+        for symbol in STAGE_SYMBOLS + BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
             snap = raw.get(symbol) or {}
             quote, trade = snap.get("latestQuote") or {}, snap.get("latestTrade") or {}
             previous = snap.get("prevDailyBar") or {}
@@ -121,7 +123,7 @@ def terminal_ticker(db: Session = Depends(get_db)):
             except (KeyError, TypeError, ValueError):
                 quote_age = trade_age = None
             items.append({"symbol": symbol, "asset_class": "ETF" if symbol in BROAD_UNIVERSE[:5] + MARKET_CONTEXT_ETFS else "stock",
-                          "in_strategy_universe": symbol in BROAD_UNIVERSE, "source": "Alpaca IEX",
+                          "in_strategy_universe": symbol in BROAD_UNIVERSE or symbol in STAGE_SYMBOLS, "source": "Alpaca IEX",
                           "price": price, "previous_close": previous_close,
                           "change_pct": round((price / previous_close - 1) * 100, 2)
                                         if price is not None and previous_close and previous_close > 0 else None,
@@ -744,7 +746,9 @@ def alpaca_live_portfolio(db: Session = Depends(get_db)):
             raise HTTPException(status_code=409, detail="stored credential is not live")
         positions, orders = adapter.get_positions(), adapter.get_orders()
         active_statuses = {"new", "accepted", "pending", "open", "partially_filled", "held"}
-        active_orders = [order for order in orders if str(order.get("status")) in active_statuses]
+        # nested=true puts bracket stop/target legs under a filled parent; list them too.
+        flat = list(orders) + [leg for order in orders for leg in (order.get("legs") or [])]
+        active_orders = [order for order in flat if str(order.get("status")) in active_statuses]
         payload = {"live": True, "balances": adapter.get_balances(),
                    "positions": positions, "active_orders": active_orders,
                    "market_clock": adapter.get_market_clock()}
@@ -780,7 +784,8 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
             .filter(models.TradeDecisionRecord.trade_id.in_(live_ids),
                     models.TradeDecisionRecord.order_id.isnot(None),
                     models.TradeDecisionRecord.strategy.in_((DailyTrendPullback.name,
-                                                             BroadDailyTrendPullback.name)))
+                                                             BroadDailyTrendPullback.name,
+                                                             STAGE_RUNNER_VERSION)))
             .order_by(models.TradeDecisionRecord.timestamp.desc())
             .limit(limit).all())
     return {"trades": [{
