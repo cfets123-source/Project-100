@@ -24,6 +24,9 @@ AUTHORIZATION_URL = "https://robinhood.com/oauth"
 TOKEN_URL = "https://api.robinhood.com/oauth2/token/"
 SCOPE = "internal"
 BROKER = "robinhood_agentic_trading"
+# RFC 8252 loopback redirect, as used by local MCP clients. Robinhood may only
+# allow-list loopback/known redirects; the user pastes the resulting URL back.
+LOOPBACK_REDIRECT_URL = "http://127.0.0.1:8765/oauth/callback"
 
 
 class BrokerOAuthConfigurationError(ValueError):
@@ -49,7 +52,7 @@ def start_connection(db: Session, redirect_url: str, *, force_new_client: bool =
     Calling this function is the point where an operator will be sent to
     Robinhood. It never fetches account data or invokes an MCP tool.
     """
-    if not redirect_url.startswith("https://"):
+    if not (redirect_url.startswith("https://") or redirect_url == LOOPBACK_REDIRECT_URL):
         raise BrokerOAuthConfigurationError("BROKER_OAUTH_REDIRECT_URL must be an HTTPS URL")
     registration = {
         "client_name": "Project 100",
