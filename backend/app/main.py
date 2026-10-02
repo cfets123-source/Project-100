@@ -480,10 +480,13 @@ def robinhood_status(db: Session = Depends(get_db)):
 
 
 @app.get("/brokers/robinhood/connect", dependencies=[Depends(require_dashboard_access)])
-def robinhood_connect(db: Session = Depends(get_db)):
-    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools."""
+def robinhood_connect(fresh: bool = False, db: Session = Depends(get_db)):
+    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools.
+
+    ``?fresh=1`` registers a new OAuth client instead of reusing the saved one."""
     try:
-        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL), status_code=302)
+        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL,
+                                                 force_new_client=fresh), status_code=302)
     except BrokerOAuthConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
