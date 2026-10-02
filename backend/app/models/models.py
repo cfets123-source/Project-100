@@ -118,6 +118,45 @@ class StrategyValidationRecord(Base):
     reasons = Column(JSON, nullable=False, default=list)
 
 
+class OwnerAcceptedExperiment(Base):
+    """Account owner's explicit acceptance to run an UNVALIDATED strategy live.
+
+    This is never a validation record and is never read by
+    require_passing_validation.  It is bounded by an equity cap and floor.
+    """
+    __tablename__ = "owner_accepted_experiments"
+    strategy = Column(String, primary_key=True)
+    accepted_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    accepted_by = Column(String, nullable=False)
+    max_equity = Column(Float, nullable=False)
+    floor_equity = Column(Float, nullable=False)
+    acknowledgement = Column(Text, nullable=False)
+    revoked = Column(Boolean, nullable=False, default=False)
+
+
+class ScannerSignal(Base):
+    """Watch-only multi-market scanner signal and its forward outcome (no order path)."""
+    __tablename__ = "scanner_signals"
+    id = Column(String, primary_key=True)          # uuid5(version:symbol:rule:date)
+    rules_version = Column(String, nullable=False)
+    symbol = Column(String, nullable=False, index=True)
+    rule = Column(String, nullable=False)
+    asset_group = Column(String, nullable=False)
+    signal_date = Column(String, nullable=False, index=True)
+    signal_close = Column(Float, nullable=False)
+    stop_pct = Column(Float, nullable=False)
+    target_pct = Column(Float, nullable=False)
+    max_hold = Column(Integer, nullable=False)
+    momentum_6m = Column(Float, nullable=True)
+    status = Column(String, nullable=False, default="waiting_entry")
+    entry_price = Column(Float, nullable=True)
+    mark_pct = Column(Float, nullable=True)
+    result_pct = Column(Float, nullable=True)
+    exit_reason = Column(String, nullable=True)
+    exit_date = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
 class StrategyExecutionEvidence(Base):
     """Execution contract attached to one particular validation run."""
     __tablename__ = "strategy_execution_evidence"

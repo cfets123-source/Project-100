@@ -25,6 +25,7 @@ from app.brokers import alpaca_connection
 from app.security.dashboard import (require_dashboard_access, dashboard_access_granted,
                                     issue_dashboard_session)
 from app.dashboard_html import DASHBOARD_HTML
+from app.strategies.stage_runner import STAGE_RUNNER_VERSION
 from app.services.live_readiness import report as live_readiness_report
 from app.services.state_machine import StateManager
 from app.audit.logger import log_and_commit
@@ -46,6 +47,7 @@ from app.binance_routes import router as binance_router
 app.include_router(binance_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
+STAGE_SYMBOLS = ("TQQQ",)  # Stage Runner instrument shown first in the terminal.
 MARKET_CONTEXT_ETFS = ("FXI", "EWU")  # US-listed China/UK exposure, not local exchange quotes.
 CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD")  # Read-only data; account crypto trading is inactive.
 
@@ -105,10 +107,10 @@ def terminal_ticker(db: Session = Depends(get_db)):
     try:
         adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
         raw = adapter._request("GET", "/v2/stocks/snapshots", data_api=True,
-                               params={"symbols": ",".join(BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
+                               params={"symbols": ",".join(STAGE_SYMBOLS + BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
         now = datetime.now(timezone.utc)
         items = []
-        for symbol in BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
+        for symbol in STAGE_SYMBOLS + BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
             snap = raw.get(symbol) or {}
             quote, trade = snap.get("latestQuote") or {}, snap.get("latestTrade") or {}
             previous = snap.get("prevDailyBar") or {}
@@ -121,7 +123,7 @@ def terminal_ticker(db: Session = Depends(get_db)):
             except (KeyError, TypeError, ValueError):
                 quote_age = trade_age = None
             items.append({"symbol": symbol, "asset_class": "ETF" if symbol in BROAD_UNIVERSE[:5] + MARKET_CONTEXT_ETFS else "stock",
-                          "in_strategy_universe": symbol in BROAD_UNIVERSE, "source": "Alpaca IEX",
+                          "in_strategy_universe": symbol in BROAD_UNIVERSE or symbol in STAGE_SYMBOLS, "source": "Alpaca IEX",
                           "price": price, "previous_close": previous_close,
                           "change_pct": round((price / previous_close - 1) * 100, 2)
                                         if price is not None and previous_close and previous_close > 0 else None,
@@ -478,12 +480,71 @@ def robinhood_status(db: Session = Depends(get_db)):
 
 
 @app.get("/brokers/robinhood/connect", dependencies=[Depends(require_dashboard_access)])
-def robinhood_connect(db: Session = Depends(get_db)):
-    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools."""
+def robinhood_connect(fresh: bool = False, db: Session = Depends(get_db)):
+    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools.
+
+    ``?fresh=1`` registers a new OAuth client instead of reusing the saved one."""
     try:
-        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL), status_code=302)
+        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL,
+                                                 force_new_client=fresh), status_code=302)
     except BrokerOAuthConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/brokers/robinhood/connect-manual", response_class=HTMLResponse,
+         dependencies=[Depends(require_dashboard_access)])
+def robinhood_connect_manual(db: Session = Depends(get_db)):
+    """Loopback OAuth: approve at Robinhood, then paste the final address back here."""
+    from app.brokers.robinhood_oauth import LOOPBACK_REDIRECT_URL
+    try:
+        url = start_connection(db, LOOPBACK_REDIRECT_URL)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    page = ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Connect Robinhood</title><style>body{font:17px system-ui;background:#0b0e11;color:#eaecef;'
+            'max-width:640px;margin:40px auto;padding:18px;line-height:1.5}a.btn,button{display:inline-block;'
+            'color:#0b0e11;background:#f0b90b;padding:12px 16px;border:0;border-radius:8px;font-weight:700;'
+            'text-decoration:none;cursor:pointer}textarea{font:14px monospace;width:100%;box-sizing:border-box;'
+            'height:110px;margin:12px 0;padding:10px;background:#12161b;color:#eaecef;border:1px solid #2b3139;'
+            'border-radius:8px}ol li{margin:8px 0}</style></head><body><h1>Connect Robinhood</h1><ol>'
+            '<li><a class="btn" target="_blank" rel="noopener noreferrer" href="' + html.escape(url, quote=True) +
+            '">Open Robinhood approval</a></li><li>Sign in and approve. Your browser will then show a '
+            '<b>&ldquo;can&rsquo;t connect&rdquo; / &ldquo;site can&rsquo;t be reached&rdquo;</b> page &mdash; that is expected.</li>'
+            '<li>Copy the <b>full address</b> from that page&rsquo;s address bar (it starts with '
+            '<code>http://127.0.0.1:8765/oauth/callback?code=</code>) and paste it below within 10 minutes.</li></ol>'
+            '<form id="f"><textarea id="u" placeholder="http://127.0.0.1:8765/oauth/callback?code=...&amp;state=..." required></textarea>'
+            '<button>Finish connection</button></form><p id="r" role="status"></p>'
+            '<script>document.getElementById("f").onsubmit=async e=>{e.preventDefault();const r=await fetch('
+            '"/brokers/robinhood/complete-manual",{method:"POST",headers:{"Content-Type":"application/json"},'
+            'body:JSON.stringify({url:document.getElementById("u").value.trim()})});const d=await r.json().catch(()=>({}));'
+            'document.getElementById("r").textContent=r.ok?"Connected. Return to the dashboard and reload it.":'
+            '"Failed: "+(d.detail||r.status)+". Open this page again and retry.";};</script></body></html>')
+    return HTMLResponse(page, headers={"Cache-Control": "no-store"})
+
+
+class RobinhoodManualCallback(BaseModel):
+    url: str
+
+
+@app.post("/brokers/robinhood/complete-manual", dependencies=[Depends(require_dashboard_access)])
+def robinhood_complete_manual(body: RobinhoodManualCallback, db: Session = Depends(get_db)):
+    from urllib.parse import parse_qs, urlparse
+    from app.brokers.robinhood_oauth import LOOPBACK_REDIRECT_URL
+    parsed = urlparse(body.url.strip())
+    params = parse_qs(parsed.query)
+    if parsed.scheme + "://" + parsed.netloc + parsed.path != LOOPBACK_REDIRECT_URL:
+        raise HTTPException(status_code=400, detail="That is not the Robinhood callback address")
+    if "error" in params:
+        raise HTTPException(status_code=400, detail="Robinhood returned: " + params["error"][0])
+    code, state = (params.get("code") or [""])[0], (params.get("state") or [""])[0]
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="The address is missing code or state")
+    try:
+        return finish_connection(db, state, code, LOOPBACK_REDIRECT_URL, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Robinhood rejected the code ({type(exc).__name__})")
 
 
 @app.get("/brokers/robinhood/callback")
@@ -650,6 +711,30 @@ def health():
     return {"status": "ok", "trading_mode": settings.TRADING_MODE, "autonomy_level": settings.AUTONOMY_LEVEL}
 
 
+@app.get("/scanner/signals", dependencies=[Depends(require_dashboard_access)])
+def scanner_signals(db: Session = Depends(get_db)):
+    """Watch-only multi-market scanner: recent signals and forward scoreboard."""
+    from app.research.multi_market_rules import RULES, RULES_VERSION
+    rows = (db.query(models.ScannerSignal)
+            .order_by(models.ScannerSignal.signal_date.desc(), models.ScannerSignal.momentum_6m.desc())
+            .limit(400).all())
+    item = lambda r: {"symbol": r.symbol, "rule": r.rule, "group": r.asset_group,
+                      "signal_date": r.signal_date, "signal_close": r.signal_close,
+                      "stop_pct": r.stop_pct, "target_pct": r.target_pct, "status": r.status,
+                      "mark_pct": r.mark_pct, "result_pct": r.result_pct, "exit_reason": r.exit_reason,
+                      "momentum_6m": r.momentum_6m}
+    board: dict[tuple, list] = {}
+    for r in db.query(models.ScannerSignal).filter(models.ScannerSignal.status == "closed").all():
+        board.setdefault((r.rule, r.asset_group), []).append(r.result_pct or 0.0)
+    score = [{"rule": k[0], "group": k[1], "closed": len(v), "win_rate": sum(x > 0 for x in v) / len(v),
+              "avg_result": sum(v) / len(v)} for k, v in board.items()]
+    score.sort(key=lambda x: (-x["avg_result"], -x["closed"]))
+    return {"rules_version": RULES_VERSION, "order_submission": False,
+            "rules": {k: {"stop": r.stop, "target": r.target, "max_hold_days": r.max_hold,
+                          "description": r.description} for k, r in RULES.items()},
+            "signals": [item(r) for r in rows], "scoreboard": score}
+
+
 @app.get("/system/state", dependencies=[Depends(require_dashboard_access)])
 def get_state(db: Session = Depends(get_db)):
     rec = StateManager(db, settings).get_record()
@@ -744,7 +829,9 @@ def alpaca_live_portfolio(db: Session = Depends(get_db)):
             raise HTTPException(status_code=409, detail="stored credential is not live")
         positions, orders = adapter.get_positions(), adapter.get_orders()
         active_statuses = {"new", "accepted", "pending", "open", "partially_filled", "held"}
-        active_orders = [order for order in orders if str(order.get("status")) in active_statuses]
+        # nested=true puts bracket stop/target legs under a filled parent; list them too.
+        flat = list(orders) + [leg for order in orders for leg in (order.get("legs") or [])]
+        active_orders = [order for order in flat if str(order.get("status")) in active_statuses]
         payload = {"live": True, "balances": adapter.get_balances(),
                    "positions": positions, "active_orders": active_orders,
                    "market_clock": adapter.get_market_clock()}
@@ -780,7 +867,8 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
             .filter(models.TradeDecisionRecord.trade_id.in_(live_ids),
                     models.TradeDecisionRecord.order_id.isnot(None),
                     models.TradeDecisionRecord.strategy.in_((DailyTrendPullback.name,
-                                                             BroadDailyTrendPullback.name)))
+                                                             BroadDailyTrendPullback.name,
+                                                             STAGE_RUNNER_VERSION)))
             .order_by(models.TradeDecisionRecord.timestamp.desc())
             .limit(limit).all())
     return {"trades": [{
