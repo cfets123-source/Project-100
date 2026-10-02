@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.models import AuditLogEntry, BrokerConnection, BrokerOAuthState
@@ -97,6 +98,11 @@ def finish_connection(db: Session, state: str, code: str, redirect_url: str, enc
             connection.client_id, connection.encrypted_refresh_token = pending.client_id, token
             connection.connected_at, connection.status = dt.datetime.utcnow(), "authorized"
         db.delete(pending)
+        # A new authorization replaces the old token family; drop any access token
+        # cached from it so every worker refreshes with the new refresh token.
+        db.execute(text("CREATE TABLE IF NOT EXISTS robinhood_access_cache "
+                        "(id TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at REAL NOT NULL)"))
+        db.execute(text("DELETE FROM robinhood_access_cache"))
         db.commit()
         return {"connected": True, "execution_enabled": False}
     except Exception:
