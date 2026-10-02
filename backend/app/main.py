@@ -491,6 +491,62 @@ def robinhood_connect(fresh: bool = False, db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@app.get("/brokers/robinhood/connect-manual", response_class=HTMLResponse,
+         dependencies=[Depends(require_dashboard_access)])
+def robinhood_connect_manual(db: Session = Depends(get_db)):
+    """Loopback OAuth: approve at Robinhood, then paste the final address back here."""
+    from app.brokers.robinhood_oauth import LOOPBACK_REDIRECT_URL
+    try:
+        url = start_connection(db, LOOPBACK_REDIRECT_URL)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    page = ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Connect Robinhood</title><style>body{font:17px system-ui;background:#0b0e11;color:#eaecef;'
+            'max-width:640px;margin:40px auto;padding:18px;line-height:1.5}a.btn,button{display:inline-block;'
+            'color:#0b0e11;background:#f0b90b;padding:12px 16px;border:0;border-radius:8px;font-weight:700;'
+            'text-decoration:none;cursor:pointer}textarea{font:14px monospace;width:100%;box-sizing:border-box;'
+            'height:110px;margin:12px 0;padding:10px;background:#12161b;color:#eaecef;border:1px solid #2b3139;'
+            'border-radius:8px}ol li{margin:8px 0}</style></head><body><h1>Connect Robinhood</h1><ol>'
+            '<li><a class="btn" target="_blank" rel="noopener noreferrer" href="' + html.escape(url, quote=True) +
+            '">Open Robinhood approval</a></li><li>Sign in and approve. Your browser will then show a '
+            '<b>&ldquo;can&rsquo;t connect&rdquo; / &ldquo;site can&rsquo;t be reached&rdquo;</b> page &mdash; that is expected.</li>'
+            '<li>Copy the <b>full address</b> from that page&rsquo;s address bar (it starts with '
+            '<code>http://127.0.0.1:8765/oauth/callback?code=</code>) and paste it below within 10 minutes.</li></ol>'
+            '<form id="f"><textarea id="u" placeholder="http://127.0.0.1:8765/oauth/callback?code=...&amp;state=..." required></textarea>'
+            '<button>Finish connection</button></form><p id="r" role="status"></p>'
+            '<script>document.getElementById("f").onsubmit=async e=>{e.preventDefault();const r=await fetch('
+            '"/brokers/robinhood/complete-manual",{method:"POST",headers:{"Content-Type":"application/json"},'
+            'body:JSON.stringify({url:document.getElementById("u").value.trim()})});const d=await r.json().catch(()=>({}));'
+            'document.getElementById("r").textContent=r.ok?"Connected. Return to the dashboard and reload it.":'
+            '"Failed: "+(d.detail||r.status)+". Open this page again and retry.";};</script></body></html>')
+    return HTMLResponse(page, headers={"Cache-Control": "no-store"})
+
+
+class RobinhoodManualCallback(BaseModel):
+    url: str
+
+
+@app.post("/brokers/robinhood/complete-manual", dependencies=[Depends(require_dashboard_access)])
+def robinhood_complete_manual(body: RobinhoodManualCallback, db: Session = Depends(get_db)):
+    from urllib.parse import parse_qs, urlparse
+    from app.brokers.robinhood_oauth import LOOPBACK_REDIRECT_URL
+    parsed = urlparse(body.url.strip())
+    params = parse_qs(parsed.query)
+    if parsed.scheme + "://" + parsed.netloc + parsed.path != LOOPBACK_REDIRECT_URL:
+        raise HTTPException(status_code=400, detail="That is not the Robinhood callback address")
+    if "error" in params:
+        raise HTTPException(status_code=400, detail="Robinhood returned: " + params["error"][0])
+    code, state = (params.get("code") or [""])[0], (params.get("state") or [""])[0]
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="The address is missing code or state")
+    try:
+        return finish_connection(db, state, code, LOOPBACK_REDIRECT_URL, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Robinhood rejected the code ({type(exc).__name__})")
+
+
 @app.get("/brokers/robinhood/callback")
 def robinhood_callback(state: str, code: str, db: Session = Depends(get_db)):
     try:
