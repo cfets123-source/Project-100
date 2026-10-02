@@ -43,7 +43,7 @@ def _fernet(key):
         raise BrokerOAuthConfigurationError("BROKER_TOKEN_ENCRYPTION_KEY is not a valid Fernet key") from exc
 
 
-def start_connection(db: Session, redirect_url: str):
+def start_connection(db: Session, redirect_url: str, *, force_new_client: bool = False):
     """Dynamically register a public OAuth client and prepare a PKCE redirect.
 
     Calling this function is the point where an operator will be sent to
@@ -59,11 +59,18 @@ def start_connection(db: Session, redirect_url: str):
         "token_endpoint_auth_method": "none",
         "scope": SCOPE,
     }
-    response = httpx.post(REGISTRATION_URL, json=registration, timeout=15)
-    response.raise_for_status()
-    client_id = response.json().get("client_id")
-    if not isinstance(client_id, str) or not client_id:
-        raise BrokerOAuthConfigurationError("Robinhood registration did not return a client ID")
+    # Reuse the already-registered application. Registering a brand-new OAuth
+    # client on every reconnect piles up duplicate "Project 100" apps at
+    # Robinhood, which makes its consent page fail with a generic error.
+    existing = db.get(BrokerConnection, BROKER)
+    client_id = (existing.client_id if existing is not None and existing.client_id
+                 and not force_new_client else None)
+    if client_id is None:
+        response = httpx.post(REGISTRATION_URL, json=registration, timeout=15)
+        response.raise_for_status()
+        client_id = response.json().get("client_id")
+        if not isinstance(client_id, str) or not client_id:
+            raise BrokerOAuthConfigurationError("Robinhood registration did not return a client ID")
     state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
     db.add(BrokerOAuthState(state=state, code_verifier=verifier, client_id=client_id,
                             expires_at=dt.datetime.utcnow() + dt.timedelta(minutes=10)))
