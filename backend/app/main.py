@@ -652,6 +652,30 @@ def health():
     return {"status": "ok", "trading_mode": settings.TRADING_MODE, "autonomy_level": settings.AUTONOMY_LEVEL}
 
 
+@app.get("/scanner/signals", dependencies=[Depends(require_dashboard_access)])
+def scanner_signals(db: Session = Depends(get_db)):
+    """Watch-only multi-market scanner: recent signals and forward scoreboard."""
+    from app.research.multi_market_rules import RULES, RULES_VERSION
+    rows = (db.query(models.ScannerSignal)
+            .order_by(models.ScannerSignal.signal_date.desc(), models.ScannerSignal.momentum_6m.desc())
+            .limit(400).all())
+    item = lambda r: {"symbol": r.symbol, "rule": r.rule, "group": r.asset_group,
+                      "signal_date": r.signal_date, "signal_close": r.signal_close,
+                      "stop_pct": r.stop_pct, "target_pct": r.target_pct, "status": r.status,
+                      "mark_pct": r.mark_pct, "result_pct": r.result_pct, "exit_reason": r.exit_reason,
+                      "momentum_6m": r.momentum_6m}
+    board: dict[tuple, list] = {}
+    for r in db.query(models.ScannerSignal).filter(models.ScannerSignal.status == "closed").all():
+        board.setdefault((r.rule, r.asset_group), []).append(r.result_pct or 0.0)
+    score = [{"rule": k[0], "group": k[1], "closed": len(v), "win_rate": sum(x > 0 for x in v) / len(v),
+              "avg_result": sum(v) / len(v)} for k, v in board.items()]
+    score.sort(key=lambda x: (-x["avg_result"], -x["closed"]))
+    return {"rules_version": RULES_VERSION, "order_submission": False,
+            "rules": {k: {"stop": r.stop, "target": r.target, "max_hold_days": r.max_hold,
+                          "description": r.description} for k, r in RULES.items()},
+            "signals": [item(r) for r in rows], "scoreboard": score}
+
+
 @app.get("/system/state", dependencies=[Depends(require_dashboard_access)])
 def get_state(db: Session = Depends(get_db)):
     rec = StateManager(db, settings).get_record()

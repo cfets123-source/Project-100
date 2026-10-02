@@ -61,8 +61,8 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div id="stratStatus" class="status muted">Checking…</div></div></article>
 <article class="panel card"><h3>Accounts</h3><div id="accts" class="body"><div class="muted">Checking connections…</div></div></article>
 </div>
-<section class="panel tabs"><div class="tabbar"><button class="tab on" data-t="orders">Open orders</button><button class="tab" data-t="trades">Trade history</button><button class="tab" data-t="log">Activity</button></div>
-<div id="t-orders" class="tblwrap"></div><div id="t-trades" class="tblwrap" hidden></div><div id="t-log" class="tblwrap" hidden></div></section>
+<section class="panel tabs"><div class="tabbar"><button class="tab on" data-t="orders">Open orders</button><button class="tab" data-t="trades">Trade history</button><button class="tab" data-t="log">Activity</button><button class="tab" data-t="scan">Market scanner</button></div>
+<div id="t-orders" class="tblwrap"></div><div id="t-trades" class="tblwrap" hidden></div><div id="t-log" class="tblwrap" hidden></div><div id="t-scan" class="tblwrap" hidden style="max-height:520px"><div class="empty">Loading scanner…</div></div></section>
 <footer class="foot"><span id="observer">Account observer: checking…</span><span>Read-only view · this page cannot place orders</span></footer>
 </div>
 <script>
@@ -107,7 +107,7 @@ const EVT={alpaca_live_worker_cycle_completed:'Order decision',alpaca_live_worke
 function renderLog(ev){let el=q('#t-log');if(!ev.length){el.innerHTML='<div class="empty">No activity yet.</div>';return}
 el.innerHTML='<table><tr><th>Time</th><th>Event</th><th>Detail</th></tr>'+ev.map(e=>{let p=e.payload||{},t=EVT[e.type]||String(e.type||'').replace(/^alpaca_live_(worker_)?/,'').replaceAll('_',' '),d=[p.symbol,p.submitted===true?'submitted':p.submitted===false?'not submitted':null,p.reason&&p.reason!=='pending_new'?String(p.reason).replaceAll('_',' '):null,p.approved===true?'approved':p.approved===false?'rejected':null].filter(Boolean).join(' · ');return '<tr><td class="muted">'+esc(when(e.timestamp))+'</td><td>'+esc(t)+'</td><td class="muted">'+esc(d||'—')+'</td></tr>'}).join('')+'</table>'}
 function when(ts,dateOnly){if(!ts)return '';let s=String(ts);let d=new Date(/Z$|[+-]\d\d:\d\d$/.test(s)?s:s+'Z');return dateOnly?d.toLocaleDateString([],{month:'short',day:'numeric'}):d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));['orders','trades','log'].forEach(k=>q('#t-'+k).hidden=k!==b.dataset.t)});
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));['orders','trades','log','scan'].forEach(k=>q('#t-'+k).hidden=k!==b.dataset.t)});
 
 /* ---------- watchlist ---------- */
 async function loadTicker(){try{let d=await api('/terminal/ticker');let all=d.items||[];ticker=all.filter(x=>!String(x.symbol).includes('/'));q('#wlSrc').textContent=d.source||'';drawWatch();drawTape(all)}catch(e){if(e.message!=='auth')q('#wl').innerHTML='<div class="empty">Prices unavailable — retrying.</div>'}}
@@ -157,7 +157,15 @@ let usd=(deepCache.bn?.balances||[]).find(b=>b.asset==='USD');
 h+=row('Binance.US',bnOk?'on':bn?.credentials_saved?'warn':'off',bnOk?'Connected · read-only'+(usd?' ('+money(Number(usd.free||0)+Number(usd.locked||0))+')':''):bn?.credentials_saved?'Key saved, but the broker check failed — re-enter key':'No API key saved','<a href="/brokers/binance-us/connect">'+(bnOk?'Manage':'Connect')+'</a>');
 h+=row('E*TRADE',et?.application_authorized_today?'on':et?.api_key_configured?'warn':'off',et?.application_authorized_today?'Connected today · read-only':et?.api_key_configured?'Sign-in needed today (E*TRADE expires daily)':'API key not set up yet',et?.api_key_configured?'<a href="/brokers/etrade/connect">'+(et?.application_authorized_today?'Reconnect':'Connect')+'</a>':'');
 q('#accts').innerHTML=h}
+
+const RULE_TXT={trend:'Trend start',pullback:'Dip in uptrend',breakout:'20-day breakout'};
+async function loadScanner(){let el=q('#t-scan');try{let d=await api('/scanner/signals'),sg=d.signals||[],sc=d.scoreboard||[];
+let st=x=>x.status==='closed'?'<span class="'+cls(x.result_pct)+'">'+pct(x.result_pct*100)+' · '+esc(String(x.exit_reason||'').replaceAll('_',' '))+'</span>':x.status==='open'?'<span class="'+cls(x.mark_pct)+'">open '+pct((x.mark_pct||0)*100)+'</span>':'<span class="muted">waiting for next open</span>';
+let h='<div class="empty" style="padding:12px 14px">Watch-only: scans ~140 US stocks/ETFs + BTC, ETH, SOL after each close and tracks what every signal would have done. Nothing here places orders. Rules: '+Object.entries(d.rules||{}).map(([k,r])=>'<b>'+esc(RULE_TXT[k]||k)+'</b> (stop −'+Math.round(r.stop*100)+'%, target +'+Math.round(r.target*100)+'%)').join(' · ')+'</div>';
+h+='<table><tr><th>Scoreboard (closed signals)</th><th>Market group</th><th>Signals</th><th>Win rate</th><th>Avg result</th></tr>'+(sc.length?sc.map(r=>'<tr><td>'+esc(RULE_TXT[r.rule]||r.rule)+'</td><td>'+esc(r.group)+'</td><td>'+r.closed+'</td><td>'+Math.round(r.win_rate*100)+'%</td><td class="'+cls(r.avg_result)+'">'+pct(r.avg_result*100)+'</td></tr>').join(''):'<tr><td colspan="5" class="muted">No closed signals yet — results build up over the coming weeks.</td></tr>')+'</table>';
+h+='<table><tr><th>Date</th><th>Symbol</th><th>Signal</th><th>Group</th><th>Price</th><th>6-mo momentum</th><th>Outcome</th></tr>'+(sg.length?sg.slice(0,150).map(x=>'<tr><td class="muted">'+esc(x.signal_date)+'</td><td><b>'+esc(x.symbol)+'</b></td><td>'+esc(RULE_TXT[x.rule]||x.rule)+'</td><td class="muted">'+esc(x.group)+'</td><td>'+money(x.signal_close)+'</td><td class="'+cls(x.momentum_6m)+'">'+(x.momentum_6m==null?'—':pct(x.momentum_6m*100))+'</td><td>'+st(x)+'</td></tr>').join(''):'<tr><td colspan="7" class="muted">First scan runs after today\'s close (4:30 PM ET).</td></tr>')+'</table>';
+el.innerHTML=h}catch(e){if(e.message!=='auth')el.innerHTML='<div class="empty">Scanner not running yet.</div>'}}
 async function loadObserver(){try{let o=await api('/live/observer');q('#observer').textContent='Account observer: '+(o.healthy?'active, updated '+Math.round(o.age_seconds)+'s ago':o.observed?'needs attention':'not running')}catch(e){}}
-loadState();loadAccount();loadTicker();loadChart();loadObserver();loadAccounts();setInterval(loadAccounts,60000);
+loadState();loadAccount();loadTicker();loadChart();loadObserver();loadAccounts();setInterval(loadAccounts,60000);loadScanner();setInterval(loadScanner,300000);
 setInterval(loadState,10000);setInterval(loadAccount,10000);setInterval(loadTicker,30000);setInterval(()=>{if(!hover)loadChart()},tf==='1Day'?60000:15000);setInterval(loadObserver,30000);
 </script></body></html>'''
