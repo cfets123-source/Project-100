@@ -44,3 +44,13 @@ def test_oauth_pkce_and_encrypted_refresh_token(post, db):
     assert connection_status(db)["connected"] is False
     assert connection_status(db)["application_authorized"] is True
     assert db.get(BrokerOAuthState, state) is None
+
+
+@patch("app.brokers.robinhood_oauth.httpx.post")
+def test_reconnect_reuses_registered_client(post, db):
+    db.add(BrokerConnection(broker="robinhood_agentic_trading", client_id="existing-client",
+                            encrypted_refresh_token="x", status="authorized"))
+    db.commit()
+    url = start_connection(db, "https://project100.example/callback")
+    assert post.call_count == 0  # no new app registration at Robinhood
+    assert "client_id=existing-client" in url
