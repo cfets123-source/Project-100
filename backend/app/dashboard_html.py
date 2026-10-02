@@ -145,11 +145,16 @@ new ResizeObserver(()=>draw()).observe(cv);
 
 function drawTape(items){q('#tape').innerHTML=items.map(x=>'<button class="tk" data-s="'+esc(x.symbol)+'"><b>'+esc(x.symbol)+'</b><span>'+money(x.price)+'</span><span class="'+cls(x.change_pct)+'">'+pct(x.change_pct)+'</span></button>').join('')||'<span class="tk muted">Markets unavailable</span>';
 document.querySelectorAll('.tk[data-s]').forEach(b=>{if(b.dataset.s.includes('/'))return;b.onclick=()=>{sym=b.dataset.s;hover=null;drawWatch();loadChart();window.scrollTo({top:0,behavior:'smooth'})}})}
+let deepCache={at:0,rh:null,bn:null};
 async function loadAccounts(){const get=u=>api(u).catch(()=>null);let [alp,rh,bn,et]=await Promise.all([get('/brokers/alpaca/live-portfolio'),get('/brokers/robinhood/status'),get('/brokers/binance-us/status'),get('/brokers/etrade/status')]);
+/* status endpoints only say a key is stored; run the read-only broker checks (at most every 10 min) to prove the link works */
+if(Date.now()-deepCache.at>600000){deepCache.at=Date.now();deepCache.rh=rh?.application_authorized?await get('/brokers/robinhood/readiness'):null;deepCache.bn=bn?.credentials_saved?await get('/brokers/binance-us/readiness'):null}
+let rhOk=rh?.read_only_ready||deepCache.rh?.read_only_ready,bnOk=deepCache.bn?.read_only_ready;
 let row=(name,state,detail,link)=>'<div class="acct"><div><span class="dot '+state+'"></span><b>'+name+'</b><small>'+esc(detail)+'</small></div>'+(link||'')+'</div>';
 let h='';h+=row('Alpaca',alp?'on':'off',alp?'Live account · trading active ('+money(alp.balances?.equity)+')':'Not reachable');
-h+=row('Robinhood Agentic',rh?.read_only_ready?'on':rh?.application_authorized?'warn':'off',rh?.read_only_ready?'Connected · read-only':rh?.application_authorized?'Authorized · verification pending':'Not connected',rh?.read_only_ready?'':'<a href="/brokers/robinhood/connect">Connect</a>');
-h+=row('Binance.US',bn?.credentials_saved?'warn':'off',bn?.credentials_saved?'API key saved · read-only':'Not connected','<a href="/brokers/binance-us/connect">'+(bn?.credentials_saved?'Manage':'Connect')+'</a>');
+h+=row('Robinhood Agentic',rhOk?'on':rh?.application_authorized?'warn':'off',rhOk?'Connected · read-only':rh?.application_authorized?'Linked, but the broker check failed — reconnect':'Not linked',rhOk?'':'<a href="/brokers/robinhood/connect">'+(rh?.application_authorized?'Reconnect':'Connect')+'</a>');
+let usd=(deepCache.bn?.balances||[]).find(b=>b.asset==='USD');
+h+=row('Binance.US',bnOk?'on':bn?.credentials_saved?'warn':'off',bnOk?'Connected · read-only'+(usd?' ('+money(Number(usd.free||0)+Number(usd.locked||0))+')':''):bn?.credentials_saved?'Key saved, but the broker check failed — re-enter key':'No API key saved','<a href="/brokers/binance-us/connect">'+(bnOk?'Manage':'Connect')+'</a>');
 h+=row('E*TRADE',et?.application_authorized_today?'on':et?.api_key_configured?'warn':'off',et?.application_authorized_today?'Connected today · read-only':et?.api_key_configured?'Sign-in needed today (E*TRADE expires daily)':'API key not set up yet',et?.api_key_configured?'<a href="/brokers/etrade/connect">'+(et?.application_authorized_today?'Reconnect':'Connect')+'</a>':'');
 q('#accts').innerHTML=h}
 async function loadObserver(){try{let o=await api('/live/observer');q('#observer').textContent='Account observer: '+(o.healthy?'active, updated '+Math.round(o.age_seconds)+'s ago':o.observed?'needs attention':'not running')}catch(e){}}
