@@ -779,6 +779,29 @@ def push_test(db: Session = Depends(get_db)):
                      PUSH_SUBJECT)
 
 
+@app.get("/pipeline", dependencies=[Depends(require_dashboard_access)])
+def strategy_pipeline(db: Session = Depends(get_db)):
+    from app.services.pipeline import pipeline
+    return pipeline(db)
+
+
+@app.get("/review/latest", dependencies=[Depends(require_dashboard_access)])
+def review_latest(db: Session = Depends(get_db)):
+    """Last stored nightly review; before the first night, a fresh read-only preview (not stored)."""
+    from app.services import nightly_review as nr
+    stored = nr.latest(db)
+    if stored:
+        return {**stored, "preview": False}
+    report = nr.build(db, nr.collect_equities(db, settings.BROKER_TOKEN_ENCRYPTION_KEY), persist=False)
+    return {**report, "preview": True}
+
+
+@app.get("/review/history", dependencies=[Depends(require_dashboard_access)])
+def review_history(db: Session = Depends(get_db)):
+    from app.services import nightly_review as nr
+    return {"reports": nr.history(db)}
+
+
 @app.on_event("startup")
 async def _start_trade_notifier():
     import asyncio
@@ -787,9 +810,12 @@ async def _start_trade_notifier():
 
     def tick():
         from app.db.session import SessionLocal
-        from app.services.trade_notifier import poll
+        from app.services import nightly_review
+        from app.services.trade_notifier import broadcast, poll
         with SessionLocal() as db:
             poll(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, PUSH_SUBJECT)
+            nightly_review.run_if_due(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
+                                      push=lambda m: broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, m, PUSH_SUBJECT))
 
     async def loop():
         while True:

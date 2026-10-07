@@ -43,6 +43,25 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 .tip{grid-column:1/-1;display:none;padding:10px 14px;border-radius:8px;background:rgba(240,185,11,.10);color:#f3d27a;border:1px solid rgba(240,185,11,.35);font-size:14px}.tip.show{display:block}.abtn{cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink)}
 .banner{grid-column:1/-1;display:none;padding:10px 14px;border-radius:8px;background:rgba(246,70,93,.12);color:#ffb3bd;border:1px solid rgba(246,70,93,.35)}.banner.show{display:block}
 @media(max-width:1000px){.wrap{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.chart-box{height:340px}.top{gap:10px;padding:8px 12px;height:auto;flex-wrap:wrap;padding-top:max(8px,env(safe-area-inset-top))}.top .kpis{width:100%;margin-left:0}.kpis{gap:16px}.wl{max-height:none;display:flex;overflow-x:auto}.wrow{width:170px;min-width:170px;flex:0 0 auto;grid-template-columns:1fr auto;row-gap:2px}.wrow>span:last-child{grid-column:2}.brand{font-size:15px}}
+/* ---------- terminal skin ---------- */
+:root{--bg:#07090b;--panel:#0d1014;--panel2:#12161b;--line:#1d232b;--ink:#e6e8ea;--sub:#7d8590;--accent:#ff7a1a;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace}
+.panel{border-radius:4px;border-color:var(--line)}
+.kpi>span,.panel h3,.tab,th,.pill,.range-lbl,.ohlc,.stage-name{font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-size:11px}
+.kpi b,.px,.sym,td,.wrow span,.tk span,.big,.kv b,.pchip span{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tab.on{color:var(--accent)!important;border-bottom-color:var(--accent)!important}.wrow.on{border-left-color:var(--accent)}.pchip.on{border-color:var(--accent)}
+.tf.on{background:rgba(255,122,26,.14);color:var(--accent)}.top{background:#090c0f}
+.pipe{grid-column:1/-1;padding:12px 14px}.pipe h3{display:flex;justify-content:space-between;margin:0 0 10px;color:var(--sub)}
+.prow2{display:grid;grid-template-columns:190px minmax(0,1fr);gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.prow2:first-of-type{border-top:0}.pname b{display:block;font-size:14px}.pname small{color:var(--sub);font-size:11px}
+.stages{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.stage{padding:6px 7px;border:1px solid var(--line);border-radius:3px;background:var(--bg);min-width:0;cursor:default}
+.stage .stage-name{display:block;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage i{display:block;height:3px;margin-top:6px;border-radius:2px;background:#232a32}
+.stage.done i{background:var(--up)}.stage.current{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(255,122,26,.25)}.stage.current i{background:var(--accent)}
+.stage.current .stage-name{color:var(--accent)}.stage.done .stage-name{color:var(--ink)}
+.rv{padding:12px 14px;display:grid;gap:12px}.rv-card{border:1px solid var(--line);border-radius:4px;padding:10px 12px}
+.flag{font-family:var(--mono);font-size:12px;padding:3px 0}.flag.alert{color:var(--down)}.flag.warn{color:#f3d27a}.flag.info{color:var(--up)}
+@media(max-width:1000px){#pipeTs{display:none}.prow2{grid-template-columns:1fr}.stages{overflow-x:auto;grid-template-columns:repeat(7,minmax(92px,1fr))}}
 </style></head><body>
 <header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button>
 <div class="kpis"><div class="kpi"><span>Equity</span><b id="kEq">—</b></div><div class="kpi"><span>Open P&amp;L</span><b id="kPl">—</b></div><div class="kpi"><span>Cash</span><b id="kCash">—</b></div><div class="kpi"><span>Open positions</span><b id="kPos">—</b></div><div class="kpi"><span>Market</span><b id="kMkt">—</b></div></div></header>
@@ -54,6 +73,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div id="posTabs" class="ptabs"></div><div id="ohlc" class="ohlc">Hover the chart for open, high, low and close.</div>
 <div class="chart-box"><canvas id="cv"></canvas><div id="cMsg" class="chart-msg">Loading candles…</div></div></section>
 <aside class="panel side"><h3>Watchlist <span class="muted" id="wlSrc"></span></h3><div id="wl" class="wl"><div class="empty">Loading prices…</div></div></aside>
+<section class="panel pipe"><h3><span>Strategy pipeline</span><span id="pipeTs" class="muted"></span></h3><div id="pipe"><div class="empty">Loading pipeline…</div></div></section>
 <div class="cards">
 <article class="panel card"><h3>Open positions <span id="posTag" class="muted"></span></h3><div id="pos" class="body"><div class="muted">Loading broker position…</div></div></article>
 <article class="panel card"><h3>Milestone</h3><div id="ms" class="body"><div class="muted">Loading…</div></div></article>
@@ -64,8 +84,8 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div id="stratStatus" class="status muted">Checking…</div></div></article>
 <article class="panel card"><h3>Accounts</h3><div id="accts" class="body"><div class="muted">Checking connections…</div></div></article>
 </div>
-<section class="panel tabs"><div class="tabbar"><button class="tab on" data-t="orders">Open orders</button><button class="tab" data-t="trades">Trade history</button><button class="tab" data-t="log">Activity</button><button class="tab" data-t="scan">Market scanner</button><button class="tab" data-t="plan">Milestone plan</button></div>
-<div id="t-orders" class="tblwrap"></div><div id="t-trades" class="tblwrap" hidden></div><div id="t-log" class="tblwrap" hidden></div><div id="t-scan" class="tblwrap" hidden style="max-height:520px"><div class="empty">Loading scanner…</div></div><div id="t-plan" class="tblwrap" hidden style="max-height:none"><div class="body" style="display:flex;gap:14px;flex-wrap:wrap;align-items:end"><label class="muted" style="font-size:12px">Deposit<br><input id="pAmt" type="number" min="0" step="25" value="100" style="width:110px;padding:7px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"></label><label class="muted" style="font-size:12px">How often<br><select id="pFreq" style="padding:7px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"><option value="26">Every 2 weeks</option><option value="12">Monthly</option><option value="0">No deposits</option></select></label><span id="pNote" class="muted" style="font-size:12px"></span></div><div id="pOut"></div></div></section>
+<section class="panel tabs"><div class="tabbar"><button class="tab on" data-t="orders">Open orders</button><button class="tab" data-t="trades">Trade history</button><button class="tab" data-t="log">Activity</button><button class="tab" data-t="scan">Market scanner</button><button class="tab" data-t="plan">Milestone plan</button><button class="tab" data-t="review">Nightly review</button></div>
+<div id="t-orders" class="tblwrap"></div><div id="t-review" class="tblwrap" hidden style="max-height:none"><div class="empty">Loading review…</div></div><div id="t-trades" class="tblwrap" hidden></div><div id="t-log" class="tblwrap" hidden></div><div id="t-scan" class="tblwrap" hidden style="max-height:520px"><div class="empty">Loading scanner…</div></div><div id="t-plan" class="tblwrap" hidden style="max-height:none"><div class="body" style="display:flex;gap:14px;flex-wrap:wrap;align-items:end"><label class="muted" style="font-size:12px">Deposit<br><input id="pAmt" type="number" min="0" step="25" value="100" style="width:110px;padding:7px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"></label><label class="muted" style="font-size:12px">How often<br><select id="pFreq" style="padding:7px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"><option value="26">Every 2 weeks</option><option value="12">Monthly</option><option value="0">No deposits</option></select></label><span id="pNote" class="muted" style="font-size:12px"></span></div><div id="pOut"></div></div></section>
 <footer class="foot"><span id="observer">Account observer: checking…</span><span>Read-only view · this page cannot place orders</span></footer>
 </div>
 <script>
@@ -128,7 +148,7 @@ el.innerHTML=streamStatus==='live'?'<span class="up">● Live</span> · Alpaca I
 setInterval(feedLabel,1000);
 function renderChips(){let el=q('#posTabs');el.innerHTML=positions.map(p=>{let plp=num(p.unrealized_plpc);return '<button class="pchip'+(p.symbol===sym?' on':'')+'" data-s="'+esc(p.symbol)+'"><b>'+esc(p.symbol)+'</b><span>'+money(p.market_value)+'</span><span class="'+cls(plp)+'">'+(plp!=null?pct(plp*100):'')+'</span></button>'}).join('');el.querySelectorAll('.pchip').forEach(b=>b.onclick=()=>pick2(b.dataset.s))}
 function renderPosition(){let el=q('#pos'),st=q('#stratStatus');if(!positions.length){q('#posTag').textContent='';el.innerHTML='<div class="big">Flat</div><div class="muted">No open position. The strategy waits for its entry signal.</div>';st.textContent='Flat — waiting for the next entry signal (checked every minute while the market is open).';return}
-let tot=positions.reduce((s,p)=>s+(num(p.unrealized_pl)||0),0);q('#posTag').textContent=positions.length+' open · tap one to chart it';
+let tot=positions.reduce((s,p)=>s+(num(p.unrealized_pl)||0),0);q('#posTag').textContent=positions.length+' open';
 el.innerHTML='<div class="big '+cls(tot)+'">'+signed(tot)+' <span style="font-size:13px" class="muted">open P&amp;L</span></div>'+positions.map(p=>{let cur=num(p.current_price),pl=num(p.unrealized_pl),plp=num(p.unrealized_plpc),lv=levels(p.symbol),range='';
 if(lv.stop!=null&&lv.target!=null&&cur!=null){let x=Math.max(0,Math.min(100,(cur-lv.stop)/(lv.target-lv.stop)*100));range='<div class="range"><i style="left:'+x+'%"></i></div><div class="range-lbl"><span>Stop '+money(lv.stop)+'</span><span>'+(lv.worker?'worker-watched':'broker bracket')+'</span><span>Target '+money(lv.target)+'</span></div>'}
 let role=lv.lot?(lv.lot.sleeve==='core'?'Core':'Satellite · '+lv.lot.rule):'';
@@ -147,7 +167,20 @@ const EVT={alpaca_live_worker_cycle_completed:'Order decision',alpaca_live_worke
 function renderLog(ev){let el=q('#t-log');if(!ev.length){el.innerHTML='<div class="empty">No activity yet.</div>';return}
 el.innerHTML='<table><tr><th>Time</th><th>Event</th><th>Detail</th></tr>'+ev.map(e=>{let p=e.payload||{},t=EVT[e.type]||String(e.type||'').replace(/^alpaca_live_(worker_)?/,'').replaceAll('_',' '),d=[p.symbol,p.submitted===true?'submitted':p.submitted===false?'not submitted':null,p.reason&&p.reason!=='pending_new'?String(p.reason).replaceAll('_',' '):null,p.approved===true?'approved':p.approved===false?'rejected':null].filter(Boolean).join(' · ');return '<tr><td class="muted">'+esc(when(e.timestamp))+'</td><td>'+esc(t)+'</td><td class="muted">'+esc(d||'—')+'</td></tr>'}).join('')+'</table>'}
 function when(ts,dateOnly){if(!ts)return '';let s=String(ts);let d=new Date(/Z$|[+-]\d\d:\d\d$/.test(s)?s:s+'Z');return dateOnly?d.toLocaleDateString([],{month:'short',day:'numeric'}):d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));['orders','trades','log','scan','plan'].forEach(k=>q('#t-'+k).hidden=k!==b.dataset.t)});
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));['orders','trades','log','scan','plan','review'].forEach(k=>q('#t-'+k).hidden=k!==b.dataset.t)});
+
+/* ---------- strategy pipeline + nightly review ---------- */
+async function loadPipeline(){try{let d=await api('/pipeline');q('#pipeTs').textContent='Scan → Backtest → Stress → Paper → Approval → Live → Review';
+q('#pipe').innerHTML=(d.strategies||[]).map(s=>'<div class="prow2"><div class="pname"><b>'+esc(s.name)+'</b><small>'+esc(s.venue)+' · '+esc(s.detail)+'</small></div><div class="stages">'+
+s.stages.map(g=>'<div class="stage '+g.status+'" title="'+esc(g.note)+'"><span class="stage-name">'+esc(g.name)+'</span><i></i></div>').join('')+'</div></div>').join('')}
+catch(e){if(e.message!=='auth')q('#pipe').innerHTML='<div class="empty">Pipeline unavailable — retrying.</div>'}}
+async function loadReview(){let el=q('#t-review');try{let r=await api('/review/latest');
+el.innerHTML='<div class="rv"><div class="muted" style="font-family:var(--mono);font-size:12px">'+(r.preview?'PREVIEW · first stored review runs tonight after 8:05 PM ET':'REVIEW · '+esc(r.day))+' · '+(r.issues?'<span class="down">'+r.issues+' issue'+(r.issues>1?'s':'')+'</span>':'<span class="up">all clear</span>')+'</div>'+
+(r.accounts||[]).map(a=>'<div class="rv-card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>'+esc(a.label)+'</b><span style="font-family:var(--mono)">'+money(a.equity)+(a.change!=null?' <span class="'+cls(a.change)+'">'+pct(a.change*100)+'</span>':'')+'</span></div>'+
+'<div class="muted" style="font-size:12px;margin:4px 0 6px">'+a.trades.length+' trade'+(a.trades.length==1?'':'s')+' in 24h · '+a.open_positions.length+' open · realized today '+signed(a.realized_today)+'</div>'+
+(a.trades.map(t=>'<div class="flag">'+esc(String(t.event).replace(/^(allocator|binance)_/,'').replace('_',' '))+' '+esc(t.symbol||'')+(t.reason?' · '+esc(t.reason):'')+(t.usd?' · '+money(t.usd):'')+'</div>').join(''))+
+(a.flags.length?a.flags.map(f=>'<div class="flag '+f.level+'">'+(f.level==='alert'?'▲ ':f.level==='warn'?'● ':'✓ ')+esc(f.text)+'</div>').join(''):'<div class="flag info">✓ No issues</div>')+'</div>').join('')+'</div>'}
+catch(e){if(e.message!=='auth')el.innerHTML='<div class="empty">Review unavailable — retrying.</div>'}}
 
 /* ---------- watchlist ---------- */
 async function loadTicker(){try{let d=await api('/terminal/ticker');let all=d.items||[];ticker=all.filter(x=>!String(x.symbol).includes('/'));q('#wlSrc').textContent=d.source||'';drawWatch();drawTape(all)}catch(e){if(e.message!=='auth')q('#wl').innerHTML='<div class="empty">Prices unavailable — retrying.</div>'}}
@@ -218,6 +251,6 @@ q('#pNote').textContent='Starting from '+money(start)+(dep?' · adding '+money(d
 q('#pOut').innerHTML='<table><tr><th>Account reaches</th><th>Typical time</th><th>Likely range</th><th>Chance within 20 yrs</th><th>Your deposits by then</th></tr>'+PLAN_M.map((m,i)=>{let h=hits[i];if(!h.length)return '<tr><td><b>'+money(m)+'</b></td><td colspan="4" class="muted">Not reached in 20 years</td></tr>';return '<tr><td><b>'+money(m)+'</b></td><td>'+yrs(med(h))+'</td><td class="muted">'+yrs(pc(h,.25))+' – '+yrs(pc(h,.75))+'</td><td>'+Math.round(100*h.length/N)+'%</td><td class="muted">'+(dep?money(med(depAt[i])):'—')+'</td></tr>'}).join('')+'</table><div class="empty">Past results don\'t guarantee future ones: 2011–2026 was a strong period for the Nasdaq, and TQQQ has had drops of up to 82%. Balances include deposits; the stage cap is raised as the account grows.</div>'}
 q('#pAmt').oninput=runPlan;q('#pFreq').onchange=runPlan;
 async function loadObserver(){try{let o=await api('/live/observer');q('#observer').textContent='Account observer: '+(o.healthy?'active, updated '+Math.round(o.age_seconds)+'s ago':o.observed?'needs attention':'not running')}catch(e){}}
-loadState();loadAccount();loadTicker();loadChart();loadObserver();loadAccounts();setInterval(loadAccounts,60000);loadScanner();setInterval(loadScanner,300000);runPlan();
+loadState();loadAccount();loadTicker();loadChart();loadObserver();loadAccounts();loadPipeline();setInterval(loadPipeline,120000);loadReview();setInterval(loadReview,600000);setInterval(loadAccounts,60000);loadScanner();setInterval(loadScanner,300000);runPlan();
 setInterval(loadState,10000);setInterval(loadAccount,10000);setInterval(loadTicker,30000);setInterval(()=>{if(!hover)loadChart()},tf==='1Day'?60000:15000);setInterval(loadObserver,30000);
 </script></body></html>'''
