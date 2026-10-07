@@ -84,14 +84,31 @@ async function loadState(){let m=q('#mode'),b=q('#banner');try{let d=await api('
 function flatOrders(list){let out=[];(list||[]).forEach(o=>{out.push(o);(o.legs||[]).forEach(l=>out.push(l))});let live=new Set(['new','accepted','pending_new','pending','open','partially_filled','held']);return out.filter(o=>live.has(String(o.status)))}
 function levels(symbol){let os=orders.filter(o=>o.symbol===symbol&&o.side==='sell');let stop=os.find(o=>/stop/.test(o.type||o.order_type||'')),tgt=os.find(o=>(o.type||o.order_type)==='limit');let lot=lots.find(l=>l.status==='open'&&l.symbol===symbol);let s=num(stop?.stop_price),t=num(tgt?.limit_price),w=false;if(s==null&&lot){s=num(lot.stop_price);w=true}if(t==null&&lot){t=num(lot.target_price);w=true}return{stop:s,target:t,worker:w,lot}}
 async function loadAccount(){try{let [d,m,t,a,L]=await Promise.all([api('/brokers/alpaca/live-portfolio'),api('/live/milestones').catch(()=>({})),api('/live/trades?limit=50').catch(()=>({trades:[]})),api('/live/activity?limit=40').catch(()=>({events:[]})),api('/allocator/lots?mode=live').catch(()=>({lots:[]}))]);
-let b=d.balances||{};positions=d.positions||[];orders=flatOrders(d.active_orders);lots=L.lots||[];
-let openPl=positions.reduce((s,p)=>s+(num(p.unrealized_pl)||0),0);
-q('#kEq').textContent=money(b.equity);q('#kCash').textContent=money(b.cash);q('#kPos').textContent=positions.length;
-q('#kPl').innerHTML='<span class="'+cls(positions.length?openPl:null)+'">'+(positions.length?signed(openPl):'—')+'</span>';
+let b=d.balances||{};positions=d.positions||[];orders=flatOrders(d.active_orders);lots=L.lots||[];acct={cash:num(b.cash),equity:num(b.equity)};positions.forEach(applyLive);
+kpis();q('#kPos').textContent=positions.length;
 q('#kMkt').innerHTML=d.market_clock?(d.market_clock.is_open?'<span class="up">Open</span>':'<span class="muted">Closed</span>'):'—';
-renderPosition();renderChips();renderMilestone(m,num(b.equity));if(num(b.equity)&&planEquity==null){planEquity=num(b.equity);runPlan()}renderOrders();renderTrades(t.trades||[],lots);renderLog(a.events||[]);if(bars.length)draw()}
+renderPosition();renderChips();renderMilestone(m,num(b.equity));if(num(b.equity)&&planEquity==null){planEquity=num(b.equity);runPlan()}renderOrders();renderTrades(t.trades||[],lots);renderLog(a.events||[]);if(bars.length)draw();openStream()}
 catch(e){if(e.message!=='auth'){q('#pos').innerHTML='<div class="muted">Broker account unavailable — retrying. This does not mean the account is empty.</div>'}}}
-function pick2(s){sym=s;hover=null;drawWatch();renderChips();renderPosition();loadChart()}
+function pick2(s){sym=s;hover=null;drawWatch();renderChips();renderPosition();loadChart();openStream()}
+/* ---------- real-time stream (server relays Alpaca IEX trades; no keys in the browser) ---------- */
+let es=null,esKey='',live={},acct={},streamStatus='connecting',lastTick=0,dirty=false,lastSlow=0;
+const TFMS={'1Min':6e4,'5Min':3e5,'15Min':9e5};
+function kpis(){let mv=0,ok=true,pl=0;positions.forEach(p=>{let v=num(p.market_value);if(v==null)ok=false;else mv+=v;pl+=num(p.unrealized_pl)||0});
+let eq=ok&&acct.cash!=null&&positions.length?acct.cash+mv:acct.equity;q('#kEq').textContent=money(eq);q('#kCash').textContent=money(acct.cash);
+q('#kPl').innerHTML='<span class="'+cls(positions.length?pl:null)+'">'+(positions.length?signed(pl):'—')+'</span>'}
+function applyLive(p){let L=live[p.symbol];if(!L||Date.now()-L.at>20000)return;let qn=num(p.qty),e=num(p.avg_entry_price);p.current_price=L.p;if(qn!=null){p.market_value=qn*L.p;if(e!=null){p.unrealized_pl=(L.p-e)*qn;p.unrealized_plpc=e?L.p/e-1:null}}}
+function streamSyms(){return [...new Set([sym,...positions.map(p=>p.symbol)])].filter(x=>x&&!x.includes('/')).sort()}
+function openStream(){if(!window.EventSource)return;let k=streamSyms().join(',');if(es&&k===esKey)return;esKey=k;if(es)es.close();
+es=new EventSource('/terminal/stream?symbols='+encodeURIComponent(k));es.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch(_){return}
+if(d.type==='status'){streamStatus=d.status;if(d.last)Object.values(d.last).forEach(x=>onTick(x,true));feedLabel();return}onTick(d)};es.onerror=()=>{streamStatus='reconnecting';feedLabel()}}
+function onTick(d,old){if(d.type!=='trade'||!d.symbol)return;let p=+d.price;if(!(p>0))return;let ts=d.time?new Date(d.time):new Date();
+live[d.symbol]={p,at:old?Date.now()-30000:Date.now()};if(!old)lastTick=Date.now();positions.forEach(x=>{if(x.symbol===d.symbol)applyLive(x)});
+if(d.symbol===sym&&!old&&bars.length){let L=bars[bars.length-1],ms=TFMS[tf];if(ms){let bucket=Math.floor(ts.getTime()/ms)*ms;if(bucket>L.t.getTime()){bars.push({t:new Date(bucket),o:p,h:p,l:p,c:p,v:+d.size||0});if(bars.length>120)bars.shift()}else if(bucket===L.t.getTime()){L.c=p;L.h=Math.max(L.h,p);L.l=Math.min(L.l,p);L.v+=+d.size||0}}else{L.c=p;L.h=Math.max(L.h,p);L.l=Math.min(L.l,p)}}
+if(d.symbol===sym)q('#cPx').textContent=money(p);dirty=true}
+function frame(){if(dirty){dirty=false;if(!hover)draw();kpis();renderChips();let now=Date.now();if(now-lastSlow>1000){lastSlow=now;renderPosition()}}requestAnimationFrame(frame)}requestAnimationFrame(frame);
+function feedLabel(){let el=q('#cFeed');if(!el)return;let age=lastTick?Math.round((Date.now()-lastTick)/1000):null;
+el.innerHTML=streamStatus==='live'?'<span class="up">● Live</span> · Alpaca IEX'+(age!=null?' · last trade '+(age<60?age+'s':Math.round(age/60)+'m')+' ago':' · waiting for trades'):'<span class="muted">● '+esc(streamStatus==='reconnecting'?'Stream reconnecting — updating every 15s':'Connecting live stream…')+'</span>'}
+setInterval(feedLabel,1000);
 function renderChips(){let el=q('#posTabs');el.innerHTML=positions.map(p=>{let plp=num(p.unrealized_plpc);return '<button class="pchip'+(p.symbol===sym?' on':'')+'" data-s="'+esc(p.symbol)+'"><b>'+esc(p.symbol)+'</b><span>'+money(p.market_value)+'</span><span class="'+cls(plp)+'">'+(plp!=null?pct(plp*100):'')+'</span></button>'}).join('');el.querySelectorAll('.pchip').forEach(b=>b.onclick=()=>pick2(b.dataset.s))}
 function renderPosition(){let el=q('#pos'),st=q('#stratStatus');if(!positions.length){q('#posTag').textContent='';el.innerHTML='<div class="big">Flat</div><div class="muted">No open position. The strategy waits for its entry signal.</div>';st.textContent='Flat — waiting for the next entry signal (checked every minute while the market is open).';return}
 let tot=positions.reduce((s,p)=>s+(num(p.unrealized_pl)||0),0);q('#posTag').textContent=positions.length+' open · tap one to chart it';
@@ -125,7 +142,7 @@ document.querySelectorAll('.wrow').forEach(b=>b.onclick=()=>pick2(b.dataset.s));
 /* ---------- chart (canvas, device-pixel sharp) ---------- */
 document.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{tf=b.dataset.tf;document.querySelectorAll('.tf').forEach(x=>x.classList.toggle('on',x===b));hover=null;loadChart()});
 async function loadChart(){let s=sym,f=tf;q('#cSym').textContent=s;try{let d=await api('/terminal/market?symbol='+encodeURIComponent(s)+'&timeframe='+f);if(s!==sym||f!==tf)return;bars=(d.bars||[]).map(b=>({t:new Date(b.timestamp),o:+b.open,h:+b.high,l:+b.low,c:+b.close,v:+b.volume||0}));quote=d.quote||{};
-let last=num(quote.last)??(bars.length?bars[bars.length-1].c:null);q('#cPx').textContent=money(last);let age=num(quote.age_seconds);q('#cFeed').textContent=(d.source||'')+(age!=null?' · '+(age<60?Math.round(age)+'s':Math.round(age/60)+'m')+' ago':'');
+let last=num(quote.last)??(bars.length?bars[bars.length-1].c:null);q('#cPx').textContent=money(last);let age=num(quote.age_seconds);feedLabel();
 q('#cMsg').style.display=bars.length?'none':'flex';q('#cMsg').textContent='No candles available';drawWatch();draw()}catch(e){if(e.message==='auth')return;q('#cMsg').style.display='flex';q('#cMsg').textContent='Market data unavailable — retrying';bars=[];draw()}}
 const cv=q('#cv'),ctx=cv.getContext('2d');
 function draw(){let dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);if(!bars.length)return;

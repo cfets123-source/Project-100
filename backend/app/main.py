@@ -96,6 +96,60 @@ def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=
         raise HTTPException(status_code=503, detail=f"market data unavailable: {type(exc).__name__}") from exc
 
 
+def _stream_credentials() -> tuple[str, str]:
+    from app.db.session import SessionLocal
+    with SessionLocal() as db:
+        adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
+        return adapter.headers["APCA-API-KEY-ID"], adapter.headers["APCA-API-SECRET-KEY"]
+
+
+_market_stream = None
+
+
+def market_stream():
+    global _market_stream
+    if _market_stream is None:
+        from app.services.market_stream import MarketStream
+        _market_stream = MarketStream(_stream_credentials)
+    return _market_stream
+
+
+@app.get("/terminal/stream", dependencies=[Depends(require_dashboard_access)])
+async def terminal_stream(request: Request, symbols: str = Query(default="", max_length=400)):
+    """Server-Sent Events: real-time IEX trade prints and minute bars (read-only, no keys)."""
+    import asyncio
+    from fastapi.responses import StreamingResponse
+    stream = market_stream()
+    wanted = set(stream.want([s for s in symbols.split(",") if s][:30]))
+    queue = stream.listen()
+
+    async def events():
+        try:
+            hello = {"type": "status", "status": stream.status, "error": stream.error, "symbols": sorted(wanted),
+                     "last": {s: stream.last[s] for s in wanted if s in stream.last}}
+            yield f"data: {json.dumps(hello)}\n\n"
+            last_status = stream.status
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=10)
+                except asyncio.TimeoutError:
+                    if stream.status != last_status:
+                        last_status = stream.status
+                        yield f"data: {json.dumps({'type': 'status', 'status': stream.status, 'error': stream.error})}\n\n"
+                    else:
+                        yield ": keep-alive\n\n"
+                    continue
+                if event.get("symbol") in wanted:
+                    yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            stream.unlisten(queue)
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 _ticker_cache: dict[str, object] = {"expires_at": 0.0, "payload": None}
 
 
