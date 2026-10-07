@@ -472,3 +472,19 @@ class ExternalTargetExitRetry(Base):
     retry_after = Column(Float, nullable=False)
     failures = Column(Integer, nullable=False, default=1)
     updated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class PushSubscription(Base):
+    """One browser/phone Web Push subscription for trade notifications."""
+    __tablename__ = "push_subscriptions"
+    endpoint = Column(String, primary_key=True)
+    p256dh = Column(String, nullable=False)
+    auth = Column(String, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class AppState(Base):
+    """Small key/value state (encrypted VAPID keys, notifier cursor)."""
+    __tablename__ = "app_state"
+    key = Column(String, primary_key=True)
+    value = Column(Text, nullable=False)
