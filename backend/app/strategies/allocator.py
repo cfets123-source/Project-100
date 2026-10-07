@@ -32,6 +32,7 @@ CORE_STOP, CORE_TARGET, CORE_MAX_HOLD = 0.25, 0.50, 10_000
 MIN_ORDER_USD = 1.00
 CIRCUIT_BREAKER = 0.50
 QTY_DECIMALS = 4
+ROTATION_MARGIN = 0.20  # weekly swap: candidate 6-mo momentum must beat the weakest holding by 20 points
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,33 @@ def plan_buys(*, equity: float, cash: float, core_value: float, core_trend_up: b
         budget -= amount
         free_slots -= 1
     return buys
+
+
+def plan_rotation(*, held: list[dict], signals: list[dict], margin: float = ROTATION_MARGIN,
+                  exclude: set | None = None) -> list[tuple[str, dict]]:
+    """Weekly swap: sell the weakest-momentum satellite when a new signal is clearly stronger.
+
+    held: eligible satellites as {"id", "symbol", "momentum"} (current 6-month return).
+    Returns [(lot_id_to_sell, replacement_signal)], strongest replacement first.
+    Backtest 2011-Sep 2026 (rot.py): beat hold-to-exit in every period at a similar drawdown.
+    """
+    held_syms = {h["symbol"] for h in held} | {CORE_SYMBOL} | set(exclude or ())
+    cands, seen = [], set()
+    for sig in sorted(signals, key=lambda x: -(x.get("momentum_6m") or 0)):
+        if (sig["rule"] in SATELLITE_RULES and group_of(sig["symbol"]) in SATELLITE_GROUPS
+                and sig["symbol"] not in held_syms and sig["symbol"] not in seen):
+            seen.add(sig["symbol"])
+            cands.append(sig)
+    pool, swaps = [h for h in held if h.get("momentum") is not None], []
+    for sig in cands:
+        if not pool:
+            break
+        weakest = min(pool, key=lambda h: h["momentum"])
+        if (sig.get("momentum_6m") or 0) < weakest["momentum"] + margin:
+            break
+        swaps.append((weakest["id"], sig))
+        pool.remove(weakest)
+    return swaps
 
 
 def price_exit(lot, last: float) -> str | None:
