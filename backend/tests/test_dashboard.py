@@ -20,7 +20,10 @@ def test_dashboard_is_read_only_and_identifies_operator_console():
         assert '/terminal/ticker' in page.text and '/terminal/market' in page.text
         assert 'devicePixelRatio' in page.text  # crisp canvas chart, not a stretched SVG
         assert 'this page cannot place orders' in page.text
-        assert 'method:' not in page.text  # the console only issues GET requests
+        # Only GET requests, except device alert subscription under /push/ (never trading).
+        import re
+        assert page.text.count('method:') == 1 and "post('/push/" in page.text
+        assert not re.search(r"post\('/(?!push/)", page.text)
         broker = client.get('/brokers/robinhood/status').json()
         assert broker['connected'] is False
         assert broker['execution_enabled'] is False
