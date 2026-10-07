@@ -22,8 +22,8 @@ from app.brokers.base import OrderRequest
 from app.models.models import AllocatorLot, AllocatorState, AuditLogEntry, ScannerSignal
 from app.research.multi_market_rules import indicators, rule_exit
 from app.strategies.allocator import (
-    ALLOCATOR_VERSION, CORE_STOP, CORE_SYMBOL, CORE_TARGET, CORE_WEIGHT, MIN_ORDER_USD, SATELLITE_SLOTS,
-    daily_exit, floor_qty, plan_buys, plan_rotation, price_exit,
+    ALLOCATOR_VERSION, CORE_STOP, CORE_SYMBOL, CORE_TARGET, CORE_WEIGHT, CRYPTO_QTY_DECIMALS, MIN_ORDER_USD,
+    SATELLITE_SLOTS, daily_exit, floor_qty, is_crypto, plan_buys, plan_rotation, price_exit,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -52,8 +52,49 @@ def _open_lots(db, mode):
     return db.query(AllocatorLot).filter_by(mode=mode, status="open").all()
 
 
+def _pkey(symbol: str) -> str:
+    """Alpaca reports crypto positions without the slash (BTC/USD -> BTCUSD)."""
+    return symbol.replace("/", "")
+
+
+def _bars(reader, symbol, start, end):
+    if is_crypto(symbol):
+        return reader.get_crypto_daily_bars(symbol, start, end)
+    return reader.get_daily_bars(symbol, start, end)
+
+
+_crypto_cache: dict = {"until": 0.0, "ok": False}
+_min_qty_cache: dict = {}
+
+
+def crypto_enabled(adapter) -> bool:
+    """Crypto buys only when the Alpaca account has crypto trading active (checked hourly)."""
+    if time.time() < _crypto_cache["until"]:
+        return _crypto_cache["ok"]
+    try:
+        ok = str(adapter.get_account_capabilities().get("crypto_status") or "").upper() == "ACTIVE"
+    except Exception:
+        ok = False
+    _crypto_cache.update(until=time.time() + 3600, ok=ok)
+    return ok
+
+
+def _min_qty(adapter, symbol) -> float:
+    if symbol not in _min_qty_cache:
+        try:
+            _min_qty_cache[symbol] = float(adapter.get_asset(symbol).get("min_order_size") or 0)
+        except Exception:
+            return 0.0
+    return _min_qty_cache[symbol]
+
+
 def _quotes(adapter, symbols) -> dict:
     out = {}
+    crypto = [s for s in symbols if is_crypto(s)]
+    if crypto:
+        for q in adapter.get_crypto_quotes(crypto):
+            out[q.symbol] = {"last": q.last, "ask": q.ask or q.last, "bid": q.bid or q.last}
+    symbols = [s for s in symbols if not is_crypto(s)]
     for k in range(0, len(symbols), 50):
         for q in adapter.get_quotes(list(symbols[k:k + 50])):
             mid = (q.bid + q.ask) / 2 if q.bid > 0 and q.ask > 0 else 0
@@ -99,6 +140,9 @@ def reconcile(db, adapter, mode, positions) -> list[str]:
             if str(o.get("status")) == "filled" and o.get("filled_avg_price"):
                 px = float(o["filled_avg_price"])
                 lot.quantity = float(o.get("filled_qty") or lot.quantity)
+                pos_qty = float((positions.get(_pkey(lot.symbol)) or {}).get("qty") or 0)
+                if is_crypto(lot.symbol) and 0 < pos_qty < lot.quantity:
+                    lot.quantity = pos_qty  # crypto fee is taken from the coin received
                 stop_pct = 1 - lot.stop_price / lot.entry_price
                 tgt_pct = lot.target_price / lot.entry_price - 1
                 lot.entry_price, lot.stop_price, lot.target_price = px, px * (1 - stop_pct), px * (1 + tgt_pct)
@@ -111,7 +155,9 @@ def reconcile(db, adapter, mode, positions) -> list[str]:
         if lot.confirmed:
             held[lot.symbol] = held.get(lot.symbol, 0.0) + lot.quantity
     for sym, need in held.items():
-        have = float((positions.get(sym) or {}).get("qty") or 0)
+        have = float((positions.get(_pkey(sym)) or {}).get("qty") or 0)
+        if is_crypto(sym) and have >= need * 0.99:
+            continue
         if have + 1e-6 < need:  # broker sold something (bracket leg, manual sale)
             for lot in sorted([l for l in _open_lots(db, mode) if l.symbol == sym and l.confirmed],
                               key=lambda l: (not l.broker_bracket, l.quantity)):
@@ -129,7 +175,8 @@ def sell_lot(db, adapter, lot, reason, price, today) -> dict:
     qty = lot.quantity
     try:
         res = adapter.place_order(OrderRequest(symbol=lot.symbol, side="sell", quantity=qty,
-                                               order_type="market", time_in_force="day",
+                                               order_type="market",
+                                               time_in_force="gtc" if is_crypto(lot.symbol) else "day",
                                                client_order_id=f"alloc-x-{lot.id[:18]}"))
     except Exception as exc:
         log_and_commit(db, "allocator_sell_failed", {"symbol": lot.symbol, "reason": reason,
@@ -143,13 +190,19 @@ def sell_lot(db, adapter, lot, reason, price, today) -> dict:
 
 
 def latest_signals(db) -> list[dict]:
+    """Newest scan's open signals, taken separately for stocks/ETFs and crypto."""
     last = db.query(ScannerSignal.signal_date).order_by(ScannerSignal.signal_date.desc()).first()
     if not last:
         return []
-    rows = db.query(ScannerSignal).filter(ScannerSignal.signal_date == last[0],
-                                          ScannerSignal.status == "waiting_entry").all()
+    rows = db.query(ScannerSignal).filter(ScannerSignal.signal_date >= (
+        dt.date.fromisoformat(last[0]) - dt.timedelta(days=7)).isoformat(),
+        ScannerSignal.status == "waiting_entry").all()
+    newest = {}
+    for r in rows:
+        k = is_crypto(r.symbol)
+        newest[k] = max(newest.get(k, ""), r.signal_date)
     return [{"symbol": r.symbol, "rule": r.rule, "momentum_6m": r.momentum_6m, "signal_date": r.signal_date}
-            for r in rows]
+            for r in rows if r.signal_date == newest[is_crypto(r.symbol)]]
 
 
 def _week(today) -> str:
@@ -168,7 +221,7 @@ def rotation_due(db, mode, today) -> bool:
 
 def momentum_6m(reader, symbol, today) -> float | None:
     start = (today - dt.timedelta(days=220)).isoformat()
-    closes = [float(b["close"]) for b in reader.get_daily_bars(symbol, start, today.isoformat())
+    closes = [float(b["close"]) for b in _bars(reader, symbol, start, today.isoformat())
               if str(b["timestamp"])[:10] < today.isoformat()]
     return closes[-1] / closes[-127] - 1 if len(closes) >= 127 and closes[-127] > 0 else None
 
@@ -195,6 +248,33 @@ def weekly_rotation(db, adapter, mode, today, quotes, *, equity, cash) -> list[d
     return swaps
 
 
+def crypto_daily_review(db, adapter, mode, quotes) -> list[dict]:
+    """Once per UTC day: time limit / rule exit for crypto satellites (crypto bars are UTC days)."""
+    day = dt.datetime.now(dt.timezone.utc).date()
+    lots = [l for l in _open_lots(db, mode) if is_crypto(l.symbol) and l.sleeve == "satellite" and l.confirmed]
+    if not lots:
+        return []
+    rows = (db.query(AuditLogEntry).filter(AuditLogEntry.event_type == "allocator_crypto_review")
+            .order_by(AuditLogEntry.timestamp.desc()).limit(20).all())
+    if any(isinstance(r.payload, dict) and r.payload.get("mode") == mode and r.payload.get("day") == day.isoformat()
+           for r in rows):
+        return []
+    exits = []
+    for lot in lots:
+        start = (dt.date.fromisoformat(lot.opened_on) - dt.timedelta(days=400)).isoformat()
+        bars = [b for b in adapter.get_crypto_daily_bars(lot.symbol, start, day.isoformat())
+                if str(b["timestamp"])[:10] < day.isoformat()]
+        if len(bars) < 60:
+            continue
+        held = sum(1 for b in bars if str(b["timestamp"])[:10] > lot.opened_on)
+        reason = daily_exit(lot, held, rule_exit(lot.rule, indicators(bars), len(bars) - 1))
+        if reason:
+            exits.append(sell_lot(db, adapter, lot, reason, quotes.get(lot.symbol, {}).get("last"),
+                                  _today(dt.datetime.now(dt.timezone.utc))))
+    log_and_commit(db, "allocator_crypto_review", {"mode": mode, "day": day.isoformat(), "exits": exits})
+    return exits
+
+
 def core_trend_up(reader, now) -> bool:
     end = _today(now).isoformat()
     start = (_today(now) - dt.timedelta(days=420)).isoformat()
@@ -209,18 +289,20 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
               floor_equity: float = 50.0, now: dt.datetime | None = None) -> dict:
     now = now or dt.datetime.now(dt.timezone.utc)
     today = _today(now)
-    clock = adapter.get_market_clock()
-    if not clock.get("is_open"):
-        return {"mode": mode, "reason": "market_closed"}
+    market_open = bool(adapter.get_market_clock().get("is_open"))
     st = _state(db, mode)
     if st.halted:
         return {"mode": mode, "reason": "halted", "detail": st.reason}
+    crypto_ok = crypto_enabled(adapter)
+    has_crypto = any(is_crypto(l.symbol) for l in _open_lots(db, mode))
+    if not market_open and not crypto_ok and not has_crypto:
+        return {"mode": mode, "reason": "market_closed"}
     positions = {p["symbol"]: p for p in adapter.get_positions()}
     orders = _flatten_orders(adapter.get_orders())
-    adopted = adopt_bracket_core(db, adapter, mode, positions, orders, today)
+    adopted = adopt_bracket_core(db, adapter, mode, positions, orders, today) if market_open else 0
     closed = reconcile(db, adapter, mode, positions)
-    lots = _open_lots(db, mode)
-    symbols = sorted({l.symbol for l in lots} | {CORE_SYMBOL})
+    lots = [l for l in _open_lots(db, mode) if market_open or is_crypto(l.symbol)]
+    symbols = sorted({l.symbol for l in lots} | ({CORE_SYMBOL} if market_open else set()))
     quotes = _quotes(adapter, symbols)
     exits = []
     for lot in lots:
@@ -229,8 +311,9 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
         reason = price_exit(lot, quotes.get(lot.symbol, {}).get("last"))
         if reason:
             exits.append(sell_lot(db, adapter, lot, reason, quotes[lot.symbol]["last"], today))
-    if st.last_daily_review != today.isoformat() and _in_entry_window(now):
-        for lot in [l for l in _open_lots(db, mode) if l.sleeve == "satellite" and l.confirmed]:
+    if market_open and st.last_daily_review != today.isoformat() and _in_entry_window(now):
+        for lot in [l for l in _open_lots(db, mode) if l.sleeve == "satellite" and l.confirmed
+                    and not is_crypto(l.symbol)]:
             start = (dt.date.fromisoformat(lot.opened_on) - dt.timedelta(days=400)).isoformat()
             bars = [b for b in adapter.get_daily_bars(lot.symbol, start, today.isoformat())
                     if str(b["timestamp"])[:10] < today.isoformat()]
@@ -242,6 +325,7 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
                 exits.append(sell_lot(db, adapter, lot, reason, quotes.get(lot.symbol, {}).get("last"), today))
         st.last_daily_review = today.isoformat()
         db.commit()
+    exits += crypto_daily_review(db, adapter, mode, quotes)
     bal = adapter.get_balances()
     lots = _open_lots(db, mode)
     held_value = sum(l.quantity * quotes.get(l.symbol, {}).get("last", l.entry_price) for l in lots)
@@ -257,30 +341,36 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
     st.peak_equity = max(st.peak_equity or 0.0, equity)
     db.commit()
     buys, rotations = [], []
-    if _in_entry_window(now) and rotation_due(db, mode, today):
+    stock_window = market_open and _in_entry_window(now)
+    if stock_window and rotation_due(db, mode, today):
         rotations = weekly_rotation(db, adapter, mode, today, quotes, equity=equity, cash=cash)
-    if _in_entry_window(now) and equity >= floor_equity:
+    if (stock_window or crypto_ok) and equity >= floor_equity:
+        all_lots = _open_lots(db, mode)
         core_value = sum(l.quantity * quotes.get(l.symbol, {}).get("last", l.entry_price)
-                         for l in lots if l.sleeve == "core")
+                         for l in all_lots if l.sleeve == "core")
+        signals = [x for x in latest_signals(db)
+                   if (is_crypto(x["symbol"]) and crypto_ok) or (not is_crypto(x["symbol"]) and stock_window)]
         plan = plan_buys(equity=equity, cash=cash, core_value=core_value,
-                         core_trend_up=core_trend_up(adapter, now),
-                         open_satellites=[l.symbol for l in lots if l.sleeve == "satellite"],
+                         core_trend_up=stock_window and core_trend_up(adapter, now),
+                         open_satellites=[l.symbol for l in all_lots if l.sleeve == "satellite"],
                          exclude={l.symbol for l in db.query(AllocatorLot).filter(
                              AllocatorLot.mode == mode,
                              (AllocatorLot.opened_on == today.isoformat())
                              | (AllocatorLot.closed_on == today.isoformat())).all()},
-                         signals=latest_signals(db), peak_equity=st.peak_equity)
+                         signals=signals, peak_equity=st.peak_equity)
         if plan:
             quotes.update(_quotes(adapter, [b.symbol for b in plan]))
         for b in plan:
             ask = quotes.get(b.symbol, {}).get("ask") or 0
-            qty = floor_qty(b.notional, ask)
-            if qty <= 0 or qty * ask < MIN_ORDER_USD:
+            crypto = is_crypto(b.symbol)
+            qty = floor_qty(b.notional, ask, CRYPTO_QTY_DECIMALS) if crypto else floor_qty(b.notional, ask)
+            if qty <= 0 or qty * ask < MIN_ORDER_USD or (crypto and qty < _min_qty(adapter, b.symbol)):
                 continue
             lot_id = str(uuid.uuid4())
             try:
                 res = adapter.place_order(OrderRequest(symbol=b.symbol, side="buy", quantity=qty,
-                                                       order_type="market", time_in_force="day",
+                                                       order_type="market",
+                                                       time_in_force="gtc" if crypto else "day",
                                                        client_order_id=f"alloc-b-{lot_id[:18]}"))
             except Exception as exc:
                 log_and_commit(db, "allocator_buy_failed", {"symbol": b.symbol,
@@ -296,7 +386,8 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
                                                  "qty": qty, "notional": round(qty * ask, 2),
                                                  "order_id": res.order_id})
             buys.append({"symbol": b.symbol, "sleeve": b.sleeve, "usd": round(qty * ask, 2)})
-    return {"mode": mode, "strategy": ALLOCATOR_VERSION, "equity": round(equity, 2), "cash": round(cash, 2),
+    return {"mode": mode, "strategy": ALLOCATOR_VERSION, **({} if market_open else {"reason": "market_closed"}),
+            "crypto": crypto_ok, "equity": round(equity, 2), "cash": round(cash, 2),
             "open_lots": len(_open_lots(db, mode)), "adopted": adopted, "closed_by_broker": closed,
             "exits": exits, "rotations": rotations, "buys": buys}
 
