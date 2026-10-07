@@ -28,10 +28,18 @@ def require_owner_experiment(db, strategy: str) -> OwnerAcceptedExperiment:
     return record
 
 
+STRESS_GATED = frozenset({ALLOCATOR_VERSION, BINANCE_CRYPTO_VERSION})
+
+
 def accept(db, strategy: str, *, accepted_by: str, max_equity: float, floor_equity: float,
            acknowledgement: str) -> OwnerAcceptedExperiment:
     if strategy not in OWNER_EXPERIMENT_STRATEGIES:
         raise ValueError(f"owner_experiment_not_allowed:{strategy}")
+    if strategy in STRESS_GATED:  # new approvals must pass the committed stress test
+        from app.research.stress_gate import stress_passed
+        ok, why = stress_passed(strategy)
+        if not ok:
+            raise ValueError(f"stress_gate:{why}")
     if acknowledgement.strip() != ACKNOWLEDGEMENT:
         raise ValueError("acknowledgement text must match exactly")
     if not 0 < floor_equity < max_equity:
