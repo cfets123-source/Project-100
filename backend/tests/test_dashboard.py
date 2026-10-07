@@ -161,7 +161,7 @@ def test_dashboard_requires_password_when_configured(monkeypatch):
 def test_dashboard_stage_cycle_and_unknown_balances_are_explicit():
     with TestClient(app) as client:
         page=client.get('/dashboard').text
-        assert 'Milestone' in page and 'Stage Runner v1' in page
+        assert 'Milestone' in page and 'Allocator v1' in page
         assert 'annual target' not in page
         assert 'This does not mean the account is empty' in page
         assert '/live/milestones' in page and '/live/observer' in page
