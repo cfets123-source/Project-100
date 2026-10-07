@@ -19,11 +19,11 @@ from sqlalchemy.orm import Session
 
 from app.audit.logger import log_and_commit
 from app.brokers.base import OrderRequest
-from app.models.models import AllocatorLot, AllocatorState, ScannerSignal
+from app.models.models import AllocatorLot, AllocatorState, AuditLogEntry, ScannerSignal
 from app.research.multi_market_rules import indicators, rule_exit
 from app.strategies.allocator import (
-    ALLOCATOR_VERSION, CORE_STOP, CORE_SYMBOL, CORE_TARGET, MIN_ORDER_USD,
-    daily_exit, floor_qty, plan_buys, price_exit,
+    ALLOCATOR_VERSION, CORE_STOP, CORE_SYMBOL, CORE_TARGET, CORE_WEIGHT, MIN_ORDER_USD, SATELLITE_SLOTS,
+    daily_exit, floor_qty, plan_buys, plan_rotation, price_exit,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -152,6 +152,49 @@ def latest_signals(db) -> list[dict]:
             for r in rows]
 
 
+def _week(today) -> str:
+    y, w, _ = today.isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+def rotation_due(db, mode, today) -> bool:
+    """Once per ISO week (first trading-day cycle in the entry window)."""
+    week = _week(today)
+    rows = (db.query(AuditLogEntry).filter(AuditLogEntry.event_type == "allocator_rotation_check")
+            .order_by(AuditLogEntry.timestamp.desc()).limit(40).all())
+    return not any(isinstance(r.payload, dict) and r.payload.get("mode") == mode
+                   and r.payload.get("week") == week for r in rows)
+
+
+def momentum_6m(reader, symbol, today) -> float | None:
+    start = (today - dt.timedelta(days=220)).isoformat()
+    closes = [float(b["close"]) for b in reader.get_daily_bars(symbol, start, today.isoformat())
+              if str(b["timestamp"])[:10] < today.isoformat()]
+    return closes[-1] / closes[-127] - 1 if len(closes) >= 127 and closes[-127] > 0 else None
+
+
+def weekly_rotation(db, adapter, mode, today, quotes, *, equity, cash) -> list[dict]:
+    """Swap weak satellites for clearly stronger new signals when no capacity is left."""
+    lots = _open_lots(db, mode)
+    sats = [l for l in lots if l.sleeve == "satellite"]
+    per_slot = equity * (1 - CORE_WEIGHT) / SATELLITE_SLOTS
+    full = len(sats) >= SATELLITE_SLOTS or cash < per_slot * 0.5
+    swaps = []
+    if full:
+        eligible = [l for l in sats if l.confirmed and not l.broker_bracket and l.opened_on != today.isoformat()]
+        held = [{"id": l.id, "symbol": l.symbol, "momentum": momentum_6m(adapter, l.symbol, today)} for l in eligible]
+        by_id = {l.id: l for l in eligible}
+        for lot_id, sig in plan_rotation(held=held, signals=latest_signals(db)):
+            lot = by_id[lot_id]
+            res = sell_lot(db, adapter, lot, "rotation", quotes.get(lot.symbol, {}).get("last"), today)
+            if res.get("sold"):
+                swaps.append({"sold": lot.symbol, "for": sig["symbol"],
+                              "for_momentum": round(sig.get("momentum_6m") or 0, 3)})
+    log_and_commit(db, "allocator_rotation_check", {"mode": mode, "week": _week(today),
+                                                    "capacity_full": full, "swaps": swaps})
+    return swaps
+
+
 def core_trend_up(reader, now) -> bool:
     end = _today(now).isoformat()
     start = (_today(now) - dt.timedelta(days=420)).isoformat()
@@ -213,15 +256,19 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
         cash = max(0.0, min(float(bal["cash"]), float(bal.get("buying_power", bal["cash"]))) - 0.50)
     st.peak_equity = max(st.peak_equity or 0.0, equity)
     db.commit()
-    buys = []
+    buys, rotations = [], []
+    if _in_entry_window(now) and rotation_due(db, mode, today):
+        rotations = weekly_rotation(db, adapter, mode, today, quotes, equity=equity, cash=cash)
     if _in_entry_window(now) and equity >= floor_equity:
         core_value = sum(l.quantity * quotes.get(l.symbol, {}).get("last", l.entry_price)
                          for l in lots if l.sleeve == "core")
         plan = plan_buys(equity=equity, cash=cash, core_value=core_value,
                          core_trend_up=core_trend_up(adapter, now),
                          open_satellites=[l.symbol for l in lots if l.sleeve == "satellite"],
-                         exclude={l.symbol for l in db.query(AllocatorLot).filter_by(
-                             mode=mode, opened_on=today.isoformat()).all()},
+                         exclude={l.symbol for l in db.query(AllocatorLot).filter(
+                             AllocatorLot.mode == mode,
+                             (AllocatorLot.opened_on == today.isoformat())
+                             | (AllocatorLot.closed_on == today.isoformat())).all()},
                          signals=latest_signals(db), peak_equity=st.peak_equity)
         if plan:
             quotes.update(_quotes(adapter, [b.symbol for b in plan]))
@@ -251,7 +298,7 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
             buys.append({"symbol": b.symbol, "sleeve": b.sleeve, "usd": round(qty * ask, 2)})
     return {"mode": mode, "strategy": ALLOCATOR_VERSION, "equity": round(equity, 2), "cash": round(cash, 2),
             "open_lots": len(_open_lots(db, mode)), "adopted": adopted, "closed_by_broker": closed,
-            "exits": exits, "buys": buys}
+            "exits": exits, "rotations": rotations, "buys": buys}
 
 
 def main() -> int:
