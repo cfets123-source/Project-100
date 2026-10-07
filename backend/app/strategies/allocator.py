@@ -27,11 +27,13 @@ CORE_SYMBOL = "TQQQ"
 CORE_WEIGHT = 0.50
 SATELLITE_SLOTS = 5
 SATELLITE_RULES = ("breakout", "trend")
-SATELLITE_GROUPS = ("large stock", "index/sector ETF", "leveraged ETF", "bonds/commodities/intl")
+SATELLITE_GROUPS = ("large stock", "index/sector ETF", "leveraged ETF", "bonds/commodities/intl", "crypto")
+MAX_CRYPTO_SLOTS = 1  # backtest (rotc.py): capped at one crypto slot it never underperformed; uncapped did
 CORE_STOP, CORE_TARGET, CORE_MAX_HOLD = 0.25, 0.50, 10_000
 MIN_ORDER_USD = 1.00
 CIRCUIT_BREAKER = 0.50
 QTY_DECIMALS = 4
+CRYPTO_QTY_DECIMALS = 8
 ROTATION_MARGIN = 0.20  # weekly swap: candidate 6-mo momentum must beat the weakest holding by 20 points
 
 
@@ -46,10 +48,14 @@ class Buy:
     max_hold: int
 
 
-def floor_qty(notional: float, price: float) -> float:
+def is_crypto(symbol: str) -> bool:
+    return "/" in symbol
+
+
+def floor_qty(notional: float, price: float, decimals: int = QTY_DECIMALS) -> float:
     if price <= 0:
         return 0.0
-    step = 10 ** QTY_DECIMALS
+    step = 10 ** decimals
     return math.floor(notional / price * step) / step
 
 
@@ -79,8 +85,11 @@ def plan_buys(*, equity: float, cash: float, core_value: float, core_trend_up: b
                      and group_of(s["symbol"]) in SATELLITE_GROUPS and s["symbol"] not in held),
                     key=lambda s: -(s.get("momentum_6m") or 0))
     seen = set()
+    crypto_held = sum(1 for x in open_satellites if is_crypto(x))
     for s in ranked:
         if free_slots <= 0 or budget < MIN_ORDER_USD or s["symbol"] in seen:
+            continue
+        if is_crypto(s["symbol"]) and crypto_held >= MAX_CRYPTO_SLOTS:
             continue
         amount = round(min(per_slot, budget), 2)
         if amount < MIN_ORDER_USD:
@@ -90,6 +99,7 @@ def plan_buys(*, equity: float, cash: float, core_value: float, core_trend_up: b
         seen.add(s["symbol"])
         budget -= amount
         free_slots -= 1
+        crypto_held += is_crypto(s["symbol"])
     return buys
 
 
@@ -109,14 +119,18 @@ def plan_rotation(*, held: list[dict], signals: list[dict], margin: float = ROTA
             seen.add(sig["symbol"])
             cands.append(sig)
     pool, swaps = [h for h in held if h.get("momentum") is not None], []
+    crypto_held = sum(1 for h in held if is_crypto(h["symbol"]))
     for sig in cands:
         if not pool:
             break
         weakest = min(pool, key=lambda h: h["momentum"])
         if (sig.get("momentum_6m") or 0) < weakest["momentum"] + margin:
             break
+        if is_crypto(sig["symbol"]) and crypto_held - is_crypto(weakest["symbol"]) >= MAX_CRYPTO_SLOTS:
+            continue
         swaps.append((weakest["id"], sig))
         pool.remove(weakest)
+        crypto_held += is_crypto(sig["symbol"]) - is_crypto(weakest["symbol"])
     return swaps
 
 
