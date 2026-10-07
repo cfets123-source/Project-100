@@ -10,8 +10,9 @@ import argparse
 
 from app.models.models import OwnerAcceptedExperiment
 from app.strategies.stage_runner import STAGE_RUNNER_VERSION
+from app.strategies.allocator import ALLOCATOR_VERSION
 
-OWNER_EXPERIMENT_STRATEGIES = frozenset({STAGE_RUNNER_VERSION})
+OWNER_EXPERIMENT_STRATEGIES = frozenset({STAGE_RUNNER_VERSION, ALLOCATOR_VERSION})
 ACKNOWLEDGEMENT = ("I accept that this strategy has NOT passed research validation, "
                    "that the full amount at risk can be lost down to the floor, and that "
                    "historical tests do not predict future results.")
