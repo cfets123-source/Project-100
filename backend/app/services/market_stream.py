@@ -35,7 +35,7 @@ class MarketStream:
         now = time.monotonic()
         for s in symbols:
             s = str(s).upper()
-            if s and s.replace(".", "").isalpha():
+            if s and s.replace(".", "").isalpha() and s not in ("BTCUSD", "ETHUSD", "SOLUSD"):
                 self.symbols[s] = now
         if len(self.symbols) > MAX_SYMBOLS:
             for s, _ in sorted(self.symbols.items(), key=lambda kv: kv[1])[:len(self.symbols) - MAX_SYMBOLS]:
