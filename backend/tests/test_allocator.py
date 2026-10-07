@@ -136,3 +136,31 @@ def test_market_closed_and_outside_window_do_nothing():
     broker2 = FakeAlpaca()
     late = dt.datetime(2026, 10, 8, 19, 45, tzinfo=dt.timezone.utc)  # 15:45 ET
     assert w.run_cycle(db, broker2, mode="live", now=late)["buys"] == []
+
+
+def test_plan_rotation_swaps_only_clearly_stronger_signals():
+    from app.strategies.allocator import plan_rotation
+    held = [{"id": "a", "symbol": "EWT", "momentum": 0.10}, {"id": "b", "symbol": "QLD", "momentum": 0.40}]
+    swaps = plan_rotation(held=held, signals=[sig("NVDA", mom=.35), sig("XLE", mom=.25), sig("EWT", mom=.9),
+                                              sig("SPY", "pullback", .9)])
+    assert [(i, s["symbol"]) for i, s in swaps] == [("a", "NVDA")]  # XLE only +15 pts, QLD too strong
+    assert plan_rotation(held=held, signals=[sig("XLE", mom=.29)]) == []
+
+
+def test_weekly_rotation_sells_weakest_then_buys_replacement_next_cycle(monkeypatch):
+    db, broker = _db_with_signals(("XLE", "breakout", .9)), FakeAlpaca()
+    broker.positions["EWT"] = {"symbol": "EWT", "qty": "0.1", "avg_entry_price": "90"}
+    broker.cash = 0.6
+    db.add(models.AllocatorLot(id="ewt", mode="live", sleeve="satellite", symbol="EWT", rule="breakout",
+                               quantity=0.1, entry_price=90.0, stop_price=50.0, target_price=200.0,
+                               max_hold_days=30, broker_bracket=False, opened_on="2026-10-01",
+                               confirmed=True, status="open"))
+    db.commit()
+    broker.prices["EWT"] = 90.0
+    monkeypatch.setattr(w, "momentum_6m", lambda reader, s, today: 0.05)
+    out = w.run_cycle(db, broker, mode="live", now=NOW)
+    assert out["rotations"] == [{"sold": "EWT", "for": "XLE", "for_momentum": 0.9}]
+    assert db.get(models.AllocatorLot, "ewt").exit_reason == "rotation"
+    assert "EWT" not in [b["symbol"] for b in out["buys"]]
+    out2 = w.run_cycle(db, broker, mode="live", now=NOW + dt.timedelta(minutes=1))
+    assert out2["rotations"] == [] and "XLE" in [b["symbol"] for b in out2["buys"]]
