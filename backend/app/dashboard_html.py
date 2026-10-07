@@ -15,6 +15,7 @@ button{font:inherit;color:inherit}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0}
 .chart-head{display:flex;align-items:center;gap:18px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .sym{font-size:20px;font-weight:700}.px{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}.chg{font-size:13px;font-weight:600}
+.ptabs{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;border-bottom:1px solid var(--line)}.ptabs:empty{display:none}.pchip{flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font-size:13px;font-variant-numeric:tabular-nums}.pchip.on{border-color:var(--gold);background:var(--panel2)}.pchip small{color:var(--sub);font-size:11px}.prow{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}.prow:last-child{border:0}.prow:hover{background:var(--panel2)}.prow .range,.prow .range-lbl{grid-column:1/-1}
 .tfs{display:flex;gap:2px;margin-left:auto;background:var(--bg);border-radius:6px;padding:2px}
 .tf{background:none;border:0;padding:5px 11px;border-radius:5px;cursor:pointer;color:var(--sub);font-size:13px}.tf.on{background:#2b3139;color:var(--ink)}
 .ohlc{padding:6px 14px;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;min-height:28px}.ohlc b{color:var(--ink);font-weight:600;margin-right:10px}
@@ -48,16 +49,16 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div id="banner" class="banner"></div>
 <section class="panel"><div class="chart-head"><span id="cSym" class="sym">TQQQ</span><span id="cPx" class="px">—</span><span id="cChg" class="chg muted"></span><span id="cFeed" class="muted" style="font-size:12px"></span>
 <div class="tfs"><button class="tf" data-tf="1Min">1m</button><button class="tf on" data-tf="5Min">5m</button><button class="tf" data-tf="15Min">15m</button><button class="tf" data-tf="1Day">1D</button></div></div>
-<div id="ohlc" class="ohlc">Hover the chart for open, high, low and close.</div>
+<div id="posTabs" class="ptabs"></div><div id="ohlc" class="ohlc">Hover the chart for open, high, low and close.</div>
 <div class="chart-box"><canvas id="cv"></canvas><div id="cMsg" class="chart-msg">Loading candles…</div></div></section>
 <aside class="panel side"><h3>Watchlist <span class="muted" id="wlSrc"></span></h3><div id="wl" class="wl"><div class="empty">Loading prices…</div></div></aside>
 <div class="cards">
-<article class="panel card"><h3>Position <span id="posTag" class="muted"></span></h3><div id="pos" class="body"><div class="muted">Loading broker position…</div></div></article>
+<article class="panel card"><h3>Open positions <span id="posTag" class="muted"></span></h3><div id="pos" class="body"><div class="muted">Loading broker position…</div></div></article>
 <article class="panel card"><h3>Milestone</h3><div id="ms" class="body"><div class="muted">Loading…</div></div></article>
-<article class="panel card"><h3>Strategy <span class="muted">Stage Runner v1</span></h3><div class="body">
-<div class="rule"><b>1</b><span>Buy whole shares of <strong>TQQQ</strong> when QQQ closes above its 200-day average and the account is flat.</span></div>
-<div class="rule"><b>2</b><span>Sell automatically at <span class="up">+50% target</span> or <span class="down">−25% stop</span> (broker bracket, stays active overnight).</span></div>
-<div class="rule"><b>3</b><span>No new buys below $50 or above the $250 stage cap.</span></div>
+<article class="panel card"><h3>Strategy <span class="muted">Allocator v1</span></h3><div class="body">
+<div class="rule"><b>1</b><span><strong>Core (50%):</strong> TQQQ while QQQ is above its 200-day average; broker stop −25% / target +50%.</span></div>
+<div class="rule"><b>2</b><span><strong>Satellites (50%):</strong> up to 5 fractional positions from the scanner (breakout / trend, all US markets). The worker sells at the <span class="down">stop</span>, the <span class="up">target</span> or the time limit.</span></div>
+<div class="rule"><b>3</b><span>All cash and deposits are invested automatically. No new buys below $50 or after a 50% drop from the peak.</span></div>
 <div id="stratStatus" class="status muted">Checking…</div></div></article>
 <article class="panel card"><h3>Accounts</h3><div id="accts" class="body"><div class="muted">Checking connections…</div></div></article>
 </div>
@@ -73,7 +74,7 @@ const signed=v=>{let n=num(v);return n==null?'—':(n>=0?'+':'−')+Math.abs(n).
 const pct=v=>{let n=num(v);return n==null?'':(n>=0?'+':'−')+Math.abs(n).toFixed(2)+'%'};
 const cls=v=>num(v)==null?'muted':(num(v)>=0?'up':'down');
 async function api(u){let r=await fetch(u,{credentials:'same-origin'});if(r.status===401||r.redirected&&r.url.includes('/login')){location.href='/login';throw Error('auth')}if(!r.ok)throw Error(u+' '+r.status);return r.json()}
-let sym='TQQQ',tf='5Min',bars=[],quote={},ticker=[],orders=[],positions=[],hover=null;
+let sym='TQQQ',tf='5Min',bars=[],quote={},ticker=[],orders=[],positions=[],lots=[],hover=null;
 const PIN=['TQQQ','QQQ','SPY'];
 
 /* ---------- execution state ---------- */
@@ -81,27 +82,32 @@ async function loadState(){let m=q('#mode'),b=q('#banner');try{let d=await api('
 
 /* ---------- account, position, milestone, tables ---------- */
 function flatOrders(list){let out=[];(list||[]).forEach(o=>{out.push(o);(o.legs||[]).forEach(l=>out.push(l))});let live=new Set(['new','accepted','pending_new','pending','open','partially_filled','held']);return out.filter(o=>live.has(String(o.status)))}
-function levels(symbol){let os=orders.filter(o=>o.symbol===symbol&&o.side==='sell');let stop=os.find(o=>/stop/.test(o.type||o.order_type||'')),tgt=os.find(o=>(o.type||o.order_type)==='limit');return{stop:num(stop?.stop_price),target:num(tgt?.limit_price)}}
-async function loadAccount(){try{let [d,m,t,a]=await Promise.all([api('/brokers/alpaca/live-portfolio'),api('/live/milestones').catch(()=>({})),api('/live/trades?limit=50').catch(()=>({trades:[]})),api('/live/activity?limit=40').catch(()=>({events:[]}))]);
-let b=d.balances||{};positions=d.positions||[];orders=flatOrders(d.active_orders);
+function levels(symbol){let os=orders.filter(o=>o.symbol===symbol&&o.side==='sell');let stop=os.find(o=>/stop/.test(o.type||o.order_type||'')),tgt=os.find(o=>(o.type||o.order_type)==='limit');let lot=lots.find(l=>l.status==='open'&&l.symbol===symbol);let s=num(stop?.stop_price),t=num(tgt?.limit_price),w=false;if(s==null&&lot){s=num(lot.stop_price);w=true}if(t==null&&lot){t=num(lot.target_price);w=true}return{stop:s,target:t,worker:w,lot}}
+async function loadAccount(){try{let [d,m,t,a,L]=await Promise.all([api('/brokers/alpaca/live-portfolio'),api('/live/milestones').catch(()=>({})),api('/live/trades?limit=50').catch(()=>({trades:[]})),api('/live/activity?limit=40').catch(()=>({events:[]})),api('/allocator/lots?mode=live').catch(()=>({lots:[]}))]);
+let b=d.balances||{};positions=d.positions||[];orders=flatOrders(d.active_orders);lots=L.lots||[];
 let openPl=positions.reduce((s,p)=>s+(num(p.unrealized_pl)||0),0);
 q('#kEq').textContent=money(b.equity);q('#kCash').textContent=money(b.cash);q('#kPos').textContent=positions.length;
 q('#kPl').innerHTML='<span class="'+cls(positions.length?openPl:null)+'">'+(positions.length?signed(openPl):'—')+'</span>';
 q('#kMkt').innerHTML=d.market_clock?(d.market_clock.is_open?'<span class="up">Open</span>':'<span class="muted">Closed</span>'):'—';
-renderPosition();renderMilestone(m,num(b.equity));if(num(b.equity)&&planEquity==null){planEquity=num(b.equity);runPlan()}renderOrders();renderTrades(t.trades||[]);renderLog(a.events||[]);if(bars.length)draw()}
+renderPosition();renderChips();renderMilestone(m,num(b.equity));if(num(b.equity)&&planEquity==null){planEquity=num(b.equity);runPlan()}renderOrders();renderTrades(t.trades||[],lots);renderLog(a.events||[]);if(bars.length)draw()}
 catch(e){if(e.message!=='auth'){q('#pos').innerHTML='<div class="muted">Broker account unavailable — retrying. This does not mean the account is empty.</div>'}}}
-function renderPosition(){let p=positions[0],el=q('#pos'),st=q('#stratStatus');if(!p){q('#posTag').textContent='';el.innerHTML='<div class="big">Flat</div><div class="muted">No open position. The strategy waits for its entry signal.</div>';st.textContent='Flat — waiting for the next entry signal (checked every minute while the market is open).';return}
-let entry=num(p.avg_entry_price),cur=num(p.current_price),pl=num(p.unrealized_pl),plp=num(p.unrealized_plpc),lv=levels(p.symbol);q('#posTag').textContent=p.symbol+' · '+p.qty+' sh';
-let range='';if(lv.stop!=null&&lv.target!=null&&cur!=null){let x=Math.max(0,Math.min(100,(cur-lv.stop)/(lv.target-lv.stop)*100));range='<div class="range"><i style="left:'+x+'%"></i></div><div class="range-lbl"><span>Stop '+money(lv.stop)+'</span><span>Now '+money(cur)+'</span><span>Target '+money(lv.target)+'</span></div>'}
-el.innerHTML='<div class="big '+cls(pl)+'">'+signed(pl)+' <span style="font-size:14px">'+(plp!=null?pct(plp*100):'')+'</span></div>'+range+
-'<div style="margin-top:10px"><div class="kv"><span>Entry</span><b>'+money(entry)+'</b></div><div class="kv"><span>Current</span><b>'+money(cur)+'</b></div><div class="kv"><span>Market value</span><b>'+money(p.market_value)+'</b></div><div class="kv"><span>Protection</span><b class="'+(lv.stop!=null?'up':'down')+'">'+(lv.stop!=null?'Stop active':'No stop found')+'</b></div></div>';
-st.innerHTML='<span class="up">●</span> Holding '+esc(p.symbol)+' — the broker will sell at the stop or the target. No action needed.'}
+function pick2(s){sym=s;hover=null;drawWatch();renderChips();renderPosition();loadChart()}
+function renderChips(){let el=q('#posTabs');el.innerHTML=positions.map(p=>{let plp=num(p.unrealized_plpc);return '<button class="pchip'+(p.symbol===sym?' on':'')+'" data-s="'+esc(p.symbol)+'"><b>'+esc(p.symbol)+'</b><span>'+money(p.market_value)+'</span><span class="'+cls(plp)+'">'+(plp!=null?pct(plp*100):'')+'</span></button>'}).join('');el.querySelectorAll('.pchip').forEach(b=>b.onclick=()=>pick2(b.dataset.s))}
+function renderPosition(){let el=q('#pos'),st=q('#stratStatus');if(!positions.length){q('#posTag').textContent='';el.innerHTML='<div class="big">Flat</div><div class="muted">No open position. The strategy waits for its entry signal.</div>';st.textContent='Flat — waiting for the next entry signal (checked every minute while the market is open).';return}
+let tot=positions.reduce((s,p)=>s+(num(p.unrealized_pl)||0),0);q('#posTag').textContent=positions.length+' open · tap one to chart it';
+el.innerHTML='<div class="big '+cls(tot)+'">'+signed(tot)+' <span style="font-size:13px" class="muted">open P&amp;L</span></div>'+positions.map(p=>{let cur=num(p.current_price),pl=num(p.unrealized_pl),plp=num(p.unrealized_plpc),lv=levels(p.symbol),range='';
+if(lv.stop!=null&&lv.target!=null&&cur!=null){let x=Math.max(0,Math.min(100,(cur-lv.stop)/(lv.target-lv.stop)*100));range='<div class="range"><i style="left:'+x+'%"></i></div><div class="range-lbl"><span>Stop '+money(lv.stop)+'</span><span>'+(lv.worker?'worker-watched':'broker bracket')+'</span><span>Target '+money(lv.target)+'</span></div>'}
+let role=lv.lot?(lv.lot.sleeve==='core'?'Core':'Satellite · '+lv.lot.rule):'';
+return '<div class="prow'+(p.symbol===sym?' on':'')+'" data-s="'+esc(p.symbol)+'"><b>'+esc(p.symbol)+'</b><span class="muted" style="font-size:12px">'+esc(role)+' · '+esc(num(p.qty)?.toFixed(4).replace(/\.?0+$/,''))+' sh @ '+money(p.avg_entry_price)+'</span><span class="'+cls(pl)+'">'+signed(pl)+' '+(plp!=null?pct(plp*100):'')+'</span>'+range+'</div>'}).join('');
+el.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{pick2(r.dataset.s);window.scrollTo({top:0,behavior:'smooth'})});
+let unprot=positions.filter(p=>levels(p.symbol).stop==null).map(p=>p.symbol);
+st.innerHTML=unprot.length?'<span class="down">●</span> No stop found for '+esc(unprot.join(', '))+'.':'<span class="up">●</span> '+positions.length+' positions, every one has a stop and a target. No action needed.'}
 function renderMilestone(m,eq){let prev=num((m.achieved||[]).slice(-1)[0]?.target)||num(m.starting_capital)||100,tgt=num(m.next_target),el=q('#ms');if(eq==null){el.innerHTML='<div class="muted">Equity unavailable.</div>';return}
 let p=tgt?Math.max(0,Math.min(100,(eq-prev)/(tgt-prev)*100)):100;el.innerHTML='<div class="big">'+money(eq)+'</div><div class="muted">Stage '+money(prev)+' → '+(tgt?money(tgt):'complete')+'</div><div class="bar"><i style="width:'+p+'%"></i></div><div class="range-lbl"><span>'+p.toFixed(0)+'% of this stage</span><span>'+(tgt?money(tgt-eq)+' to go':'')+'</span></div>'+
 '<div style="margin-top:10px" class="muted">Path: $100 → $200 → $1k → $3k → $5k → $10k → … → $1M</div>'}
-function renderOrders(){let el=q('#t-orders');if(!orders.length){el.innerHTML='<div class="empty">No open orders.</div>';return}
-el.innerHTML='<table><tr><th>Symbol</th><th>Side</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Duration</th></tr>'+orders.map(o=>{let t=o.type||o.order_type,price=t==='limit'?o.limit_price:/stop/.test(t)?o.stop_price:null,label=t==='limit'&&o.side==='sell'?'Target (limit)':/stop/.test(t)?'Stop':t;return '<tr><td><b>'+esc(o.symbol)+'</b></td><td class="'+(o.side==='buy'?'up':'down')+'">'+esc(o.side)+'</td><td>'+esc(label)+'</td><td>'+esc(o.qty)+'</td><td>'+money(price)+'</td><td>'+esc(o.status==='held'?'armed (OCO)':o.status)+'</td><td>'+esc(String(o.time_in_force||'').toUpperCase())+'</td></tr>'}).join('')+'</table>'}
-function renderTrades(ts){let el=q('#t-trades');if(!ts.length){el.innerHTML='<div class="empty">No live trades recorded yet.</div>';return}
+function renderOrders(){let el=q('#t-orders');let soft=lots.filter(l=>l.status==='open'&&!l.broker_bracket).flatMap(l=>[{symbol:l.symbol,side:'sell',type:'worker_stop',stop_price:l.stop_price,qty:+Number(l.quantity).toFixed(4),status:'watching',time_in_force:'worker'},{symbol:l.symbol,side:'sell',type:'worker_target',limit_price:l.target_price,qty:+Number(l.quantity).toFixed(4),status:'watching',time_in_force:'worker'}]);let all=[...orders,...soft];if(!all.length){el.innerHTML='<div class="empty">No open orders.</div>';return}
+el.innerHTML='<table><tr><th>Symbol</th><th>Side</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Duration</th></tr>'+all.map(o=>{let t=o.type||o.order_type,price=t==='limit'||t==='worker_target'?o.limit_price:/stop/.test(t)?o.stop_price:null,label=t==='worker_stop'?'Stop (worker)':t==='worker_target'?'Target (worker)':t==='limit'&&o.side==='sell'?'Target (limit)':/stop/.test(t)?'Stop':t;return '<tr><td><b>'+esc(o.symbol)+'</b></td><td class="'+(o.side==='buy'?'up':'down')+'">'+esc(o.side)+'</td><td>'+esc(label)+'</td><td>'+esc(o.qty)+'</td><td>'+money(price)+'</td><td>'+esc(o.status==='held'?'armed (OCO)':o.status)+'</td><td>'+esc(String(o.time_in_force||'').toUpperCase())+'</td></tr>'}).join('')+'</table>'}
+function renderTrades(ts,L){let el=q('#t-trades');ts=[...(L||[]).filter(l=>l.confirmed||l.status==='closed').map(l=>({timestamp:l.closed_on||l.opened_on,symbol:l.symbol,quantity:+Number(l.quantity).toFixed(4),entry_price:l.entry_price,stop_price:l.stop_price,target_price:l.target_price,exit_price:l.exit_price,pnl:l.pnl})),...ts.filter(x=>!(L||[]).some(l=>l.symbol===x.symbol&&l.sleeve==='core'&&x.exit_price==null))];if(!ts.length){el.innerHTML='<div class="empty">No live trades recorded yet.</div>';return}
 el.innerHTML='<table><tr><th>Date</th><th>Symbol</th><th>Qty</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr>'+ts.map(x=>'<tr><td>'+esc(when(x.timestamp,true))+'</td><td><b>'+esc(x.symbol)+'</b></td><td>'+esc(x.quantity)+'</td><td>'+money(x.entry_price)+'</td><td>'+money(x.stop_price)+'</td><td>'+money(x.target_price)+'</td><td>'+(x.exit_price!=null?money(x.exit_price):'<span class="muted">open</span>')+'</td><td class="'+cls(x.pnl)+'">'+(x.pnl==null?'—':signed(x.pnl))+'</td></tr>').join('')+'</table>'}
 const EVT={alpaca_live_worker_cycle_completed:'Order decision',alpaca_live_worker_no_qualifying_signal:'No entry signal',alpaca_live_trade_closed:'Trade closed',risk_decision:'Risk check',alpaca_live_worker_rate_limited:'Broker busy — retried'};
 function renderLog(ev){let el=q('#t-log');if(!ev.length){el.innerHTML='<div class="empty">No activity yet.</div>';return}
@@ -111,10 +117,10 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelect
 
 /* ---------- watchlist ---------- */
 async function loadTicker(){try{let d=await api('/terminal/ticker');let all=d.items||[];ticker=all.filter(x=>!String(x.symbol).includes('/'));q('#wlSrc').textContent=d.source||'';drawWatch();drawTape(all)}catch(e){if(e.message!=='auth')q('#wl').innerHTML='<div class="empty">Prices unavailable — retrying.</div>'}}
-function drawWatch(){let rank=s=>{let i=PIN.indexOf(s);return i<0?99:i};let items=[...ticker].sort((a,b)=>rank(a.symbol)-rank(b.symbol)||String(a.symbol).localeCompare(b.symbol));
+function drawWatch(){let held=positions.map(p=>p.symbol);let rank=s=>{let h=held.indexOf(s);if(h>=0)return h;let i=PIN.indexOf(s);return i<0?99:50+i};held.forEach(h=>{if(!ticker.find(x=>x.symbol===h)){let p=positions.find(x=>x.symbol===h);ticker.push({symbol:h,price:num(p.current_price),change_pct:num(p.change_today)!=null?num(p.change_today)*100:null})}});let items=[...ticker].sort((a,b)=>rank(a.symbol)-rank(b.symbol)||String(a.symbol).localeCompare(b.symbol));
 if(!items.find(x=>x.symbol===sym))items.unshift({symbol:sym});
-q('#wl').innerHTML=items.map(x=>'<button class="wrow'+(x.symbol===sym?' on':'')+'" data-s="'+esc(x.symbol)+'"><span><b>'+esc(x.symbol)+'</b>'+(PIN.includes(x.symbol)?'<small>'+(x.symbol==='TQQQ'?'Traded':x.symbol==='QQQ'?'Trend signal':'Market')+'</small>':'')+'</span><span>'+money(x.price)+'</span><span class="'+cls(x.change_pct)+'">'+pct(x.change_pct)+'</span></button>').join('');
-document.querySelectorAll('.wrow').forEach(b=>b.onclick=()=>{sym=b.dataset.s;hover=null;drawWatch();loadChart()});let t=ticker.find(x=>x.symbol===sym);if(t){q('#cChg').className='chg '+cls(t.change_pct);q('#cChg').textContent=pct(t.change_pct)}}
+q('#wl').innerHTML=items.map(x=>'<button class="wrow'+(x.symbol===sym?' on':'')+'" data-s="'+esc(x.symbol)+'"><span><b>'+esc(x.symbol)+'</b>'+(held.includes(x.symbol)?'<small class="up">Holding</small>':PIN.includes(x.symbol)?'<small>'+(x.symbol==='QQQ'?'Trend signal':'Market')+'</small>':'')+'</span><span>'+money(x.price)+'</span><span class="'+cls(x.change_pct)+'">'+pct(x.change_pct)+'</span></button>').join('');
+document.querySelectorAll('.wrow').forEach(b=>b.onclick=()=>pick2(b.dataset.s));let t=ticker.find(x=>x.symbol===sym);if(t){q('#cChg').className='chg '+cls(t.change_pct);q('#cChg').textContent=pct(t.change_pct)}}
 
 /* ---------- chart (canvas, device-pixel sharp) ---------- */
 document.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{tf=b.dataset.tf;document.querySelectorAll('.tf').forEach(x=>x.classList.toggle('on',x===b));hover=null;loadChart()});

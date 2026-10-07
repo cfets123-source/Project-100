@@ -880,6 +880,26 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
     } for row in rows]}
 
 
+@app.get("/allocator/lots", dependencies=[Depends(require_dashboard_access)])
+def allocator_lots(mode: str = Query(default="live", pattern="^(live|paper)$"),
+                   limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
+    """Read-only allocator positions with their stop/target (broker bracket or worker-watched)."""
+    rows = (db.query(models.AllocatorLot).filter(models.AllocatorLot.mode == mode)
+            .order_by(models.AllocatorLot.status.desc(), models.AllocatorLot.opened_on.desc())
+            .limit(limit).all())
+    out = []
+    for r in rows:
+        pnl = (round((r.exit_price - r.entry_price) * r.quantity, 2)
+               if r.status == "closed" and r.exit_price is not None and r.quantity else None)
+        out.append({"id": r.id, "symbol": r.symbol, "sleeve": r.sleeve, "rule": r.rule,
+                    "quantity": r.quantity, "entry_price": r.entry_price, "stop_price": r.stop_price,
+                    "target_price": r.target_price, "max_hold_days": r.max_hold_days,
+                    "broker_bracket": bool(r.broker_bracket), "confirmed": bool(r.confirmed),
+                    "status": r.status, "opened_on": r.opened_on, "closed_on": r.closed_on,
+                    "exit_reason": r.exit_reason, "exit_price": r.exit_price, "pnl": pnl})
+    return {"mode": mode, "lots": out}
+
+
 def _audited_live_trade_ids(db: Session) -> set[str]:
     """Use the live worker audit trail to avoid presenting paper fills as live."""
     events = (db.query(models.AuditLogEntry)
