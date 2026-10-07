@@ -130,7 +130,7 @@ def _flatten_orders(orders):
 
 def reconcile(db, adapter, mode, positions) -> list[str]:
     """Confirm fills and close lots the broker no longer holds."""
-    closed = []
+    closed, broker_closed = [], []
     for lot in _open_lots(db, mode):
         if not lot.confirmed and lot.order_id:
             try:
@@ -167,7 +167,10 @@ def reconcile(db, adapter, mode, positions) -> list[str]:
                 lot.closed_on = dt.date.today().isoformat()
                 need -= lot.quantity
                 closed.append(sym)
+                broker_closed.append(sym)
     db.commit()
+    for sym in broker_closed:
+        log_and_commit(db, "allocator_broker_exit", {"mode": mode, "symbol": sym})
     return closed
 
 
@@ -179,12 +182,12 @@ def sell_lot(db, adapter, lot, reason, price, today) -> dict:
                                                time_in_force="gtc" if is_crypto(lot.symbol) else "day",
                                                client_order_id=f"alloc-x-{lot.id[:18]}"))
     except Exception as exc:
-        log_and_commit(db, "allocator_sell_failed", {"symbol": lot.symbol, "reason": reason,
+        log_and_commit(db, "allocator_sell_failed", {"mode": lot.mode, "symbol": lot.symbol, "reason": reason,
                                                      "error": f"{type(exc).__name__}: {exc}"[:300]})
         return {"symbol": lot.symbol, "sold": False}
     lot.status, lot.exit_reason, lot.exit_price, lot.closed_on = "closed", reason, price, today.isoformat()
     db.commit()
-    log_and_commit(db, "allocator_sell", {"symbol": lot.symbol, "qty": qty, "reason": reason,
+    log_and_commit(db, "allocator_sell", {"mode": lot.mode, "symbol": lot.symbol, "qty": qty, "reason": reason,
                                           "price": price, "order_id": res.order_id, "sleeve": lot.sleeve})
     return {"symbol": lot.symbol, "sold": True, "reason": reason}
 
@@ -373,7 +376,7 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
                                                        time_in_force="gtc" if crypto else "day",
                                                        client_order_id=f"alloc-b-{lot_id[:18]}"))
             except Exception as exc:
-                log_and_commit(db, "allocator_buy_failed", {"symbol": b.symbol,
+                log_and_commit(db, "allocator_buy_failed", {"mode": mode, "symbol": b.symbol,
                                                             "error": f"{type(exc).__name__}: {exc}"[:300]})
                 continue
             db.add(AllocatorLot(id=lot_id, mode=mode, sleeve=b.sleeve, symbol=b.symbol, rule=b.rule,
@@ -382,7 +385,7 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
                                 broker_bracket=False, opened_on=today.isoformat(),
                                 order_id=res.order_id, confirmed=False, status="open"))
             db.commit()
-            log_and_commit(db, "allocator_buy", {"symbol": b.symbol, "sleeve": b.sleeve, "rule": b.rule,
+            log_and_commit(db, "allocator_buy", {"mode": mode, "symbol": b.symbol, "sleeve": b.sleeve, "rule": b.rule,
                                                  "qty": qty, "notional": round(qty * ask, 2),
                                                  "order_id": res.order_id})
             buys.append({"symbol": b.symbol, "sleeve": b.sleeve, "usd": round(qty * ask, 2)})
