@@ -82,7 +82,7 @@ async function loadState(){let m=q('#mode'),b=q('#banner');try{let d=await api('
 
 /* ---------- account, position, milestone, tables ---------- */
 function flatOrders(list){let out=[];(list||[]).forEach(o=>{out.push(o);(o.legs||[]).forEach(l=>out.push(l))});let live=new Set(['new','accepted','pending_new','pending','open','partially_filled','held']);return out.filter(o=>live.has(String(o.status)))}
-function levels(symbol){let os=orders.filter(o=>o.symbol===symbol&&o.side==='sell');let stop=os.find(o=>/stop/.test(o.type||o.order_type||'')),tgt=os.find(o=>(o.type||o.order_type)==='limit');let lot=lots.find(l=>l.status==='open'&&l.symbol===symbol);let s=num(stop?.stop_price),t=num(tgt?.limit_price),w=false;if(s==null&&lot){s=num(lot.stop_price);w=true}if(t==null&&lot){t=num(lot.target_price);w=true}return{stop:s,target:t,worker:w,lot}}
+function levels(symbol){let os=orders.filter(o=>o.symbol===symbol&&o.side==='sell');let stop=os.find(o=>/stop/.test(o.type||o.order_type||'')),tgt=os.find(o=>(o.type||o.order_type)==='limit');let lot=lots.find(l=>l.status==='open'&&l.symbol.replace('/','')===String(symbol).replace('/',''));let s=num(stop?.stop_price),t=num(tgt?.limit_price),w=false;if(s==null&&lot){s=num(lot.stop_price);w=true}if(t==null&&lot){t=num(lot.target_price);w=true}return{stop:s,target:t,worker:w,lot}}
 async function loadAccount(){try{let [d,m,t,a,L]=await Promise.all([api('/brokers/alpaca/live-portfolio'),api('/live/milestones').catch(()=>({})),api('/live/trades?limit=50').catch(()=>({trades:[]})),api('/live/activity?limit=40').catch(()=>({events:[]})),api('/allocator/lots?mode=live').catch(()=>({lots:[]}))]);
 let b=d.balances||{};positions=d.positions||[];orders=flatOrders(d.active_orders);lots=L.lots||[];acct={cash:num(b.cash),equity:num(b.equity)};positions.forEach(applyLive);
 kpis();q('#kPos').textContent=positions.length;
@@ -97,7 +97,7 @@ function kpis(){let mv=0,ok=true,pl=0;positions.forEach(p=>{let v=num(p.market_v
 let eq=ok&&acct.cash!=null&&positions.length?acct.cash+mv:acct.equity;q('#kEq').textContent=money(eq);q('#kCash').textContent=money(acct.cash);
 q('#kPl').innerHTML='<span class="'+cls(positions.length?pl:null)+'">'+(positions.length?signed(pl):'—')+'</span>'}
 function applyLive(p){let L=live[p.symbol];if(!L||Date.now()-L.at>20000)return;let qn=num(p.qty),e=num(p.avg_entry_price);p.current_price=L.p;if(qn!=null){p.market_value=qn*L.p;if(e!=null){p.unrealized_pl=(L.p-e)*qn;p.unrealized_plpc=e?L.p/e-1:null}}}
-function streamSyms(){return [...new Set([sym,...positions.map(p=>p.symbol)])].filter(x=>x&&!x.includes('/')).sort()}
+function streamSyms(){let cr=new Set(positions.filter(p=>p.asset_class==='crypto').map(p=>p.symbol));return [...new Set([sym,...positions.map(p=>p.symbol)])].filter(x=>x&&!x.includes('/')&&!cr.has(x)).sort()}
 function openStream(){if(!window.EventSource)return;let k=streamSyms().join(',');if(es&&k===esKey)return;esKey=k;if(es)es.close();
 es=new EventSource('/terminal/stream?symbols='+encodeURIComponent(k));es.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch(_){return}
 if(d.type==='status'){streamStatus=d.status;if(d.last)Object.values(d.last).forEach(x=>onTick(x,true));feedLabel();return}onTick(d)};es.onerror=()=>{streamStatus='reconnecting';feedLabel()}}

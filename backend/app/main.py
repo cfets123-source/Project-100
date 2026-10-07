@@ -49,7 +49,7 @@ app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "st
 
 STAGE_SYMBOLS = ("TQQQ",)  # Stage Runner instrument shown first in the terminal.
 MARKET_CONTEXT_ETFS = ("FXI", "EWU")  # US-listed China/UK exposure, not local exchange quotes.
-CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD")  # Read-only data; account crypto trading is inactive.
+CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD", "SOL/USD")  # Read-only market data for charts and tape.
 
 
 @app.get("/terminal/market", dependencies=[Depends(require_dashboard_access)])
@@ -58,6 +58,7 @@ def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=
                     db: Session = Depends(get_db)):
     """Read-only IEX quote and bounded intraday or daily candles for the terminal."""
     symbol = symbol.upper()
+    symbol = {c.replace("/", ""): c for c in CRYPTO_CONTEXT}.get(symbol, symbol)  # BTCUSD position -> BTC/USD
     if symbol not in CRYPTO_CONTEXT and not symbol.replace(".", "").isalpha():
         raise HTTPException(status_code=400, detail="invalid symbol")
     try:
