@@ -1,4 +1,5 @@
 import time
+import os
 import copy
 import html
 import json
@@ -722,6 +723,85 @@ def robinhood_option_quote(symbol: str = Query(min_length=1, max_length=6),
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+# ---------- installable phone app (PWA) + trade notifications ----------
+PUSH_SUBJECT = os.getenv("PUSH_SUBJECT", "https://trade.veloikos.com")
+MANIFEST = {"name": "Veloikos Trading", "short_name": "Veloikos", "start_url": "/dashboard", "scope": "/",
+            "display": "standalone", "background_color": "#0b0e11", "theme_color": "#0b0e11",
+            "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                      {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+                      {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}]}
+SERVICE_WORKER = """self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',()=>{});
+self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(_){d={title:'Veloikos Trading',body:e.data?e.data.text():''}}
+e.waitUntil(self.registration.showNotification(d.title||'Veloikos Trading',{body:d.body||'',tag:d.tag,renotify:true,icon:'/static/icon-192.png',badge:'/static/icon-192.png',data:{url:d.url||'/dashboard'}}))});
+self.addEventListener('notificationclick',e=>{e.notification.close();const u=(e.notification.data||{}).url||'/dashboard';
+e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(ws=>{for(const w of ws){if(w.url.includes('/dashboard')&&'focus' in w)return w.focus()}return clients.openWindow(u)}))});
+"""
+
+
+@app.get("/manifest.webmanifest")
+def web_manifest():
+    return JSONResponse(MANIFEST, media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    from fastapi.responses import Response
+    return Response(SERVICE_WORKER, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.get("/push/public-key", dependencies=[Depends(require_dashboard_access)])
+def push_public_key(db: Session = Depends(get_db)):
+    from app.services.trade_notifier import vapid_keys
+    try:
+        return {"public_key": vapid_keys(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)["public_key"]}
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/push/subscribe", dependencies=[Depends(require_dashboard_access)])
+async def push_subscribe(request: Request, db: Session = Depends(get_db)):
+    from app.services.trade_notifier import subscribe
+    try:
+        subscribe(db, await request.json())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"subscribed": True}
+
+
+@app.post("/push/test", dependencies=[Depends(require_dashboard_access)])
+def push_test(db: Session = Depends(get_db)):
+    from app.services.trade_notifier import broadcast
+    return broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
+                     {"title": "Veloikos Trading", "body": "Trade alerts are on for this device.", "tag": "test"},
+                     PUSH_SUBJECT)
+
+
+@app.on_event("startup")
+async def _start_trade_notifier():
+    import asyncio
+    if os.getenv("TRADE_NOTIFIER", "on") == "off" or not settings.BROKER_TOKEN_ENCRYPTION_KEY:
+        return
+
+    def tick():
+        from app.db.session import SessionLocal
+        from app.services.trade_notifier import poll
+        with SessionLocal() as db:
+            poll(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, PUSH_SUBJECT)
+
+    async def loop():
+        while True:
+            try:
+                await asyncio.to_thread(tick)
+            except Exception:
+                pass
+            await asyncio.sleep(10)
+
+    app.state.notifier = asyncio.get_event_loop().create_task(loop())
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     if not dashboard_access_granted(request):
@@ -737,7 +817,7 @@ class DashboardLogin(BaseModel):
 
 
 LOGIN_HTML = """<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Veloikos Trading</title><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/veloikos-mark.png" alt="Veloikos Trading" style="width:70px;height:70px;object-fit:contain"><h1>Veloikos Trading</h1><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
+<title>Veloikos Trading</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Veloikos"><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/veloikos-mark.png" alt="Veloikos Trading" style="width:70px;height:70px;object-fit:contain"><h1>Veloikos Trading</h1><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -752,7 +832,7 @@ def login(payload: DashboardLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     response = JSONResponse({"authenticated": True})
     response.set_cookie("project100_dashboard", token, httponly=True, secure=True,
-                        samesite="strict", max_age=60 * 60 * 12, path="/")
+                        samesite="strict", max_age=60 * 60 * 24 * 30, path="/")
     return response
 
 @app.get("/ready")

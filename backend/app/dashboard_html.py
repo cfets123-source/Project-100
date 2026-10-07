@@ -1,6 +1,7 @@
 DASHBOARD_HTML = r'''<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Veloikos Trading</title>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Veloikos">
 <style>
 :root{--bg:#0b0e11;--panel:#12161b;--panel2:#171c22;--line:#232a32;--ink:#eaecef;--sub:#8b949e;--up:#0ecb81;--down:#f6465d;--gold:#f0b90b;--blue:#4c9aff}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
@@ -39,14 +40,15 @@ button{font:inherit;color:inherit}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap}th{font-size:11px;color:var(--sub);font-weight:600}
 .tblwrap{overflow-x:auto;max-height:320px;overflow-y:auto}.empty{padding:18px 14px;color:var(--sub)}
 .foot{grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);padding:2px 4px 20px}.foot a{color:var(--sub)}
+.tip{grid-column:1/-1;display:none;padding:10px 14px;border-radius:8px;background:rgba(240,185,11,.10);color:#f3d27a;border:1px solid rgba(240,185,11,.35);font-size:14px}.tip.show{display:block}.abtn{cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink)}
 .banner{grid-column:1/-1;display:none;padding:10px 14px;border-radius:8px;background:rgba(246,70,93,.12);color:#ffb3bd;border:1px solid rgba(246,70,93,.35)}.banner.show{display:block}
-@media(max-width:1000px){.wrap{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.chart-box{height:340px}.top{gap:12px;padding:0 12px}.kpis{gap:16px}.wl{max-height:none;display:flex;overflow-x:auto}.wrow{width:170px;min-width:170px;flex:0 0 auto;grid-template-columns:1fr auto;row-gap:2px}.wrow>span:last-child{grid-column:2}.brand{font-size:15px}}
+@media(max-width:1000px){.wrap{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.chart-box{height:340px}.top{gap:10px;padding:8px 12px;height:auto;flex-wrap:wrap;padding-top:max(8px,env(safe-area-inset-top))}.top .kpis{width:100%;margin-left:0}.kpis{gap:16px}.wl{max-height:none;display:flex;overflow-x:auto}.wrow{width:170px;min-width:170px;flex:0 0 auto;grid-template-columns:1fr auto;row-gap:2px}.wrow>span:last-child{grid-column:2}.brand{font-size:15px}}
 </style></head><body>
-<header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span>
+<header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button>
 <div class="kpis"><div class="kpi"><span>Equity</span><b id="kEq">—</b></div><div class="kpi"><span>Open P&amp;L</span><b id="kPl">—</b></div><div class="kpi"><span>Cash</span><b id="kCash">—</b></div><div class="kpi"><span>Open positions</span><b id="kPos">—</b></div><div class="kpi"><span>Market</span><b id="kMkt">—</b></div></div></header>
 <div id="tape" class="tape"><span class="tk muted">Loading live markets…</span></div>
 <div class="wrap">
-<div id="banner" class="banner"></div>
+<div id="banner" class="banner"></div><div id="tip" class="tip"></div>
 <section class="panel"><div class="chart-head"><span id="cSym" class="sym">TQQQ</span><span id="cPx" class="px">—</span><span id="cChg" class="chg muted"></span><span id="cFeed" class="muted" style="font-size:12px"></span>
 <div class="tfs"><button class="tf" data-tf="1Min">1m</button><button class="tf on" data-tf="5Min">5m</button><button class="tf" data-tf="15Min">15m</button><button class="tf" data-tf="1Day">1D</button></div></div>
 <div id="posTabs" class="ptabs"></div><div id="ohlc" class="ohlc">Hover the chart for open, high, low and close.</div>
@@ -76,6 +78,21 @@ const cls=v=>num(v)==null?'muted':(num(v)>=0?'up':'down');
 async function api(u){let r=await fetch(u,{credentials:'same-origin'});if(r.status===401||r.redirected&&r.url.includes('/login')){location.href='/login';throw Error('auth')}if(!r.ok)throw Error(u+' '+r.status);return r.json()}
 let sym='TQQQ',tf='5Min',bars=[],quote={},ticker=[],orders=[],positions=[],lots=[],hover=null;
 const PIN=['TQQQ','QQQ','SPY'];
+/* ---------- installable app + trade alerts ---------- */
+const STANDALONE=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true,IOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+let swReg=null;if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').then(r=>{swReg=r;alertsLabel()}).catch(()=>{});
+function tip(t){let el=q('#tip');el.innerHTML=t;el.classList.toggle('show',!!t)}
+async function alertsLabel(){let b=q('#alerts'),on=false;try{on=!!(swReg&&Notification.permission==='granted'&&await swReg.pushManager.getSubscription())}catch(_){}b.textContent=on?'Alerts on · test':'Turn on alerts';b.classList.toggle('live',on);b.dataset.on=on?'1':''}
+function u8(t){let s=atob((t+'='.repeat((4-t.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(s,c=>c.charCodeAt(0))}
+async function post(u,body){let r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):'{}'});if(!r.ok)throw Error(u+' '+r.status);return r.json()}
+q('#alerts').onclick=async()=>{let b=q('#alerts');try{
+if(IOS&&!STANDALONE){tip('<b>iPhone:</b> tap the Share button, choose <b>Add to Home Screen</b>, open <b>Veloikos</b> from your home screen, then tap <b>Turn on alerts</b> there.');return}
+if(!swReg||!('PushManager' in window)){tip('This browser cannot receive alerts. Use Chrome or Safari, or install the app to your home screen.');return}
+if(b.dataset.on){let r=await post('/push/test');tip(r.sent?'Test alert sent to '+r.sent+' device'+(r.sent>1?'s':'')+'.':'No device received the test — turn alerts off and on in your phone settings.');return}
+if(await Notification.requestPermission()!=='granted'){tip('Notifications are blocked. Allow them for this site in your phone or browser settings, then tap again.');return}
+let k=await api('/push/public-key'),sub=await swReg.pushManager.getSubscription()||await swReg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(k.public_key)});
+await post('/push/subscribe',sub.toJSON());let r=await post('/push/test');tip(r.sent?'Alerts are on. You will get a notification for every buy, sell, stop-out and failure.':'Subscribed, but the test did not arrive yet.');alertsLabel()}
+catch(e){if(e.message!=='auth')tip('Could not turn on alerts: '+esc(e.message))}};
 
 /* ---------- execution state ---------- */
 async function loadState(){let m=q('#mode'),b=q('#banner');try{let d=await api('/system/state'),s=String(d.state||'unknown');m.textContent=s==='live'?'LIVE':s.toUpperCase();m.className='pill '+(s==='live'?'live':s==='halted'?'halt':s==='paper'?'paper':'');b.classList.toggle('show',s==='halted');b.textContent=s==='halted'?'Trading is halted: '+(d.reason||'safety stop')+'. Open positions keep their broker stop and target.':''}catch(e){if(e.message!=='auth'){m.textContent='STATUS UNAVAILABLE';m.className='pill halt'}}}
