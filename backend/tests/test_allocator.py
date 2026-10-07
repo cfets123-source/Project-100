@@ -27,7 +27,7 @@ def test_plan_spends_cash_on_satellites_when_core_is_overweight():
 
 def test_plan_core_first_then_skips_held_unknown_and_pullback():
     buys = plan_buys(equity=200, cash=150, core_value=0, core_trend_up=True, open_satellites=["AAPL"],
-                     signals=[sig("AAPL"), sig("BTC/USD"), sig("SPY", "pullback"), sig("MSFT")], peak_equity=200)
+                     signals=[sig("AAPL"), sig("ZZZZ"), sig("SPY", "pullback"), sig("MSFT")], peak_equity=200)
     assert buys[0].sleeve == "core" and buys[0].notional == 100
     assert [b.symbol for b in buys[1:]] == ["MSFT"] and buys[1].notional == 20
 
@@ -164,3 +164,52 @@ def test_weekly_rotation_sells_weakest_then_buys_replacement_next_cycle(monkeypa
     assert "EWT" not in [b["symbol"] for b in out["buys"]]
     out2 = w.run_cycle(db, broker, mode="live", now=NOW + dt.timedelta(minutes=1))
     assert out2["rotations"] == [] and "XLE" in [b["symbol"] for b in out2["buys"]]
+
+
+def test_crypto_capped_at_one_slot():
+    buys = plan_buys(equity=200, cash=100, core_value=100, core_trend_up=True, open_satellites=[],
+                     signals=[sig("BTC/USD", mom=.9), sig("ETH/USD", mom=.8), sig("MSFT", mom=.1)], peak_equity=200)
+    assert [b.symbol for b in buys] == ["BTC/USD", "MSFT"]
+    assert plan_buys(equity=200, cash=100, core_value=100, core_trend_up=True, open_satellites=["SOL/USD"],
+                     signals=[sig("BTC/USD", mom=.9)], peak_equity=200) == []
+    assert floor_qty(10.5, 112000.0, 8) == 0.00009375
+
+
+class FakeCryptoAlpaca(FakeAlpaca):
+    def __init__(self):
+        super().__init__()
+        self.prices["BTC/USD"] = 100000.0
+        self.open = False
+
+    def get_market_clock(self): return {"is_open": self.open}
+    def get_account_capabilities(self): return {"crypto_status": "ACTIVE"}
+    def get_asset(self, symbol): return {"min_order_size": "0.00001"}
+    def get_crypto_quotes(self, syms): return self.get_quotes(syms)
+    def get_crypto_daily_bars(self, sym, start, end): return self.get_daily_bars(sym, start, end)
+
+    def get_positions(self):  # Alpaca reports crypto positions without the slash, net of the coin fee
+        return [{**p, "symbol": s.replace("/", ""), "qty": str(float(p["qty"]) * (0.9985 if "/" in s else 1))}
+                for s, p in self.positions.items()]
+
+    def place_order(self, o):
+        assert ("/" in o.symbol) == (o.time_in_force == "gtc")
+        return super().place_order(o)
+
+
+def test_crypto_trades_while_stock_market_closed(monkeypatch):
+    monkeypatch.setattr(w, "_crypto_cache", {"until": 0.0, "ok": False})
+    monkeypatch.setattr(w, "_min_qty_cache", {})
+    db, broker = _db_with_signals(("BTC/USD", "breakout", .9), ("XLE", "breakout", .5)), FakeCryptoAlpaca()
+    sat_night = dt.datetime(2026, 10, 10, 18, 0, tzinfo=dt.timezone.utc)  # Saturday
+    out = w.run_cycle(db, broker, mode="live", now=sat_night)
+    assert out["reason"] == "market_closed" and out["crypto"] is True
+    assert [b["symbol"] for b in out["buys"]] == ["BTC/USD"]  # XLE waits for the stock session
+    assert all(o.symbol != "TQQQ" for o in broker.placed)
+    out2 = w.run_cycle(db, broker, mode="live", now=sat_night + dt.timedelta(minutes=1))
+    lot = db.query(models.AllocatorLot).filter_by(symbol="BTC/USD").one()
+    assert lot.confirmed and lot.status == "open" and out2["closed_by_broker"] == []
+    assert abs(lot.quantity - float(broker.positions["BTC/USD"]["qty"]) * 0.9985) < 1e-12  # fee-adjusted
+    broker.prices["BTC/USD"] = 90000.0  # through the 7% stop
+    out3 = w.run_cycle(db, broker, mode="live", now=sat_night + dt.timedelta(minutes=2))
+    assert any(e["symbol"] == "BTC/USD" and e["reason"] == "stop" for e in out3["exits"])
+    assert broker.placed[-1].side == "sell" and broker.placed[-1].time_in_force == "gtc"
