@@ -157,6 +157,38 @@ class ScannerSignal(Base):
     updated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
+class AllocatorLot(Base):
+    """One position lot managed by the all-in allocator (core TQQQ or a satellite)."""
+    __tablename__ = "allocator_lots"
+    id = Column(String, primary_key=True)
+    mode = Column(String, nullable=False)          # paper|live
+    sleeve = Column(String, nullable=False)        # core|satellite
+    symbol = Column(String, nullable=False, index=True)
+    rule = Column(String, nullable=False)
+    quantity = Column(Float, nullable=False)
+    entry_price = Column(Float, nullable=False)
+    stop_price = Column(Float, nullable=False)
+    target_price = Column(Float, nullable=False)
+    max_hold_days = Column(Integer, nullable=False)
+    broker_bracket = Column(Boolean, nullable=False, default=False)
+    opened_on = Column(String, nullable=False)
+    order_id = Column(String, nullable=True)
+    confirmed = Column(Boolean, nullable=False, default=True)  # fill price confirmed
+    status = Column(String, nullable=False, default="open")   # open|closed
+    exit_reason = Column(String, nullable=True)
+    exit_price = Column(Float, nullable=True)
+    closed_on = Column(String, nullable=True)
+
+
+class AllocatorState(Base):
+    __tablename__ = "allocator_state"
+    mode = Column(String, primary_key=True)
+    peak_equity = Column(Float, nullable=False, default=0.0)
+    last_daily_review = Column(String, nullable=True)
+    halted = Column(Boolean, nullable=False, default=False)
+    reason = Column(String, nullable=True)
+
+
 class StrategyExecutionEvidence(Base):
     """Execution contract attached to one particular validation run."""
     __tablename__ = "strategy_execution_evidence"
