@@ -936,7 +936,7 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
 
 
 @app.get("/allocator/lots", dependencies=[Depends(require_dashboard_access)])
-def allocator_lots(mode: str = Query(default="live", pattern="^(live|paper)$"),
+def allocator_lots(mode: str = Query(default="live", pattern="^(live|paper|binance|binance-paper)$"),
                    limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
     """Read-only allocator positions with their stop/target (broker bracket or worker-watched)."""
     rows = (db.query(models.AllocatorLot).filter(models.AllocatorLot.mode == mode)
