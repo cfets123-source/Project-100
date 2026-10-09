@@ -12,6 +12,7 @@ from app.runtime import allocator_worker as w
 from app.strategies.allocator import plan_buys, floor_qty
 
 NOW = dt.datetime(2026, 10, 8, 15, 0, tzinfo=dt.timezone.utc)  # 11:00 ET Thursday
+MONDAY = dt.datetime(2026, 10, 12, 15, 0, tzinfo=dt.timezone.utc)  # 11:00 ET Monday
 
 
 def sig(sym, rule="breakout", mom=0.2):
@@ -158,12 +159,51 @@ def test_weekly_rotation_sells_weakest_then_buys_replacement_next_cycle(monkeypa
     db.commit()
     broker.prices["EWT"] = 90.0
     monkeypatch.setattr(w, "momentum_6m", lambda reader, s, today: 0.05)
-    out = w.run_cycle(db, broker, mode="live", now=NOW)
+    out = w.run_cycle(db, broker, mode="live", now=MONDAY)
     assert out["rotations"] == [{"sold": "EWT", "for": "XLE", "for_momentum": 0.9}]
     assert db.get(models.AllocatorLot, "ewt").exit_reason == "rotation"
     assert "EWT" not in [b["symbol"] for b in out["buys"]]
-    out2 = w.run_cycle(db, broker, mode="live", now=NOW + dt.timedelta(minutes=1))
+    out2 = w.run_cycle(db, broker, mode="live", now=MONDAY + dt.timedelta(minutes=1))
     assert out2["rotations"] == [] and "XLE" in [b["symbol"] for b in out2["buys"]]
+
+
+def _rotation_setup(opened_on):
+    db, broker = _db_with_signals(("XLE", "breakout", .9)), FakeAlpaca()
+    broker.positions["EWT"] = {"symbol": "EWT", "qty": "0.1", "avg_entry_price": "90"}
+    broker.cash, broker.prices["EWT"] = 0.6, 90.0
+    db.add(models.AllocatorLot(id="ewt", mode="live", sleeve="satellite", symbol="EWT", rule="breakout",
+                               quantity=0.1, entry_price=90.0, stop_price=50.0, target_price=200.0,
+                               max_hold_days=30, broker_bracket=False, opened_on=opened_on,
+                               confirmed=True, status="open"))
+    db.commit()
+    return db, broker
+
+
+def test_rotation_waits_for_first_trading_day_of_week(monkeypatch):
+    monkeypatch.setattr(w, "momentum_6m", lambda reader, s, today: 0.05)
+    db, broker = _rotation_setup("2026-09-28")
+    assert w.run_cycle(db, broker, mode="live", now=NOW)["rotations"] == []  # Thursday: no swap, no check used
+    assert db.get(models.AllocatorLot, "ewt").status == "open"
+    assert w.run_cycle(db, broker, mode="live", now=MONDAY)["rotations"][0]["sold"] == "EWT"
+
+
+def test_rotation_after_monday_holiday_runs_tuesday(monkeypatch):
+    monkeypatch.setattr(w, "momentum_6m", lambda reader, s, today: 0.05)
+    db, broker = _rotation_setup("2026-09-28")
+    days = [dt.date(2026, 9, 1) + dt.timedelta(days=i) for i in range(60)]
+    open_days = [d.isoformat() for d in days if d.weekday() < 5 and d.isoformat() != "2026-10-12"]  # Monday holiday
+    broker.get_market_calendar = lambda a, b: [{"date": d} for d in open_days if a <= d <= b]
+    tue = MONDAY + dt.timedelta(days=1)
+    assert w.run_cycle(db, broker, mode="live", now=tue)["rotations"][0]["sold"] == "EWT"
+
+
+def test_rotation_never_sells_a_lot_held_under_a_week(monkeypatch):
+    monkeypatch.setattr(w, "momentum_6m", lambda reader, s, today: 0.05)
+    db, broker = _rotation_setup("2026-10-07")  # bought Wednesday: only 3 sessions by Monday
+    assert w.run_cycle(db, broker, mode="live", now=MONDAY)["rotations"] == []
+    assert db.get(models.AllocatorLot, "ewt").status == "open"
+    assert w.held_sessions(broker, "2026-10-07", MONDAY.date()) == 3
+    assert w.held_sessions(broker, "2026-10-05", MONDAY.date()) == 5
 
 
 def test_crypto_capped_at_one_slot():
