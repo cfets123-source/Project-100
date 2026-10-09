@@ -35,6 +35,7 @@ CIRCUIT_BREAKER = 0.50
 QTY_DECIMALS = 4
 CRYPTO_QTY_DECIMALS = 8
 ROTATION_MARGIN = 0.20  # weekly swap: candidate 6-mo momentum must beat the weakest holding by 20 points
+ROTATION_MIN_HOLD_SESSIONS = 5  # a satellite must be held a full trading week before it can be swapped out
 
 
 @dataclass(frozen=True)
