@@ -23,7 +23,7 @@ from app.models.models import AllocatorLot, AllocatorState, AuditLogEntry, Scann
 from app.research.multi_market_rules import indicators, rule_exit
 from app.strategies.allocator import (
     ALLOCATOR_VERSION, CORE_STOP, CORE_SYMBOL, CORE_TARGET, CORE_WEIGHT, CRYPTO_QTY_DECIMALS, MIN_ORDER_USD,
-    SATELLITE_SLOTS, daily_exit, floor_qty, is_crypto, plan_buys, plan_rotation, price_exit,
+    SATELLITE_SLOTS, ROTATION_MIN_HOLD_SESSIONS, daily_exit, floor_qty, is_crypto, plan_buys, plan_rotation, price_exit,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -213,8 +213,34 @@ def _week(today) -> str:
     return f"{y}-W{w:02d}"
 
 
-def rotation_due(db, mode, today) -> bool:
-    """Once per ISO week (first trading-day cycle in the entry window)."""
+def _sessions(adapter, start, end) -> list[str]:
+    """Exchange trading days in [start, end]; falls back to weekdays when no calendar is available."""
+    try:
+        days = sorted(str(r["date"])[:10] for r in adapter.get_market_calendar(start.isoformat(), end.isoformat()))
+        if days or start == end:
+            return days
+    except Exception:
+        pass
+    return [(start + dt.timedelta(days=i)).isoformat() for i in range((end - start).days + 1)
+            if (start + dt.timedelta(days=i)).weekday() < 5]
+
+
+def first_session_of_week(adapter, today) -> bool:
+    """Backtest (rot.py) swapped only on the week's first trading day (Monday, or Tuesday after a holiday)."""
+    days = _sessions(adapter, today - dt.timedelta(days=today.weekday()), today)
+    return bool(days) and days[0] == today.isoformat()
+
+
+def held_sessions(adapter, opened_on: str, today) -> int:
+    """Trading days after the buy day, up to and including today."""
+    start = dt.date.fromisoformat(opened_on) + dt.timedelta(days=1)
+    return len(_sessions(adapter, start, today)) if start <= today else 0
+
+
+def rotation_due(db, mode, today, adapter=None) -> bool:
+    """Once per ISO week, only on the week's first trading day (matches the backtest)."""
+    if adapter is not None and not first_session_of_week(adapter, today):
+        return False
     week = _week(today)
     rows = (db.query(AuditLogEntry).filter(AuditLogEntry.event_type == "allocator_rotation_check")
             .order_by(AuditLogEntry.timestamp.desc()).limit(40).all())
@@ -237,7 +263,8 @@ def weekly_rotation(db, adapter, mode, today, quotes, *, equity, cash) -> list[d
     full = len(sats) >= SATELLITE_SLOTS or cash < per_slot * 0.5
     swaps = []
     if full:
-        eligible = [l for l in sats if l.confirmed and not l.broker_bracket and l.opened_on != today.isoformat()]
+        eligible = [l for l in sats if l.confirmed and not l.broker_bracket
+                    and held_sessions(adapter, l.opened_on, today) >= ROTATION_MIN_HOLD_SESSIONS]
         held = [{"id": l.id, "symbol": l.symbol, "momentum": momentum_6m(adapter, l.symbol, today)} for l in eligible]
         by_id = {l.id: l for l in eligible}
         for lot_id, sig in plan_rotation(held=held, signals=latest_signals(db)):
@@ -345,7 +372,7 @@ def run_cycle(db: Session, adapter, *, mode: str, capital_cap: float | None = No
     db.commit()
     buys, rotations = [], []
     stock_window = market_open and _in_entry_window(now)
-    if stock_window and rotation_due(db, mode, today):
+    if stock_window and rotation_due(db, mode, today, adapter):
         rotations = weekly_rotation(db, adapter, mode, today, quotes, equity=equity, cash=cash)
     if (stock_window or crypto_ok) and equity >= floor_equity:
         all_lots = _open_lots(db, mode)
