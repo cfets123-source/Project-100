@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.models import AuditLogEntry, BrokerConnection, BrokerOAuthState
@@ -23,6 +24,9 @@ AUTHORIZATION_URL = "https://robinhood.com/oauth"
 TOKEN_URL = "https://api.robinhood.com/oauth2/token/"
 SCOPE = "internal"
 BROKER = "robinhood_agentic_trading"
+# RFC 8252 loopback redirect, as used by local MCP clients. Robinhood may only
+# allow-list loopback/known redirects; the user pastes the resulting URL back.
+LOOPBACK_REDIRECT_URL = "http://127.0.0.1:8765/oauth/callback"
 
 
 class BrokerOAuthConfigurationError(ValueError):
@@ -42,13 +46,13 @@ def _fernet(key):
         raise BrokerOAuthConfigurationError("BROKER_TOKEN_ENCRYPTION_KEY is not a valid Fernet key") from exc
 
 
-def start_connection(db: Session, redirect_url: str):
+def start_connection(db: Session, redirect_url: str, *, force_new_client: bool = False):
     """Dynamically register a public OAuth client and prepare a PKCE redirect.
 
     Calling this function is the point where an operator will be sent to
     Robinhood. It never fetches account data or invokes an MCP tool.
     """
-    if not redirect_url.startswith("https://"):
+    if not (redirect_url.startswith("https://") or redirect_url == LOOPBACK_REDIRECT_URL):
         raise BrokerOAuthConfigurationError("BROKER_OAUTH_REDIRECT_URL must be an HTTPS URL")
     registration = {
         "client_name": "Project 100",
@@ -58,11 +62,18 @@ def start_connection(db: Session, redirect_url: str):
         "token_endpoint_auth_method": "none",
         "scope": SCOPE,
     }
-    response = httpx.post(REGISTRATION_URL, json=registration, timeout=15)
-    response.raise_for_status()
-    client_id = response.json().get("client_id")
-    if not isinstance(client_id, str) or not client_id:
-        raise BrokerOAuthConfigurationError("Robinhood registration did not return a client ID")
+    # Reuse the already-registered application. Registering a brand-new OAuth
+    # client on every reconnect piles up duplicate "Project 100" apps at
+    # Robinhood, which makes its consent page fail with a generic error.
+    existing = db.get(BrokerConnection, BROKER)
+    client_id = (existing.client_id if existing is not None and existing.client_id
+                 and not force_new_client else None)
+    if client_id is None:
+        response = httpx.post(REGISTRATION_URL, json=registration, timeout=15)
+        response.raise_for_status()
+        client_id = response.json().get("client_id")
+        if not isinstance(client_id, str) or not client_id:
+            raise BrokerOAuthConfigurationError("Robinhood registration did not return a client ID")
     state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
     db.add(BrokerOAuthState(state=state, code_verifier=verifier, client_id=client_id,
                             expires_at=dt.datetime.utcnow() + dt.timedelta(minutes=10)))
@@ -97,6 +108,11 @@ def finish_connection(db: Session, state: str, code: str, redirect_url: str, enc
             connection.client_id, connection.encrypted_refresh_token = pending.client_id, token
             connection.connected_at, connection.status = dt.datetime.utcnow(), "authorized"
         db.delete(pending)
+        # A new authorization replaces the old token family; drop any access token
+        # cached from it so every worker refreshes with the new refresh token.
+        db.execute(text("CREATE TABLE IF NOT EXISTS robinhood_access_cache "
+                        "(id TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at REAL NOT NULL)"))
+        db.execute(text("DELETE FROM robinhood_access_cache"))
         db.commit()
         return {"connected": True, "execution_enabled": False}
     except Exception:

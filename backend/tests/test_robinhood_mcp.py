@@ -76,3 +76,59 @@ def test_rotated_refresh_token_is_saved_encrypted(post, db):
     row = db.get(BrokerConnection, BROKER)
     assert row.encrypted_refresh_token != old
     assert Fernet(key.encode()).decrypt(row.encrypted_refresh_token.encode()) == b"new-refresh"
+
+
+@patch("app.brokers.robinhood_mcp.httpx.post")
+def test_access_token_is_cached_so_workers_do_not_refresh_repeatedly(post, db):
+    key = Fernet.generate_key().decode()
+    db.add(BrokerConnection(broker=BROKER, client_id="client", status="authorized",
+                            encrypted_refresh_token=Fernet(key.encode()).encrypt(b"r1").decode()))
+    db.commit()
+    post.return_value = Mock(raise_for_status=Mock(), json=lambda: {
+        "access_token": "a1", "refresh_token": "r2", "expires_in": 3600})
+    assert [_access_token(db, key) for _ in range(5)] == ["a1"] * 5
+    assert post.call_count == 1  # one refresh, then the shared cache is reused
+
+
+@patch("app.brokers.robinhood_mcp.httpx.post")
+def test_expired_cache_refreshes_with_latest_rotated_token(post, db, monkeypatch):
+    import app.brokers.robinhood_mcp as mcp
+    key = Fernet.generate_key().decode()
+    db.add(BrokerConnection(broker=BROKER, client_id="client", status="authorized",
+                            encrypted_refresh_token=Fernet(key.encode()).encrypt(b"r1").decode()))
+    db.commit()
+    sent = []
+    def reply(url, data, timeout):
+        sent.append(data["refresh_token"])
+        n = len(sent)
+        return Mock(raise_for_status=Mock(), json=lambda: {
+            "access_token": f"a{n}", "refresh_token": f"r{n + 1}", "expires_in": 30})
+    post.side_effect = reply
+    _access_token(db, key)
+    _access_token(db, key)  # 30s lifetime is inside the 60s safety margin -> refresh again
+    assert sent == ["r1", "r2"]  # never re-uses a rotated (spent) refresh token
+
+
+@patch("app.brokers.robinhood_mcp.httpx.post")
+def test_reconnect_clears_cached_access_token(post, db):
+    import datetime as dt
+    from sqlalchemy import text
+    from app.brokers.robinhood_oauth import finish_connection
+    from app.models.models import BrokerOAuthState
+    key = Fernet.generate_key().decode()
+    db.add(BrokerConnection(broker=BROKER, client_id="old", status="authorized",
+                            encrypted_refresh_token=Fernet(key.encode()).encrypt(b"r-old").decode()))
+    db.commit()
+    def reply(url, data, timeout):
+        if data["grant_type"] == "authorization_code":
+            return Mock(raise_for_status=Mock(), json=lambda: {"refresh_token": "r-new"})
+        access = "new-access" if data["refresh_token"] == "r-new" else "old-access"
+        return Mock(raise_for_status=Mock(), json=lambda: {"access_token": access, "expires_in": 3600})
+    post.side_effect = reply
+    assert _access_token(db, key) == "old-access"
+    db.add(BrokerOAuthState(state="s", code_verifier="v", client_id="new",
+                            expires_at=dt.datetime.utcnow() + dt.timedelta(minutes=5)))
+    db.commit()
+    finish_connection(db, "s", "code", "https://x/cb", key)
+    assert db.execute(text("SELECT COUNT(*) FROM robinhood_access_cache")).scalar() == 0
+    assert _access_token(db, key) == "new-access"

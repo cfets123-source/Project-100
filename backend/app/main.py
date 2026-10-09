@@ -1,4 +1,5 @@
 import time
+import os
 import copy
 import html
 import json
@@ -25,6 +26,7 @@ from app.brokers import alpaca_connection
 from app.security.dashboard import (require_dashboard_access, dashboard_access_granted,
                                     issue_dashboard_session)
 from app.dashboard_html import DASHBOARD_HTML
+from app.strategies.stage_runner import STAGE_RUNNER_VERSION
 from app.services.live_readiness import report as live_readiness_report
 from app.services.state_machine import StateManager
 from app.audit.logger import log_and_commit
@@ -46,8 +48,9 @@ from app.binance_routes import router as binance_router
 app.include_router(binance_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
+STAGE_SYMBOLS = ("TQQQ",)  # Stage Runner instrument shown first in the terminal.
 MARKET_CONTEXT_ETFS = ("FXI", "EWU")  # US-listed China/UK exposure, not local exchange quotes.
-CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD")  # Read-only data; account crypto trading is inactive.
+CRYPTO_CONTEXT = ("BTC/USD", "ETH/USD", "SOL/USD")  # Read-only market data for charts and tape.
 
 
 @app.get("/terminal/market", dependencies=[Depends(require_dashboard_access)])
@@ -56,6 +59,7 @@ def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=
                     db: Session = Depends(get_db)):
     """Read-only IEX quote and bounded intraday or daily candles for the terminal."""
     symbol = symbol.upper()
+    symbol = {c.replace("/", ""): c for c in CRYPTO_CONTEXT}.get(symbol, symbol)  # BTCUSD position -> BTC/USD
     if symbol not in CRYPTO_CONTEXT and not symbol.replace(".", "").isalpha():
         raise HTTPException(status_code=400, detail="invalid symbol")
     try:
@@ -94,6 +98,60 @@ def terminal_market(symbol: str = Query(default="SPY", min_length=1, max_length=
         raise HTTPException(status_code=503, detail=f"market data unavailable: {type(exc).__name__}") from exc
 
 
+def _stream_credentials() -> tuple[str, str]:
+    from app.db.session import SessionLocal
+    with SessionLocal() as db:
+        adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
+        return adapter.headers["APCA-API-KEY-ID"], adapter.headers["APCA-API-SECRET-KEY"]
+
+
+_market_stream = None
+
+
+def market_stream():
+    global _market_stream
+    if _market_stream is None:
+        from app.services.market_stream import MarketStream
+        _market_stream = MarketStream(_stream_credentials)
+    return _market_stream
+
+
+@app.get("/terminal/stream", dependencies=[Depends(require_dashboard_access)])
+async def terminal_stream(request: Request, symbols: str = Query(default="", max_length=400)):
+    """Server-Sent Events: real-time IEX trade prints and minute bars (read-only, no keys)."""
+    import asyncio
+    from fastapi.responses import StreamingResponse
+    stream = market_stream()
+    wanted = set(stream.want([s for s in symbols.split(",") if s][:30]))
+    queue = stream.listen()
+
+    async def events():
+        try:
+            hello = {"type": "status", "status": stream.status, "error": stream.error, "symbols": sorted(wanted),
+                     "last": {s: stream.last[s] for s in wanted if s in stream.last}}
+            yield f"data: {json.dumps(hello)}\n\n"
+            last_status = stream.status
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=10)
+                except asyncio.TimeoutError:
+                    if stream.status != last_status:
+                        last_status = stream.status
+                        yield f"data: {json.dumps({'type': 'status', 'status': stream.status, 'error': stream.error})}\n\n"
+                    else:
+                        yield ": keep-alive\n\n"
+                    continue
+                if event.get("symbol") in wanted:
+                    yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            stream.unlisten(queue)
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 _ticker_cache: dict[str, object] = {"expires_at": 0.0, "payload": None}
 
 
@@ -105,10 +163,10 @@ def terminal_ticker(db: Session = Depends(get_db)):
     try:
         adapter, _ = alpaca_connection.load_read_only_adapter(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, paper=False)
         raw = adapter._request("GET", "/v2/stocks/snapshots", data_api=True,
-                               params={"symbols": ",".join(BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
+                               params={"symbols": ",".join(STAGE_SYMBOLS + BROAD_UNIVERSE + MARKET_CONTEXT_ETFS), "feed": "iex"})
         now = datetime.now(timezone.utc)
         items = []
-        for symbol in BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
+        for symbol in STAGE_SYMBOLS + BROAD_UNIVERSE + MARKET_CONTEXT_ETFS:
             snap = raw.get(symbol) or {}
             quote, trade = snap.get("latestQuote") or {}, snap.get("latestTrade") or {}
             previous = snap.get("prevDailyBar") or {}
@@ -121,7 +179,7 @@ def terminal_ticker(db: Session = Depends(get_db)):
             except (KeyError, TypeError, ValueError):
                 quote_age = trade_age = None
             items.append({"symbol": symbol, "asset_class": "ETF" if symbol in BROAD_UNIVERSE[:5] + MARKET_CONTEXT_ETFS else "stock",
-                          "in_strategy_universe": symbol in BROAD_UNIVERSE, "source": "Alpaca IEX",
+                          "in_strategy_universe": symbol in BROAD_UNIVERSE or symbol in STAGE_SYMBOLS, "source": "Alpaca IEX",
                           "price": price, "previous_close": previous_close,
                           "change_pct": round((price / previous_close - 1) * 100, 2)
                                         if price is not None and previous_close and previous_close > 0 else None,
@@ -478,12 +536,71 @@ def robinhood_status(db: Session = Depends(get_db)):
 
 
 @app.get("/brokers/robinhood/connect", dependencies=[Depends(require_dashboard_access)])
-def robinhood_connect(db: Session = Depends(get_db)):
-    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools."""
+def robinhood_connect(fresh: bool = False, db: Session = Depends(get_db)):
+    """Begin the user-authorized OAuth flow. This endpoint never invokes MCP tools.
+
+    ``?fresh=1`` registers a new OAuth client instead of reusing the saved one."""
     try:
-        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL), status_code=302)
+        return RedirectResponse(start_connection(db, settings.BROKER_OAUTH_REDIRECT_URL,
+                                                 force_new_client=fresh), status_code=302)
     except BrokerOAuthConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/brokers/robinhood/connect-manual", response_class=HTMLResponse,
+         dependencies=[Depends(require_dashboard_access)])
+def robinhood_connect_manual(db: Session = Depends(get_db)):
+    """Loopback OAuth: approve at Robinhood, then paste the final address back here."""
+    from app.brokers.robinhood_oauth import LOOPBACK_REDIRECT_URL
+    try:
+        url = start_connection(db, LOOPBACK_REDIRECT_URL)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    page = ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Connect Robinhood</title><style>body{font:17px system-ui;background:#0b0e11;color:#eaecef;'
+            'max-width:640px;margin:40px auto;padding:18px;line-height:1.5}a.btn,button{display:inline-block;'
+            'color:#0b0e11;background:#f0b90b;padding:12px 16px;border:0;border-radius:8px;font-weight:700;'
+            'text-decoration:none;cursor:pointer}textarea{font:14px monospace;width:100%;box-sizing:border-box;'
+            'height:110px;margin:12px 0;padding:10px;background:#12161b;color:#eaecef;border:1px solid #2b3139;'
+            'border-radius:8px}ol li{margin:8px 0}</style></head><body><h1>Connect Robinhood</h1><ol>'
+            '<li><a class="btn" target="_blank" rel="noopener noreferrer" href="' + html.escape(url, quote=True) +
+            '">Open Robinhood approval</a></li><li>Sign in and approve. Your browser will then show a '
+            '<b>&ldquo;can&rsquo;t connect&rdquo; / &ldquo;site can&rsquo;t be reached&rdquo;</b> page &mdash; that is expected.</li>'
+            '<li>Copy the <b>full address</b> from that page&rsquo;s address bar (it starts with '
+            '<code>http://127.0.0.1:8765/oauth/callback?code=</code>) and paste it below within 10 minutes.</li></ol>'
+            '<form id="f"><textarea id="u" placeholder="http://127.0.0.1:8765/oauth/callback?code=...&amp;state=..." required></textarea>'
+            '<button>Finish connection</button></form><p id="r" role="status"></p>'
+            '<script>document.getElementById("f").onsubmit=async e=>{e.preventDefault();const r=await fetch('
+            '"/brokers/robinhood/complete-manual",{method:"POST",headers:{"Content-Type":"application/json"},'
+            'body:JSON.stringify({url:document.getElementById("u").value.trim()})});const d=await r.json().catch(()=>({}));'
+            'document.getElementById("r").textContent=r.ok?"Connected. Return to the dashboard and reload it.":'
+            '"Failed: "+(d.detail||r.status)+". Open this page again and retry.";};</script></body></html>')
+    return HTMLResponse(page, headers={"Cache-Control": "no-store"})
+
+
+class RobinhoodManualCallback(BaseModel):
+    url: str
+
+
+@app.post("/brokers/robinhood/complete-manual", dependencies=[Depends(require_dashboard_access)])
+def robinhood_complete_manual(body: RobinhoodManualCallback, db: Session = Depends(get_db)):
+    from urllib.parse import parse_qs, urlparse
+    from app.brokers.robinhood_oauth import LOOPBACK_REDIRECT_URL
+    parsed = urlparse(body.url.strip())
+    params = parse_qs(parsed.query)
+    if parsed.scheme + "://" + parsed.netloc + parsed.path != LOOPBACK_REDIRECT_URL:
+        raise HTTPException(status_code=400, detail="That is not the Robinhood callback address")
+    if "error" in params:
+        raise HTTPException(status_code=400, detail="Robinhood returned: " + params["error"][0])
+    code, state = (params.get("code") or [""])[0], (params.get("state") or [""])[0]
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="The address is missing code or state")
+    try:
+        return finish_connection(db, state, code, LOOPBACK_REDIRECT_URL, settings.BROKER_TOKEN_ENCRYPTION_KEY)
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Robinhood rejected the code ({type(exc).__name__})")
 
 
 @app.get("/brokers/robinhood/callback")
@@ -606,6 +723,111 @@ def robinhood_option_quote(symbol: str = Query(min_length=1, max_length=6),
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+# ---------- installable phone app (PWA) + trade notifications ----------
+PUSH_SUBJECT = os.getenv("PUSH_SUBJECT", "https://trade.veloikos.com")
+MANIFEST = {"name": "Veloikos Trading", "short_name": "Veloikos", "start_url": "/dashboard", "scope": "/",
+            "display": "standalone", "background_color": "#0b0e11", "theme_color": "#0b0e11",
+            "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                      {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+                      {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}]}
+SERVICE_WORKER = """self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',()=>{});
+self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(_){d={title:'Veloikos Trading',body:e.data?e.data.text():''}}
+e.waitUntil(self.registration.showNotification(d.title||'Veloikos Trading',{body:d.body||'',tag:d.tag,renotify:true,icon:'/static/icon-192.png',badge:'/static/icon-192.png',data:{url:d.url||'/dashboard'}}))});
+self.addEventListener('notificationclick',e=>{e.notification.close();const u=(e.notification.data||{}).url||'/dashboard';
+e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(ws=>{for(const w of ws){if(w.url.includes('/dashboard')&&'focus' in w)return w.focus()}return clients.openWindow(u)}))});
+"""
+
+
+@app.get("/manifest.webmanifest")
+def web_manifest():
+    return JSONResponse(MANIFEST, media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    from fastapi.responses import Response
+    return Response(SERVICE_WORKER, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.get("/push/public-key", dependencies=[Depends(require_dashboard_access)])
+def push_public_key(db: Session = Depends(get_db)):
+    from app.services.trade_notifier import vapid_keys
+    try:
+        return {"public_key": vapid_keys(db, settings.BROKER_TOKEN_ENCRYPTION_KEY)["public_key"]}
+    except BrokerOAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/push/subscribe", dependencies=[Depends(require_dashboard_access)])
+async def push_subscribe(request: Request, db: Session = Depends(get_db)):
+    from app.services.trade_notifier import subscribe
+    try:
+        subscribe(db, await request.json())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"subscribed": True}
+
+
+@app.post("/push/test", dependencies=[Depends(require_dashboard_access)])
+def push_test(db: Session = Depends(get_db)):
+    from app.services.trade_notifier import broadcast
+    return broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
+                     {"title": "Veloikos Trading", "body": "Trade alerts are on for this device.", "tag": "test"},
+                     PUSH_SUBJECT)
+
+
+@app.get("/pipeline", dependencies=[Depends(require_dashboard_access)])
+def strategy_pipeline(db: Session = Depends(get_db)):
+    from app.services.pipeline import pipeline
+    return pipeline(db)
+
+
+@app.get("/review/latest", dependencies=[Depends(require_dashboard_access)])
+def review_latest(db: Session = Depends(get_db)):
+    """Last stored nightly review; before the first night, a fresh read-only preview (not stored)."""
+    from app.services import nightly_review as nr
+    stored = nr.latest(db)
+    if stored:
+        return {**stored, "preview": False}
+    report = nr.build(db, nr.collect_equities(db, settings.BROKER_TOKEN_ENCRYPTION_KEY), persist=False)
+    return {**report, "preview": True}
+
+
+@app.get("/review/history", dependencies=[Depends(require_dashboard_access)])
+def review_history(db: Session = Depends(get_db)):
+    from app.services import nightly_review as nr
+    return {"reports": nr.history(db)}
+
+
+@app.on_event("startup")
+async def _start_trade_notifier():
+    import asyncio
+    if os.getenv("TRADE_NOTIFIER", "on") == "off" or not settings.BROKER_TOKEN_ENCRYPTION_KEY:
+        return
+
+    def tick():
+        from app.db.session import SessionLocal
+        from app.services import nightly_review
+        from app.services.trade_notifier import broadcast, poll
+        with SessionLocal() as db:
+            poll(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, PUSH_SUBJECT)
+            nightly_review.run_if_due(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
+                                      push=lambda m: broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, m, PUSH_SUBJECT))
+
+    async def loop():
+        while True:
+            try:
+                await asyncio.to_thread(tick)
+            except Exception:
+                pass
+            await asyncio.sleep(10)
+
+    app.state.notifier = asyncio.get_event_loop().create_task(loop())
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     if not dashboard_access_granted(request):
@@ -621,7 +843,7 @@ class DashboardLogin(BaseModel):
 
 
 LOGIN_HTML = """<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Veloikos Trading</title><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/veloikos-mark.png" alt="Veloikos Trading" style="width:70px;height:70px;object-fit:contain"><h1>Veloikos Trading</h1><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
+<title>Veloikos Trading</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Veloikos"><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/veloikos-mark.png" alt="Veloikos Trading" style="width:70px;height:70px;object-fit:contain"><h1>Veloikos Trading</h1><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -636,7 +858,7 @@ def login(payload: DashboardLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     response = JSONResponse({"authenticated": True})
     response.set_cookie("project100_dashboard", token, httponly=True, secure=True,
-                        samesite="strict", max_age=60 * 60 * 12, path="/")
+                        samesite="strict", max_age=60 * 60 * 24 * 30, path="/")
     return response
 
 @app.get("/ready")
@@ -648,6 +870,30 @@ def readiness(db: Session = Depends(get_db)):
 @app.get("/health")
 def health():
     return {"status": "ok", "trading_mode": settings.TRADING_MODE, "autonomy_level": settings.AUTONOMY_LEVEL}
+
+
+@app.get("/scanner/signals", dependencies=[Depends(require_dashboard_access)])
+def scanner_signals(db: Session = Depends(get_db)):
+    """Watch-only multi-market scanner: recent signals and forward scoreboard."""
+    from app.research.multi_market_rules import RULES, RULES_VERSION
+    rows = (db.query(models.ScannerSignal)
+            .order_by(models.ScannerSignal.signal_date.desc(), models.ScannerSignal.momentum_6m.desc())
+            .limit(400).all())
+    item = lambda r: {"symbol": r.symbol, "rule": r.rule, "group": r.asset_group,
+                      "signal_date": r.signal_date, "signal_close": r.signal_close,
+                      "stop_pct": r.stop_pct, "target_pct": r.target_pct, "status": r.status,
+                      "mark_pct": r.mark_pct, "result_pct": r.result_pct, "exit_reason": r.exit_reason,
+                      "momentum_6m": r.momentum_6m}
+    board: dict[tuple, list] = {}
+    for r in db.query(models.ScannerSignal).filter(models.ScannerSignal.status == "closed").all():
+        board.setdefault((r.rule, r.asset_group), []).append(r.result_pct or 0.0)
+    score = [{"rule": k[0], "group": k[1], "closed": len(v), "win_rate": sum(x > 0 for x in v) / len(v),
+              "avg_result": sum(v) / len(v)} for k, v in board.items()]
+    score.sort(key=lambda x: (-x["avg_result"], -x["closed"]))
+    return {"rules_version": RULES_VERSION, "order_submission": False,
+            "rules": {k: {"stop": r.stop, "target": r.target, "max_hold_days": r.max_hold,
+                          "description": r.description} for k, r in RULES.items()},
+            "signals": [item(r) for r in rows], "scoreboard": score}
 
 
 @app.get("/system/state", dependencies=[Depends(require_dashboard_access)])
@@ -744,7 +990,9 @@ def alpaca_live_portfolio(db: Session = Depends(get_db)):
             raise HTTPException(status_code=409, detail="stored credential is not live")
         positions, orders = adapter.get_positions(), adapter.get_orders()
         active_statuses = {"new", "accepted", "pending", "open", "partially_filled", "held"}
-        active_orders = [order for order in orders if str(order.get("status")) in active_statuses]
+        # nested=true puts bracket stop/target legs under a filled parent; list them too.
+        flat = list(orders) + [leg for order in orders for leg in (order.get("legs") or [])]
+        active_orders = [order for order in flat if str(order.get("status")) in active_statuses]
         payload = {"live": True, "balances": adapter.get_balances(),
                    "positions": positions, "active_orders": active_orders,
                    "market_clock": adapter.get_market_clock()}
@@ -780,7 +1028,8 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
             .filter(models.TradeDecisionRecord.trade_id.in_(live_ids),
                     models.TradeDecisionRecord.order_id.isnot(None),
                     models.TradeDecisionRecord.strategy.in_((DailyTrendPullback.name,
-                                                             BroadDailyTrendPullback.name)))
+                                                             BroadDailyTrendPullback.name,
+                                                             STAGE_RUNNER_VERSION)))
             .order_by(models.TradeDecisionRecord.timestamp.desc())
             .limit(limit).all())
     return {"trades": [{
@@ -790,6 +1039,26 @@ def live_trades(limit: int = Query(default=20, ge=1, le=100), db: Session = Depe
         "target_price": row.target_price, "exit_price": row.exit_price,
         "exit_reason": row.exit_reason, "pnl": row.pnl,
     } for row in rows]}
+
+
+@app.get("/allocator/lots", dependencies=[Depends(require_dashboard_access)])
+def allocator_lots(mode: str = Query(default="live", pattern="^(live|paper|binance|binance-paper)$"),
+                   limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
+    """Read-only allocator positions with their stop/target (broker bracket or worker-watched)."""
+    rows = (db.query(models.AllocatorLot).filter(models.AllocatorLot.mode == mode)
+            .order_by(models.AllocatorLot.status.desc(), models.AllocatorLot.opened_on.desc())
+            .limit(limit).all())
+    out = []
+    for r in rows:
+        pnl = (round((r.exit_price - r.entry_price) * r.quantity, 2)
+               if r.status == "closed" and r.exit_price is not None and r.quantity else None)
+        out.append({"id": r.id, "symbol": r.symbol, "sleeve": r.sleeve, "rule": r.rule,
+                    "quantity": r.quantity, "entry_price": r.entry_price, "stop_price": r.stop_price,
+                    "target_price": r.target_price, "max_hold_days": r.max_hold_days,
+                    "broker_bracket": bool(r.broker_bracket), "confirmed": bool(r.confirmed),
+                    "status": r.status, "opened_on": r.opened_on, "closed_on": r.closed_on,
+                    "exit_reason": r.exit_reason, "exit_price": r.exit_price, "pnl": pnl})
+    return {"mode": mode, "lots": out}
 
 
 def _audited_live_trade_ids(db: Session) -> set[str]:
