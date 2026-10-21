@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -54,6 +55,33 @@ def flatten_time(day):
     return dt.time(12, 55) if day in early else FLATTEN_AT
 
 
+class Feed:
+    """Reports status to the Veloikos app (display only). Failures never affect trading."""
+
+    def __init__(self, url=None, token=None, opener=None):
+        self.url = url or os.environ.get("PROP_FEED_URL") or "https://trade.veloikos.com/prop/feed"
+        self.token = token if token is not None else (os.environ.get("PROP_FEED_TOKEN") or keychain("p100-prop-token"))
+        self.open = opener or urllib.request.urlopen
+        self.sent_ids = set()
+
+    def send(self, bot, status):
+        if not self.token:
+            return False
+        events = [e for e in bot.events if e["id"] not in self.sent_ids]
+        body = {"status": status, "orders": bot.orders, "account": bot.account.get("name"), "contract": bot.cid,
+                "bars": bot.last_bars[-90:], "events": events}
+        req = urllib.request.Request(self.url, data=json.dumps(body, default=str).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "X-Prop-Token": self.token})
+        try:
+            with self.open(req, timeout=10) as r:
+                r.read()
+            self.sent_ids.update(e["id"] for e in events)
+            return True
+        except Exception as exc:  # noqa: BLE001 - reporting must never stop trading
+            log.warning("app report failed: %s", type(exc).__name__)
+            return False
+
+
 def to_et(ts):
     return dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(ET)
 
@@ -73,7 +101,8 @@ def iso(d):
 
 
 class Bot:
-    def __init__(self, api, account_name, orders, start_balance, symbol="MNQ", contracts=None, home=HOME, clock=None):
+    def __init__(self, api, account_name, orders, start_balance, symbol="MNQ", contracts=None, home=HOME, clock=None,
+                 feed=None):
         self.api, self.orders, self.symbol, self.fixed_contracts = api, orders, symbol, contracts
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home = home
@@ -90,7 +119,10 @@ class Bot:
         self.state = self._load(start_balance)
         self.history, self.history_day = [], None
         self.virtual = 0  # dry-run position (+n / -n contracts)
+        self.virtual_avg = None
         self.done = set()
+        self.events, self.last_bars = [], []
+        self.feed = feed or Feed()
 
     # --- persistence -----------------------------------------------------------------------------------------
     def _load(self, start_balance):
@@ -114,6 +146,15 @@ class Bot:
             except OSError:
                 pass
 
+    def event(self, kind, text, price=None, size=None, pnl=None):
+        now = self.clock()
+        e = {"id": "%s-%d" % (now.strftime("%Y%m%d%H%M%S"), len(self.events)), "time": now.isoformat(),
+             "kind": kind, "text": text, "price": price, "size": size,
+             "pnl": round(pnl, 2) if pnl is not None else None}
+        self.events.append(e)
+        self.events = self.events[-50:]
+        log.info("EVENT %s: %s", kind, text)
+
     # --- market/account reads --------------------------------------------------------------------------------
     def load_history(self, today):
         start = dt.datetime.combine(today - dt.timedelta(days=35), dt.time(0), ET)
@@ -128,7 +169,7 @@ class Bot:
 
     def position(self):
         if not self.orders:
-            return self.virtual, None
+            return self.virtual, self.virtual_avg
         for p in self.api.positions(self.aid):
             if p["contractId"] == self.cid:
                 sign = 1 if p["type"] == LONG else -1
@@ -154,8 +195,18 @@ class Bot:
         if pos == want:
             return
         log.info("%s: position %+d -> %+d at ~%.2f (%s)", "ORDER" if self.orders else "DRY RUN", pos, want, price, reason)
+        _, avg = self.position()
+        pnl = (price - avg) * pos * self.point_value if (pos and avg) else None
+        tag = "" if self.orders else "[dry run] "
+        if want == 0:
+            self.event("flat", "%sClosed %+d MNQ at %.2f (%s)" % (tag, pos, price, reason), price, abs(pos), pnl)
+        else:
+            if pos and (pos > 0) != (want > 0):
+                self.event("flat", "%sClosed %+d MNQ at %.2f to reverse" % (tag, pos, price), price, abs(pos), pnl)
+            self.event("buy" if want > 0 else "sell", "%s%s %d MNQ at %.2f (%s)" % (
+                tag, "Bought" if want > 0 else "Sold short", abs(want), price, reason), price, abs(want))
         if not self.orders:
-            self.virtual = want
+            self.virtual, self.virtual_avg = want, (price if want else None)
             return
         if pos != 0 and (want == 0 or (pos > 0) != (want > 0)):
             self.api.close(self.aid, self.cid)
@@ -179,6 +230,8 @@ class Bot:
             new_day(self.state, today.isoformat(), self.balance())
             log.info("new day %s: balance %.2f, trailing floor %.2f, history %d days",
                      today, self.state.day_start_balance, self.state.floor, len(self.history))
+            self.event("day", "New trading day. Balance %.2f, loss limit %.2f" % (
+                self.state.day_start_balance, self.state.floor))
         bars = self.today_bars(now)
         if not bars:
             return "waiting for bars"
@@ -187,7 +240,12 @@ class Bot:
         pos, avg = self.position()
         open_pnl = (price - avg) * pos * self.point_value if (pos and avg) else 0.0
         bal = self.balance()
+        was_passed, was_halted = self.state.passed, self.state.halted_day == self.state.day or self.state.finished
         allowed, must_flat, why = check(self.state, bal, open_pnl)
+        if self.state.passed and not was_passed:
+            self.event("pass", "Profit target reached at %s. Request the funded account on Topstep." % round(bal + open_pnl))
+        elif not allowed and must_flat and not was_halted:
+            self.event("halt", "Trading stopped: %s" % why)
         status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price,
                   "floor": self.state.floor, "allowed": allowed, "note": why}
         if must_flat and pos:
@@ -212,12 +270,22 @@ class Bot:
                     sign = target
                 self.done.add(t)
         self.save(status)
+        self.last_bars = [[dt.datetime.combine(today, t, ET).isoformat(), *bars[t][:4]] for t in sorted(bars)]
+        self.feed.send(self, status)
         return why or "ok"
 
 
 def run_check(api):
+    try:
+        accounts = api.accounts()
+    except TopstepXError as e:
+        if "loginKey failed: code 3" in str(e) or "loginKey failed: code 1" in str(e):
+            print("LOGIN REJECTED: username or API key is wrong. Re-copy the key (or create a new one after linking "
+                  "ProjectX) and check the username, then run install.sh again.")
+            raise SystemExit(2)
+        raise
     print("Signed in to TopstepX.")
-    for a in api.accounts():
+    for a in accounts:
         print("  account: %-30s id=%s balance=%s canTrade=%s simulated=%s" % (
             a.get("name"), a.get("id"), a.get("balance"), a.get("canTrade"), a.get("simulated")))
     c = api.contract("MNQ")

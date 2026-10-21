@@ -6,8 +6,8 @@
 set -e
 SRC="$(cd "$(dirname "$0")" && pwd)"; DST="$HOME/p100-prop"; CFG="$HOME/.p100-prop"
 mkdir -p "$DST" "$CFG"
-cp "$SRC"/topstepx.py "$SRC"/noise.py "$SRC"/guard.py "$SRC"/worker.py "$SRC"/run.sh "$SRC"/go-live.sh "$DST"/
-chmod +x "$DST"/run.sh "$DST"/go-live.sh
+cp "$SRC"/topstepx.py "$SRC"/noise.py "$SRC"/guard.py "$SRC"/worker.py "$SRC"/run.sh "$SRC"/go-live.sh "$SRC"/pair.sh "$DST"/
+chmod +x "$DST"/run.sh "$DST"/go-live.sh "$DST"/pair.sh
 command -v python3 >/dev/null || { echo "python3 missing: run  xcode-select --install  then re-run this script"; exit 1; }
 python3 -c "import zoneinfo" || { echo "python3 is older than 3.9; install Python 3 from python.org"; exit 1; }
 echo "TopstepX sign-in username (the platform username, not your email):"; read -r U
@@ -42,6 +42,8 @@ cat > "$PL" <<PLIST
 PLIST
 launchctl unload "$PL" 2>/dev/null || true
 launchctl load "$PL"
+echo; echo "Pairing code from the app (Prop challenge -> Get pairing code), or press Enter to skip:"; read -r P
+[ -n "$P" ] && bash "$DST/pair.sh" "$P"
 echo; echo "INSTALLED. The bot runs weekdays from 9:20 AM (Mac time, set for Eastern) in DRY RUN on account '$A'."
 echo "Log: $CFG/bot.log   Status: $CFG/status.json (copy in ~/Documents/p100-prop/data)"
 echo "To place real orders later:  bash $DST/go-live.sh"
