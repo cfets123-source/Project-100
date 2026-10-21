@@ -264,7 +264,8 @@ def test_bot_reports_status_and_each_event_once(tmp_path):
     assert "day" in kinds and ({"buy", "sell"} & kinds)
     last = opener.bodies[-1]
     assert last["orders"] is True and last["contract"].startswith("CON.F.US.MNQ") and last["bars"]
-    assert {"balance", "open_pnl", "position", "floor"} <= set(last["status"])
+    assert {"balance", "open_pnl", "position", "floor", "avg", "state"} <= set(last["status"])
+    assert last["status"]["state"]["day_start_balance"] is not None
 
 
 def test_feed_failure_never_stops_trading(tmp_path):
