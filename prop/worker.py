@@ -68,7 +68,7 @@ class Feed:
         if not self.token:
             return False
         events = [e for e in bot.events if e["id"] not in self.sent_ids]
-        body = {"status": status, "orders": bot.orders, "account": bot.account.get("name"), "contract": bot.cid,
+        body = {"status": dict(status, state=bot.state.to_dict()), "orders": bot.orders, "account": bot.account.get("name"), "contract": bot.cid,
                 "bars": bot.last_bars[-90:], "events": events}
         req = urllib.request.Request(self.url, data=json.dumps(body, default=str).encode(), method="POST",
                                      headers={"Content-Type": "application/json", "X-Prop-Token": self.token})
@@ -246,7 +246,7 @@ class Bot:
             self.event("pass", "Profit target reached at %s. Request the funded account on Topstep." % round(bal + open_pnl))
         elif not allowed and must_flat and not was_halted:
             self.event("halt", "Trading stopped: %s" % why)
-        status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price,
+        status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price, "avg": avg,
                   "floor": self.state.floor, "allowed": allowed, "note": why}
         if must_flat and pos:
             self.flatten(price, why)
