@@ -227,3 +227,55 @@ def test_early_close_days():
     assert worker.flatten_time(dt.date(2026, 11, 27)) == dt.time(12, 55)
     assert worker.flatten_time(dt.date(2026, 12, 24)) == dt.time(12, 55)
     assert worker.flatten_time(dt.date(2026, 11, 25)) == dt.time(15, 55)
+
+
+class FakeOpener:
+    def __init__(self):
+        self.bodies = []
+
+    def __call__(self, req, timeout=10):
+        import io
+        import json as _json
+        assert req.headers.get("X-prop-token") == "tok"
+        self.bodies.append(_json.loads(req.data.decode()))
+
+        class R(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+        return R(b"{}")
+
+
+def test_bot_reports_status_and_each_event_once(tmp_path):
+    api = FakeAPI(trading_days(45))
+    opener = FakeOpener()
+    start = dt.date(2026, 9, 1)
+    api.now = dt.datetime.combine(start, dt.time(9, 25), ET)
+    bot = worker.Bot(api, "PRACTICE", True, 50000.0, home=str(tmp_path), clock=lambda: api.now,
+                     feed=worker.Feed(url="https://example.test/prop/feed", token="tok", opener=opener))
+    for d in sorted(api.days)[25:32]:
+        run_day(bot, api, d)
+    assert opener.bodies, "the bot should report to the app"
+    ids = [e["id"] for b in opener.bodies for e in b["events"]]
+    assert len(ids) == len(set(ids)), "each event is sent once"
+    kinds = {e["kind"] for b in opener.bodies for e in b["events"]}
+    assert "day" in kinds and ({"buy", "sell"} & kinds)
+    last = opener.bodies[-1]
+    assert last["orders"] is True and last["contract"].startswith("CON.F.US.MNQ") and last["bars"]
+    assert {"balance", "open_pnl", "position", "floor"} <= set(last["status"])
+
+
+def test_feed_failure_never_stops_trading(tmp_path):
+    api = FakeAPI(trading_days(45))
+
+    def broken(req, timeout=10):
+        raise OSError("offline")
+    api.now = dt.datetime.combine(dt.date(2026, 9, 1), dt.time(9, 25), ET)
+    bot = worker.Bot(api, "PRACTICE", True, 50000.0, home=str(tmp_path), clock=lambda: api.now,
+                     feed=worker.Feed(url="https://example.test", token="tok", opener=broken))
+    for d in sorted(api.days)[25:30]:
+        run_day(bot, api, d)
+        assert api.pos == 0
+    assert api.orders
