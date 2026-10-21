@@ -43,5 +43,5 @@ PLIST
 launchctl unload "$PL" 2>/dev/null || true
 launchctl load "$PL"
 echo; echo "INSTALLED. The bot runs weekdays from 9:20 AM (Mac time, set for Eastern) in DRY RUN on account '$A'."
-echo "Log: $CFG/bot.log   Status: $CFG/status.json"
+echo "Log: $CFG/bot.log   Status: $CFG/status.json (copy in ~/Documents/p100-prop/data)"
 echo "To place real orders later:  bash $DST/go-live.sh"

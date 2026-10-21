@@ -25,6 +25,7 @@ from topstepx import BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
+MIRROR = os.path.expanduser("~/Documents/p100-prop/data")  # best-effort copy Claude can read (macOS may block it)
 TARGET_NOTIONAL = 100000.0  # "size 2" in the challenge test = 2 x $50K of Nasdaq exposure
 FLATTEN_AT = dt.time(15, 55)
 log = logging.getLogger("prop")
@@ -105,6 +106,13 @@ class Bot:
                   "state": self.state.to_dict(), **(extra or {})}
         with open(os.path.join(self.home, "status.json"), "w") as f:
             json.dump(status, f, indent=1)
+        if self.home == HOME:
+            try:
+                os.makedirs(MIRROR, exist_ok=True)
+                with open(os.path.join(MIRROR, "status.json"), "w") as f:
+                    json.dump(status, f, indent=1)
+            except OSError:
+                pass
 
     # --- market/account reads --------------------------------------------------------------------------------
     def load_history(self, today):
