@@ -63,7 +63,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 .flag{font-family:var(--mono);font-size:12px;padding:3px 0}.flag.alert{color:var(--down)}.flag.warn{color:#f3d27a}.flag.info{color:var(--up)}
 @media(max-width:1000px){#pipeTs{display:none}.prow2{grid-template-columns:1fr}.stages{overflow-x:auto;grid-template-columns:repeat(7,minmax(92px,1fr))}}
 </style></head><body>
-<header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button>
+<header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button><a class="pill abtn" href="/prop" style="text-decoration:none;color:var(--accent)">Prop challenge</a>
 <div class="kpis"><div class="kpi"><span>Equity</span><b id="kEq">—</b></div><div class="kpi"><span>Open P&amp;L</span><b id="kPl">—</b></div><div class="kpi"><span>Cash</span><b id="kCash">—</b></div><div class="kpi"><span>Open positions</span><b id="kPos">—</b></div><div class="kpi"><span>Market</span><b id="kMkt">—</b></div></div></header>
 <div id="tape" class="tape"><span class="tk muted">Loading live markets…</span></div>
 <div class="wrap">

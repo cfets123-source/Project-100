@@ -802,6 +802,51 @@ def review_history(db: Session = Depends(get_db)):
     return {"reports": nr.history(db)}
 
 
+@app.post("/prop/pair", dependencies=[Depends(require_dashboard_access)])
+def prop_pair(db: Session = Depends(get_db)):
+    """New pairing code for the Mac bot (replaces any previous one). Shown once."""
+    from app.services import prop_feed
+    return {"token": prop_feed.pair(db)}
+
+
+@app.post("/prop/feed")
+async def prop_feed_ingest(request: Request, db: Session = Depends(get_db)):
+    """Status from the prop bot on the owner's Mac. Display only; this server never places prop orders."""
+    from app.services import prop_feed
+    from app.services.trade_notifier import broadcast
+    if not prop_feed.verify(db, request.headers.get("X-Prop-Token")):
+        raise HTTPException(status_code=401, detail="not paired")
+    body = await request.body()
+    if len(body) > 200_000:
+        raise HTTPException(status_code=413, detail="too large")
+    try:
+        payload = json.loads(body or b"{}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="bad json") from exc
+    pushed = prop_feed.ingest(db, payload if isinstance(payload, dict) else {})
+    if settings.BROKER_TOKEN_ENCRYPTION_KEY:
+        for event in pushed:
+            try:
+                broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, prop_feed.push_message(event), PUSH_SUBJECT)
+            except Exception:
+                pass
+    return {"ok": True, "pushed": len(pushed)}
+
+
+@app.get("/prop/state", dependencies=[Depends(require_dashboard_access)])
+def prop_state(db: Session = Depends(get_db)):
+    from app.services import prop_feed
+    return prop_feed.state(db)
+
+
+@app.get("/prop", response_class=HTMLResponse)
+def prop_page(request: Request):
+    if not dashboard_access_granted(request):
+        return RedirectResponse("/login", status_code=303)
+    from app.prop_html import PROP_HTML
+    return HTMLResponse(PROP_HTML, headers={"Cache-Control": "no-store, max-age=0"})
+
+
 @app.on_event("startup")
 async def _start_trade_notifier():
     import asyncio
@@ -816,6 +861,10 @@ async def _start_trade_notifier():
             poll(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, PUSH_SUBJECT)
             nightly_review.run_if_due(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
                                       push=lambda m: broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, m, PUSH_SUBJECT))
+            from app.services import prop_feed
+            missed = prop_feed.missed_start(db)
+            if missed:
+                broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, missed, PUSH_SUBJECT)
 
     async def loop():
         while True:
