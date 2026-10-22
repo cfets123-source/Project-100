@@ -62,3 +62,19 @@ def test_server_never_places_prop_orders():
     import inspect
     src = inspect.getsource(prop_feed)
     assert "Order/place" not in src and "topstepx" not in src.lower().replace("topstep forbids", "")
+
+
+def test_feed_keeps_every_account_and_tags_events():
+    _reset()
+    db = SessionLocal()
+    prop_feed.pair(db)
+    accts = [{"account": "50KTC-A", "orders": True, "contract": "CON.F.US.MNQ.Z26", "status": {"balance": 50100, "target": 3000}},
+             {"account": "EXPRESS-50K-B", "orders": False, "contract": "CON.F.US.MNQ.Z26", "status": {"balance": 51000, "target": None}},
+             "junk"]
+    ev = {"id": "2-x-1", "time": "2026-10-22T14:05:00Z", "kind": "buy", "text": "Bought 2 MNQ", "account": "EXPRESS-50K-B"}
+    pushed = prop_feed.ingest(db, {"status": accts[0]["status"], "accounts": accts, "events": [ev]})
+    st = prop_feed.state(db)
+    assert [a["account"] for a in st["latest"]["accounts"]] == ["50KTC-A", "EXPRESS-50K-B"]
+    assert st["events"][0]["account"] == "EXPRESS-50K-B"
+    assert prop_feed.push_message(pushed[0])["body"] == "EXPRESS: Bought 2 MNQ"
+    db.close()
