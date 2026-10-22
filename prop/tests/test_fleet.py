@@ -136,7 +136,7 @@ def test_fleet_trades_every_account_with_its_own_size_and_is_flat_at_close(tmp_p
         assert all(a.pos == 0 for a in api.accts.values()), d
     by = {aid: [s for a, _, s, _ in api.orders if a == aid] for aid in (1, 2, 3)}
     assert by[1] and by[2] and not by[3]
-    assert max(by[1]) <= 3 and max(by[2]) > max(by[1]) and max(by[2]) <= 9
+    assert max(by[1]) <= 4 and max(by[2]) > max(by[1]) and max(by[2]) <= 12
     assert len(api.tags) == len(api.orders)
 
 

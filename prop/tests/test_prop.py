@@ -191,7 +191,7 @@ def test_bot_trades_and_is_flat_every_close(tmp_path):
         run_day(bot, api, d)
         assert api.pos == 0, "must be flat after the close on %s" % d
     assert api.orders, "the strategy should have traded on synthetic trending days"
-    assert all(size in (1, 2, 3) for _, size, _ in api.orders)
+    assert all(1 <= size <= 4 for _, size, _ in api.orders)
 
 
 def test_dry_run_never_places_orders(tmp_path):
@@ -280,3 +280,37 @@ def test_feed_failure_never_stops_trading(tmp_path):
         run_day(bot, api, d)
         assert api.pos == 0
     assert api.orders
+
+
+def test_hourly_checks_only():
+    assert noise.is_check(dt.time(9, 55)) and noise.is_check(dt.time(14, 55))
+    assert not noise.is_check(dt.time(10, 25)) and not noise.is_check(dt.time(15, 25))
+
+
+def test_vol_scale_targets_one_percent_daily_and_is_clamped():
+    def days(moves):
+        px, out = 100.0, []
+        for m in moves:
+            px *= 1 + m
+            out.append({noise.LAST: (px, px, px, px, 1)})
+        return out
+    calm = days([0.002, -0.002] * 8)       # ~0.2% daily vol -> capped at 2x
+    wild = days([0.04, -0.04] * 8)         # ~4% daily vol -> floored at 0.5x
+    normal = days([0.01, -0.01] * 8)       # ~1% daily vol -> about 1x
+    assert noise.vol_scale(calm) == 2.0 and noise.vol_scale(wild) == 0.5
+    assert 0.9 < noise.vol_scale(normal) < 1.1
+
+
+def test_funded_account_sizes_by_room(tmp_path):
+    api = FakeAPI(trading_days(45))
+    api.accounts = lambda: [{"id": 9, "name": "EXPRESS-50K-1", "balance": 50000.0, "canTrade": True, "simulated": True}]
+    api.now = dt.datetime.combine(dt.date(2026, 9, 1), dt.time(9, 25), ET)
+    bot = worker.Bot(api, "EXPRESS", True, home=str(tmp_path), clock=lambda: api.now)
+    bot.scale = 1.0
+    assert bot.state.kind == "funded" and bot.state.mll_buffer == 150
+    bot.room = 2000
+    assert bot.size(29000) == 1
+    bot.room = 6000
+    assert bot.size(29000) == 2
+    bot.scale = 2.0
+    assert bot.size(29000) == 4
