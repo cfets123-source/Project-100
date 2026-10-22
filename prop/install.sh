@@ -6,8 +6,8 @@
 set -e
 SRC="$(cd "$(dirname "$0")" && pwd)"; DST="$HOME/p100-prop"; CFG="$HOME/.p100-prop"
 mkdir -p "$DST" "$CFG"
-cp "$SRC"/topstepx.py "$SRC"/noise.py "$SRC"/guard.py "$SRC"/worker.py "$SRC"/run.sh "$SRC"/go-live.sh "$SRC"/pair.sh "$DST"/
-chmod +x "$DST"/run.sh "$DST"/go-live.sh "$DST"/pair.sh
+cp "$SRC"/topstepx.py "$SRC"/noise.py "$SRC"/guard.py "$SRC"/worker.py "$SRC"/relay.py "$SRC"/run.sh "$SRC"/go-live.sh "$SRC"/pair.sh "$SRC"/add-relay.sh "$DST"/
+chmod +x "$DST"/run.sh "$DST"/go-live.sh "$DST"/pair.sh "$DST"/add-relay.sh
 command -v python3 >/dev/null || { echo "python3 missing: run  xcode-select --install  then re-run this script"; exit 1; }
 python3 -c "import zoneinfo" || { echo "python3 is older than 3.9; install Python 3 from python.org"; exit 1; }
 echo "TopstepX sign-in username (the platform username, not your email):"; read -r U
