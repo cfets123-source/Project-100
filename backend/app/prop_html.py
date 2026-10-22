@@ -60,6 +60,12 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}a{colo
 .k.buy{color:var(--up);background:rgba(34,197,94,.12)}.k.sell{color:var(--down);background:rgba(239,68,68,.12)}.k.halt,.k.error{color:var(--warn)}.k.pass{color:var(--acc)}
 .empty{padding:22px 12px;color:var(--sub);text-align:center}
 .panel{max-height:46vh;overflow:auto}
+/* all-accounts table */
+.fleet{border-top:1px solid var(--line);background:var(--bg)}
+.fh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--p1);border-bottom:1px solid var(--line)}
+.fh span.mono{font-size:12px;color:var(--sub)}.fleetwrap{overflow-x:auto}
+#fleetTbl tr.sel td{background:rgba(59,130,246,.08)}#fleetTbl tr[data-a]{cursor:pointer}
+.firm{font:700 10px var(--mono);padding:2px 6px;border-radius:3px;background:var(--p3);color:var(--ink)}
 /* settings sheet */
 .sheet{position:fixed;inset:0;z-index:40;display:none;background:rgba(0,0,0,.6)}.sheet.show{display:flex;align-items:flex-end;justify-content:center}
 .sheet>div{width:100%;max-width:520px;max-height:85vh;overflow:auto;background:var(--p1);border:1px solid var(--line);border-radius:12px 12px 0 0;padding:16px 16px max(16px,env(safe-area-inset-bottom))}
@@ -85,6 +91,10 @@ code{display:block;margin:10px 0;padding:10px;border-radius:6px;background:#0507
   <div class="m"><small>Daily loss used</small><b id="mD">—</b><i><em id="mDb" style="width:0;background:var(--down)"></em></i></div>
 </nav>
 <div id="banner" class="banner"><span>&#9888;</span><div id="bannerTxt"></div></div>
+<section id="fleet" class="fleet" hidden>
+  <div class="fh"><span class="lbl">All accounts</span><span id="fleetSum" class="mono"></span></div>
+  <div class="fleetwrap"><table class="tbl" id="fleetTbl"></table></div>
+</section>
 <main class="grid">
   <section class="pane">
     <div class="ph"><span class="sym" id="sym">MNQ</span><span class="tf">5m</span><span class="muted" style="font-size:12px">Micro Nasdaq-100</span>
@@ -139,7 +149,7 @@ function nextStart(){const f=new Intl.DateTimeFormat('en-US',{timeZone:'America/
 async function load(){try{let r=await fetch('/prop/state',{credentials:'same-origin'});if(r.status===401||r.redirected){location.href='/login';return}S=await r.json();render()}catch(e){q('#beat').textContent='reconnecting…'}}
 function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}).accounts||[];
   const TARGET=num(st.target)??num(cs.target),DAILY=num(cs.daily_stop)||800,MLL=num(cs.mll)||2000,funded=st.kind?st.kind!=='combine':cs.kind?cs.kind!=='combine':false;
-  const so=q('#acctSel');if(A.length>1){so.hidden=false;q('#acct').hidden=true;const opts=A.map(a=>'<option'+(a.account===sel?' selected':'')+'>'+esc(a.account)+'</option>').join('');if(so.dataset.o!==opts){so.innerHTML=opts;so.dataset.o=opts}}else{so.hidden=true;q('#acct').hidden=false}
+  const so=q('#acctSel');if(A.length>1){so.hidden=false;q('#acct').hidden=true;const opts=A.map(a=>'<option value="'+esc(a.account)+'"'+(a.account===sel?' selected':'')+'>'+esc((a.firm||'Topstep')+' · '+a.account)+'</option>').join('');if(so.dataset.o!==opts){so.innerHTML=opts;so.dataset.o=opts}}else{so.hidden=true;q('#acct').hidden=false}
   q('#rulesHd').textContent=(funded?'Funded account rules · ':'Challenge rules · ')+(num(st.size_k)||50)+'K';
   const start=num(cs.start_balance)||50000,bal=num(st.balance),pos=num(st.position)||0,upl=pos?(num(st.open_pnl)||0):0,eq=bal==null?null:bal+upl;
   const dayStart=num(cs.day_start_balance),floor=num(st.floor)??num(cs.floor),real=bal!=null&&dayStart!=null?bal-dayStart:null,today=eq!=null&&dayStart!=null?eq-dayStart:null;
@@ -165,7 +175,7 @@ function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}
   q('#pPnl').textContent=pos?sgn(upl):'$0.00';q('#pPnl').className='big '+cls(pos?upl:null);q('#pQty').textContent=Math.abs(pos);
   q('#pAvg').textContent=pos&&num(st.avg)!=null?num(st.avg).toFixed(2):'—';q('#pLast').textContent=num(st.price)!=null?num(st.price).toFixed(2):'—';
   const c=(L.contract||'').split('.');q('#sym').textContent=c.length>3?c[3]+c[4].slice(0,1)+c[4].slice(-1):'MNQ';
-  renderPanel();draw();}
+  renderPanel();renderFleet();draw();}
 function evsToday(){const d=new Date().toDateString();return myEvents().filter(e=>new Date(e.time).toDateString()===d)}
 function renderPanel(){if(!S)return;const L=view(),st=L.status||{},pos=num(st.position)||0,all=myEvents(),trades=all.filter(e=>['buy','sell','flat'].includes(e.kind));
   q('#nT').textContent=trades.length||'';q('#nA').textContent=all.length||'';let h='';
@@ -201,6 +211,15 @@ function draw(){if(!S)return;const L=view(),st=L.status||{},bars=L.bars||[],mark
 function setHover(clientX){const r=cv.getBoundingClientRect();if(!cv._step)return;const i=Math.floor((clientX-r.left)/cv._step);hover=i>=0&&i<cv._n?i:null;draw()}
 cv.addEventListener('mousemove',e=>setHover(e.clientX));cv.addEventListener('mouseleave',()=>{hover=null;draw()});
 cv.addEventListener('touchmove',e=>setHover(e.touches[0].clientX),{passive:true});cv.addEventListener('touchend',()=>{hover=null;draw()});
+function renderFleet(){const A=(S.latest||{}).accounts||[];const box=q('#fleet');if(A.length<2){box.hidden=true;return}box.hidden=false;
+  let tP=0,tT=0,tU=0,nE=0,nF=0;const rows=A.map(a=>{const st=a.status||{},cs=st.state||{},start=num(cs.start_balance)||50000,bal=num(st.balance),u=num(st.position)?(num(st.open_pnl)||0):0,eq=bal==null?null:bal+u,ds=num(cs.day_start_balance);
+    const prof=eq==null?null:eq-start,today=eq!=null&&ds!=null?eq-ds:null,funded=(st.kind||cs.kind)&&(st.kind||cs.kind)!=='combine';funded?nF++:nE++;tP+=prof||0;tT+=today||0;tU+=u;
+    const stat=cs.passed?'<span class="up">PASSED</span>':cs.finished?'<span class="down">STOPPED</span>':st.allowed===false?'<span class="down">paused</span>':(num(st.position)?(num(st.position)>0?'<span class="up">LONG '+Math.abs(num(st.position))+'</span>':'<span class="down">SHORT '+Math.abs(num(st.position))+'</span>'):'<span class="muted">flat</span>');
+    const est=a.estimated?'≈':'';
+    return '<tr data-a="'+esc(a.account)+'"'+(a.account===sel?' class="sel"':'')+'><td><span class="firm">'+esc(a.firm||'Topstep')+'</span></td><td>'+esc(a.account)+'</td><td>'+(funded?'Funded':'Eval')+' '+(num(st.size_k)||50)+'K</td><td class="'+cls(prof)+'">'+est+sgn(prof)+'</td><td class="'+cls(today)+'">'+est+sgn(today)+'</td><td>'+stat+'</td><td>'+(a.orders?'<span class="up">live</span>':'<span class="muted">dry run</span>')+'</td></tr>'});
+  q('#fleetTbl').innerHTML='<tr><th>Firm</th><th>Account</th><th>Type</th><th>Profit</th><th>Today</th><th>Now</th><th>Orders</th></tr>'+rows.join('');
+  q('#fleetSum').innerHTML=A.length+' accounts · '+nF+' funded · '+nE+' eval · total <span class="'+cls(tP)+'">'+sgn(tP)+'</span> · today <span class="'+cls(tT)+'">'+sgn(tT)+'</span>';
+  document.querySelectorAll('#fleetTbl tr[data-a]').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.a;try{localStorage.setItem('propAcct',sel)}catch(x){}render()})}
 q('#acctSel').onchange=e=>{sel=e.target.value;try{localStorage.setItem('propAcct',sel)}catch(x){}render()};
 q('#gear').onclick=()=>q('#sheet').classList.add('show');q('#closeSheet').onclick=()=>q('#sheet').classList.remove('show');q('#sheet').onclick=e=>{if(e.target.id==='sheet')q('#sheet').classList.remove('show')};
 q('#pairBtn').onclick=async()=>{if(S&&S.paired&&!confirm('A new code disconnects the Mac until you run the new command. Continue?'))return;
