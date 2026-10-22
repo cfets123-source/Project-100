@@ -58,3 +58,19 @@ Lucid (5), Tradeify (5, video check), Bulenox (Rithmic API/NinjaTrader, 5-11, EO
 sale), MyFundedFutures (own strategy, no copy trading). Apex banned automation (Mar 2026); Phidias bans full automation.
 Route for non-Topstep firms: signal -> TradingView/relay (TradersPost/PickMyTrade) or NinjaTrader -> Tradovate/Rithmic.
 Next: model each firm's exact rules and sale prices on 2024-2026 data, then build the relay integration.
+
+# Round 3 (2026-10-22): firm ranking (50K plans, bot signal = hourly + vol sizing, funded policy v2, 1-year funded horizon)
+Rules from each firm's help center (Bulenox, FundedNext, Lucid, Tradeify, FTMO Futures, TradeDay, MFFU; read 10-22).
+Tradeify excluded: its rules forbid running the same bot at multiple firms. Apex/Phidias ban automation.
+| Plan | EV per attempt 2024-26 | 2019-23 | Pass 2024-26 | Cost per attempt | Cost per pass |
+|---|---|---|---|---|---|
+| Lucid 50K Flex (one-time ~$88 w/ code, no activation) | **+$340** | +$995 | 36% | $88 | $244 |
+| Topstep 50K Standard ($49/mo + $149 act.) | +$302 | +$1,121 | 38% | $75 | $348 |
+| MFFU 50K Rapid EOD (one-time ~$135) | +$278 | +$981 | 36% | $135 | $374 |
+| FTMO 50K Growth ($119/mo) | +$257 | +$916 | 36% | $195 | $541 |
+| Bulenox 50K Qualification EOD ($175 + $148 act.) | +$117 | +$1,256 | 47% | $175 | $522 |
+| FundedNext 50K Flex | +$89 | +$621 | 20% | $80 | $393 |
+| TradeDay 50K Fast Pass | +$78 | +$574 | 36% | $138 | $384 |
+| FundedNext 50K Rapid Pro | +$33 | +$629 | 40% | $170 | $425 |
+Every plan is positive in both periods. Expansion order: Lucid Flex, then MFFU Rapid EOD, then FTMO (3 accounts).
+Cap with Topstep 5 + Lucid 5 + MFFU 5 + FTMO 3 = 18 funded accounts (all trade the same signal).
