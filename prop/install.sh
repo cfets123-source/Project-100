@@ -19,7 +19,8 @@ security add-generic-password -s p100-topstepx-key  -a p100 -w "$K"
 unset K
 echo "Checking the connection (no orders)..."
 python3 "$DST/worker.py" --check
-echo; echo "Type part of the account name to trade (e.g. PRACTICE for the practice account, or 50K for the combine):"; read -r A
+echo; echo "Accounts to trade: ALL = every Combine and funded account on this login, now and future (never Live or practice),"
+echo "or part of one account name (e.g. 50K):"; read -r A
 printf 'ACCOUNT=%s\nORDERS=0\nPY=%s\n' "$A" "$(command -v python3)" > "$CFG/config"
 PL="$HOME/Library/LaunchAgents/com.veloikos.p100prop.plist"
 mkdir -p "$HOME/Library/LaunchAgents"

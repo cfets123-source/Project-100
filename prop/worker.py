@@ -7,6 +7,7 @@ Real orders need --orders. Credentials come from the macOS Keychain (install.sh)
     python3 worker.py --check                      # sign in, list accounts, contract, recent bars; no orders
     python3 worker.py --account PRACTICE           # dry run on the account whose name contains PRACTICE
     python3 worker.py --account 50K --orders       # live orders on the challenge account
+    python3 worker.py --account ALL --orders       # every Combine/funded account on the login (never Live/practice)
 """
 import argparse
 import datetime as dt
@@ -20,14 +21,15 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from guard import ChallengeState, check, new_day  # noqa: E402
+from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E402
 from noise import LAST, OPEN, decide, is_check  # noqa: E402
 from topstepx import BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
 MIRROR = os.path.expanduser("~/Documents/p100-prop/data")  # best-effort copy Claude can read (macOS may block it)
-TARGET_NOTIONAL = 100000.0  # "size 2" in the challenge test = 2 x $50K of Nasdaq exposure
+TARGET_NOTIONAL = 100000.0  # per $50K of account size: "size 2" in the challenge test = 2 x $50K of Nasdaq exposure
+MAX_CONTRACTS_PER_50K = 3
 FLATTEN_AT = dt.time(15, 55)
 log = logging.getLogger("prop")
 
@@ -81,6 +83,27 @@ class Feed:
             log.warning("app report failed: %s", type(exc).__name__)
             return False
 
+    def send_fleet(self, fleet):
+        """One report for all accounts: the first account at top level (older app versions) plus an accounts list."""
+        if not self.token or not fleet.bots:
+            return False
+        lead = fleet.bots[0]
+        events = [e for b in fleet.bots for e in b.events if e["id"] not in self.sent_ids]
+        accounts = [{"account": b.account.get("name"), "orders": b.orders, "contract": b.cid,
+                     "status": dict(b.last_status, state=b.state.to_dict())} for b in fleet.bots]
+        body = {"status": accounts[0]["status"], "orders": lead.orders, "account": lead.account.get("name"),
+                "contract": lead.cid, "bars": lead.last_bars[-90:], "events": events, "accounts": accounts}
+        req = urllib.request.Request(self.url, data=json.dumps(body, default=str).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "X-Prop-Token": self.token})
+        try:
+            with self.open(req, timeout=10) as r:
+                r.read()
+            self.sent_ids.update(e["id"] for e in events)
+            return True
+        except Exception as exc:  # noqa: BLE001 - reporting must never stop trading
+            log.warning("app report failed: %s", type(exc).__name__)
+            return False
+
 
 def to_et(ts):
     return dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(ET)
@@ -100,28 +123,68 @@ def iso(d):
     return d.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+class Market:
+    """Market data and account list shared by every account the bot trades (one API call per refresh, not per account)."""
+
+    def __init__(self, api, cid, clock):
+        self.api, self.cid, self.clock = api, cid, clock
+        self._hist, self._bars, self._accts = {}, (None, None), (None, None)
+
+    def history_bars(self, start, end):
+        key = (start, end)
+        if key not in self._hist:
+            self._hist = {key: self.api.bars(self.cid, start, end)}
+        return self._hist[key]
+
+    def today_bars(self, start, now):
+        key = (start, int(now.timestamp() // 10))
+        if self._bars[0] != key:
+            self._bars = (key, self.api.bars(self.cid, start, iso(now)))
+        return self._bars[1]
+
+    def accounts(self):
+        key = int(self.clock().timestamp() // 5)
+        if self._accts[0] != key:
+            self._accts = (key, self.api.accounts())
+        return self._accts[1]
+
+
+def select_accounts(accounts, selector):
+    """Accounts to trade. Never Live (non-simulated) accounts - Topstep forbids the API there - and never ones that
+    cannot trade. ALL = every Combine and funded account (not practice); otherwise comma-separated name parts."""
+    ok = [a for a in accounts if a.get("canTrade") and a.get("simulated", True) is not False]
+    if (selector or "").strip().upper() == "ALL":
+        return [a for a in ok if "PRACTICE" not in (a.get("name") or "").upper()]
+    parts = [p.strip().lower() for p in (selector or "").split(",") if p.strip()]
+    return [a for a in ok if any(p in (a.get("name") or "").lower() for p in parts)]
+
+
 class Bot:
-    def __init__(self, api, account_name, orders, start_balance, symbol="MNQ", contracts=None, home=HOME, clock=None,
-                 feed=None):
+    def __init__(self, api, account_name, orders, start_balance=None, symbol="MNQ", contracts=None, home=HOME,
+                 clock=None, feed=None, account=None, contract=None, market=None):
         self.api, self.orders, self.symbol, self.fixed_contracts = api, orders, symbol, contracts
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home = home
         os.makedirs(home, exist_ok=True)
-        accts = [a for a in api.accounts() if account_name.lower() in (a.get("name") or "").lower()]
-        if len(accts) != 1:
-            raise SystemExit("account '%s' matched %d accounts: %s" % (
-                account_name, len(accts), [a.get("name") for a in api.accounts()]))
-        self.account = accts[0]
+        if account is None:
+            accts = [a for a in api.accounts() if account_name.lower() in (a.get("name") or "").lower()]
+            if len(accts) != 1:
+                raise SystemExit("account '%s' matched %d accounts: %s" % (
+                    account_name, len(accts), [a.get("name") for a in api.accounts()]))
+            account = accts[0]
+        self.account = account
         self.aid = self.account["id"]
-        c = api.contract(symbol)
+        self.size_k = size_k(self.account.get("name"))
+        c = contract or api.contract(symbol)
         self.cid, self.point_value = c["id"], c["tickValue"] / c["tickSize"]
+        self.market = market
         self.state_path = os.path.join(home, "state-%s.json" % self.aid)
-        self.state = self._load(start_balance)
+        self.state = apply_rules(self._load(start_balance or self.size_k * 1000.0), self.account.get("name"))
         self.history, self.history_day = [], None
         self.virtual = 0  # dry-run position (+n / -n contracts)
         self.virtual_avg = None
         self.done = set()
-        self.events, self.last_bars = [], []
+        self.events, self.last_bars, self.last_status, self.n_events = [], [], {}, 0
         self.feed = feed or Feed()
 
     # --- persistence -----------------------------------------------------------------------------------------
@@ -136,8 +199,9 @@ class Bot:
             json.dump(self.state.to_dict(), f, indent=1)
         status = {"time": self.clock().isoformat(), "account": self.account.get("name"), "orders": self.orders,
                   "state": self.state.to_dict(), **(extra or {})}
-        with open(os.path.join(self.home, "status.json"), "w") as f:
-            json.dump(status, f, indent=1)
+        for name in ("status.json", "status-%s.json" % self.aid):
+            with open(os.path.join(self.home, name), "w") as f:
+                json.dump(status, f, indent=1)
         if self.home == HOME:
             try:
                 os.makedirs(MIRROR, exist_ok=True)
@@ -148,8 +212,9 @@ class Bot:
 
     def event(self, kind, text, price=None, size=None, pnl=None):
         now = self.clock()
-        e = {"id": "%s-%d" % (now.strftime("%Y%m%d%H%M%S"), len(self.events)), "time": now.isoformat(),
-             "kind": kind, "text": text, "price": price, "size": size,
+        self.n_events += 1
+        e = {"id": "%s-%s-%d" % (self.aid, now.strftime("%Y%m%d%H%M%S"), self.n_events), "time": now.isoformat(),
+             "kind": kind, "text": text, "price": price, "size": size, "account": self.account.get("name"),
              "pnl": round(pnl, 2) if pnl is not None else None}
         self.events.append(e)
         self.events = self.events[-50:]
@@ -159,13 +224,16 @@ class Bot:
     def load_history(self, today):
         start = dt.datetime.combine(today - dt.timedelta(days=35), dt.time(0), ET)
         end = dt.datetime.combine(today, dt.time(0), ET)
-        days = group_days(self.api.bars(self.cid, iso(start), iso(end)))
+        raw = (self.market.history_bars(iso(start), iso(end)) if self.market
+               else self.api.bars(self.cid, iso(start), iso(end)))
+        days = group_days(raw)
         self.history = [days[d] for d in sorted(days) if OPEN in days[d] and LAST in days[d]][-20:]
         self.history_day = today
 
     def today_bars(self, now):
         start = dt.datetime.combine(now.date(), OPEN, ET)
-        return group_days(self.api.bars(self.cid, iso(start), iso(now))).get(now.date(), {})
+        raw = self.market.today_bars(iso(start), now) if self.market else self.api.bars(self.cid, iso(start), iso(now))
+        return group_days(raw).get(now.date(), {})
 
     def position(self):
         if not self.orders:
@@ -177,7 +245,7 @@ class Bot:
         return 0, None
 
     def balance(self):
-        for a in self.api.accounts():
+        for a in (self.market.accounts() if self.market else self.api.accounts()):
             if a["id"] == self.aid:
                 return float(a["balance"])
         raise TopstepXError("account disappeared")
@@ -185,7 +253,9 @@ class Bot:
     def size(self, price):
         if self.fixed_contracts:
             return self.fixed_contracts
-        return max(1, min(3, round(TARGET_NOTIONAL / (price * self.point_value))))
+        units = self.size_k / 50.0  # a 150K account trades 3x a 50K account
+        cap = max(1, int(MAX_CONTRACTS_PER_50K * units))
+        return max(1, min(cap, round(TARGET_NOTIONAL * units / (price * self.point_value))))
 
     # --- execution -------------------------------------------------------------------------------------------
     def go_to(self, target_sign, price, reason, tag):
@@ -197,14 +267,14 @@ class Bot:
         log.info("%s: position %+d -> %+d at ~%.2f (%s)", "ORDER" if self.orders else "DRY RUN", pos, want, price, reason)
         _, avg = self.position()
         pnl = (price - avg) * pos * self.point_value if (pos and avg) else None
-        tag = "" if self.orders else "[dry run] "
+        label = "" if self.orders else "[dry run] "  # display prefix only; `tag` stays the unique order tag
         if want == 0:
-            self.event("flat", "%sClosed %+d MNQ at %.2f (%s)" % (tag, pos, price, reason), price, abs(pos), pnl)
+            self.event("flat", "%sClosed %+d MNQ at %.2f (%s)" % (label, pos, price, reason), price, abs(pos), pnl)
         else:
             if pos and (pos > 0) != (want > 0):
-                self.event("flat", "%sClosed %+d MNQ at %.2f to reverse" % (tag, pos, price), price, abs(pos), pnl)
+                self.event("flat", "%sClosed %+d MNQ at %.2f to reverse" % (label, pos, price), price, abs(pos), pnl)
             self.event("buy" if want > 0 else "sell", "%s%s %d MNQ at %.2f (%s)" % (
-                tag, "Bought" if want > 0 else "Sold short", abs(want), price, reason), price, abs(want))
+                label, "Bought" if want > 0 else "Sold short", abs(want), price, reason), price, abs(want))
         if not self.orders:
             self.virtual, self.virtual_avg = want, (price if want else None)
             return
@@ -246,8 +316,10 @@ class Bot:
             self.event("pass", "Profit target reached at %s. Request the funded account on Topstep." % round(bal + open_pnl))
         elif not allowed and must_flat and not was_halted:
             self.event("halt", "Trading stopped: %s" % why)
+        need = self.state.required_target(bal + open_pnl - self.state.day_start_balance)
         status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price, "avg": avg,
-                  "floor": self.state.floor, "allowed": allowed, "note": why}
+                  "floor": self.state.floor, "allowed": allowed, "note": why, "kind": self.state.kind,
+                  "target": need, "size_k": self.size_k}
         if must_flat and pos:
             self.flatten(price, why)
         elif now.time() >= flatten_time(today):
@@ -266,13 +338,53 @@ class Bot:
                 if target is not None and target != sign:
                     # the tag is unique per decision, so a retry after an unknown outcome cannot double the order
                     self.go_to(target, price, "NOISE check %s" % t.strftime("%H:%M"),
-                               "noise-%s-%s-%+d" % (today.isoformat(), t.strftime("%H%M"), target))
+                               "noise-%s-%s-%s-%+d" % (self.aid, today.isoformat(), t.strftime("%H%M"), target))
                     sign = target
                 self.done.add(t)
         self.save(status)
+        self.last_status = status
         self.last_bars = [[dt.datetime.combine(today, t, ET).isoformat(), *bars[t][:4]] for t in sorted(bars)]
         self.feed.send(self, status)
         return why or "ok"
+
+
+class Fleet:
+    """Runs the same NOISE signals on every selected account, each with its own limits, state and log."""
+
+    def __init__(self, api, selector, orders, contracts=None, home=HOME, clock=None, feed=None, symbol="MNQ"):
+        self.clock = clock or (lambda: dt.datetime.now(ET))
+        self.home, self.feed = home, feed or Feed()
+        accounts = select_accounts(api.accounts(), selector)
+        if not accounts:
+            raise SystemExit("no tradable account matches '%s': %s" % (selector, [a.get("name") for a in api.accounts()]))
+        c = api.contract(symbol)
+        self.market = Market(api, c["id"], self.clock)
+        quiet = Feed(token="")  # the fleet sends one combined report
+        self.bots = [Bot(api, None, orders, contracts=contracts, home=home, clock=self.clock, feed=quiet,
+                         account=a, contract=c, market=self.market) for a in accounts]
+
+    def step(self):
+        notes = []
+        for b in self.bots:
+            try:
+                notes.append(b.step())
+            except TopstepXError as e:  # one account's problem must not stop the others
+                log.warning("API problem on %s: %s (will retry)", b.account.get("name"), e)
+                notes.append("api problem")
+        if any(b.last_status for b in self.bots):
+            summary = {"time": self.clock().isoformat(), "accounts": [
+                dict(b.last_status, account=b.account.get("name"), state=b.state.to_dict()) for b in self.bots]}
+            with open(os.path.join(self.home, "status.json"), "w") as f:
+                json.dump(summary, f, indent=1)
+            if self.home == HOME:
+                try:
+                    os.makedirs(MIRROR, exist_ok=True)
+                    with open(os.path.join(MIRROR, "status.json"), "w") as f:
+                        json.dump(summary, f, indent=1)
+                except OSError:
+                    pass
+        self.feed.send_fleet(self)
+        return "market closed" if notes and all(n == "market closed" for n in notes) else "ok"
 
 
 def run_check(api):
@@ -313,10 +425,11 @@ def main(argv=None):
     if a.check:
         return run_check(api)
     if not a.account:
-        sys.exit("--account is required (part of the account name shown by --check)")
-    bot = Bot(api, a.account, a.orders, a.start_balance, contracts=a.contracts)
-    log.info("started on %s (%s), contract %s, %s", bot.account.get("name"), bot.aid, bot.cid,
-             "LIVE ORDERS" if a.orders else "dry run")
+        sys.exit("--account is required (ALL, or part of the account name shown by --check)")
+    bot = Fleet(api, a.account, a.orders, contracts=a.contracts)
+    for b in bot.bots:
+        log.info("trading %s (%s, %dK %s), contract %s, %s", b.account.get("name"), b.aid, b.size_k, b.state.kind,
+                 b.cid, "LIVE ORDERS" if a.orders else "dry run")
     while True:
         try:
             note = bot.step()
