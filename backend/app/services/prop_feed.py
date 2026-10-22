@@ -17,6 +17,7 @@ from app.models.models import AppState
 ET = ZoneInfo("America/New_York")
 MAX_EVENTS = 300
 MAX_BARS = 90
+MAX_ACCOUNTS = 20
 PUSH_KINDS = {"buy", "sell", "flat", "halt", "pass", "error"}
 
 
@@ -60,13 +61,23 @@ def _clean_bars(bars):
     return out
 
 
+def _clean_accounts(accounts):
+    out = []
+    for a in (accounts or [])[:MAX_ACCOUNTS]:
+        if isinstance(a, dict):
+            out.append({"account": str(a.get("account") or "")[:80], "orders": bool(a.get("orders")),
+                        "contract": str(a.get("contract") or "")[:40],
+                        "status": a.get("status") if isinstance(a.get("status"), dict) else {}})
+    return out
+
+
 def ingest(db, payload: dict, now: dt.datetime | None = None) -> list[dict]:
     """Store the latest status and new events. Returns events that should be pushed to phones."""
     now = now or dt.datetime.now(dt.timezone.utc)
     status = payload.get("status") if isinstance(payload.get("status"), dict) else {}
     latest = {"received_at": now.isoformat(), "status": status, "bars": _clean_bars(payload.get("bars")),
               "account": str(payload.get("account") or "")[:80], "orders": bool(payload.get("orders")),
-              "contract": str(payload.get("contract") or "")[:40]}
+              "contract": str(payload.get("contract") or "")[:40], "accounts": _clean_accounts(payload.get("accounts"))}
     _put(db, "prop_latest", latest)
     events = _get(db, "prop_events", [])
     seen = {e.get("id") for e in events}
@@ -74,8 +85,9 @@ def ingest(db, payload: dict, now: dt.datetime | None = None) -> list[dict]:
     for e in payload.get("events") or []:
         if not isinstance(e, dict) or not e.get("id") or e["id"] in seen:
             continue
-        clean = {k: e.get(k) for k in ("id", "time", "kind", "text", "price", "size", "pnl")}
+        clean = {k: e.get(k) for k in ("id", "time", "kind", "text", "price", "size", "pnl", "account")}
         clean["text"] = str(clean.get("text") or "")[:200]
+        clean["account"] = str(clean.get("account") or "")[:80] or None
         fresh.append(clean)
         seen.add(e["id"])
     if fresh:
@@ -118,5 +130,7 @@ def missed_start(db, now: dt.datetime | None = None) -> dict | None:
 def push_message(event: dict) -> dict:
     titles = {"buy": "Prop: bought", "sell": "Prop: sold", "flat": "Prop: flat", "halt": "Prop: stopped",
               "pass": "Prop: CHALLENGE PASSED", "error": "Prop: problem"}
-    return {"title": titles.get(event.get("kind"), "Prop bot"), "body": event.get("text") or "",
+    acct = (event.get("account") or "").split("-")[0]  # e.g. "50KTC" so several accounts are distinguishable
+    body = ("%s: " % acct if acct else "") + (event.get("text") or "")
+    return {"title": titles.get(event.get("kind"), "Prop bot"), "body": body,
             "tag": "prop-" + str(event.get("id")), "url": "/prop"}
