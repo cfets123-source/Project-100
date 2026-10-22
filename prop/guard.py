@@ -33,14 +33,17 @@ def kind_for(name):
     return "funded"
 
 
-def apply_rules(state, name):
-    """Set the limits for this account (from its name). Idempotent; safe on states saved by older versions."""
+def apply_rules(state, name, kind=None, overrides=None):
+    """Set the limits for this account (from its name, or an explicit kind and per-firm overrides). Idempotent."""
     target, mll, daily, buffer = RULES[size_k(name)]
-    state.kind = kind_for(name)
+    state.kind = kind or kind_for(name)
     state.target = target if state.kind == "combine" else None
     if state.kind == "funded":
         buffer = 150.0 * size_k(name) / 50  # after a payout the cushion is small; a $400 buffer would end the account
     state.mll, state.daily_stop, state.mll_buffer = mll, daily, buffer
+    for k, v in (overrides or {}).items():
+        if k in ("target", "mll", "daily_stop", "mll_buffer", "consistency"):
+            setattr(state, k, None if (k == "target" and state.kind != "combine") else float(v))
     return state
 
 
@@ -61,6 +64,7 @@ class ChallengeState:
     daily_stop: float = DAILY_STOP
     mll_buffer: float = MLL_BUFFER
     best_day: float = 0.0
+    consistency: float = CONSISTENCY
 
     @property
     def floor(self):
@@ -70,7 +74,7 @@ class ChallengeState:
         """Profit needed to pass, raised by the consistency rule; None when the account has no target."""
         if self.target is None:
             return None
-        return max(self.target, max(self.best_day, today_pnl) / CONSISTENCY)
+        return max(self.target, max(self.best_day, today_pnl) / (self.consistency or CONSISTENCY))
 
     def to_dict(self):
         return dict(self.__dict__)

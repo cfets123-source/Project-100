@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E402
 from noise import LAST, OPEN, decide, is_check, vol_scale  # noqa: E402
 from topstepx import BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
+import relay as relaymod  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
@@ -91,7 +92,8 @@ class Feed:
             return False
         lead = fleet.bots[0]
         events = [e for b in fleet.bots for e in b.events if e["id"] not in self.sent_ids]
-        accounts = [{"account": b.account.get("name"), "orders": b.orders, "contract": b.cid,
+        accounts = [{"account": b.account.get("name"), "orders": b.orders, "contract": b.cid, "firm": b.firm,
+                     "estimated": b.estimated,
                      "status": dict(b.last_status, state=b.state.to_dict())} for b in fleet.bots]
         body = {"status": accounts[0]["status"], "orders": lead.orders, "account": lead.account.get("name"),
                 "contract": lead.cid, "bars": lead.last_bars[-90:], "events": events, "accounts": accounts}
@@ -144,6 +146,12 @@ class Market:
             self._bars = (key, self.api.bars(self.cid, start, iso(now)))
         return self._bars[1]
 
+    def last_price(self):
+        bars = self._bars[1] or []
+        if not bars:
+            raise TopstepXError("no price yet")
+        return float(max(bars, key=lambda b: b["t"])["c"])
+
     def accounts(self):
         key = int(self.clock().timestamp() // 5)
         if self._accts[0] != key:
@@ -181,7 +189,10 @@ class Bot:
         self.cid, self.point_value = c["id"], c["tickValue"] / c["tickSize"]
         self.market = market
         self.state_path = os.path.join(home, "state-%s.json" % self.aid)
-        self.state = apply_rules(self._load(start_balance or self.size_k * 1000.0), self.account.get("name"))
+        self.firm = self.account.get("firm", "Topstep")
+        self.estimated = bool(self.account.get("estimated"))
+        self.state = apply_rules(self._load(start_balance or float(self.account.get("start_balance") or self.size_k * 1000.0)),
+                                 self.account.get("name"), self.account.get("kind"), self.account.get("rules"))
         self.history, self.history_day = [], None
         self.virtual = 0  # dry-run position (+n / -n contracts)
         self.virtual_avg = None
@@ -361,7 +372,8 @@ class Bot:
 class Fleet:
     """Runs the same NOISE signals on every selected account, each with its own limits, state and log."""
 
-    def __init__(self, api, selector, orders, contracts=None, home=HOME, clock=None, feed=None, symbol="MNQ"):
+    def __init__(self, api, selector, orders, contracts=None, home=HOME, clock=None, feed=None, symbol="MNQ",
+                 relays=None, secret_fn=None, relay_opener=None):
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home, self.feed = home, feed or Feed()
         accounts = select_accounts(api.accounts(), selector)
@@ -372,6 +384,16 @@ class Fleet:
         quiet = Feed(token="")  # the fleet sends one combined report
         self.bots = [Bot(api, None, orders, contracts=contracts, home=home, clock=self.clock, feed=quiet,
                          account=a, contract=c, market=self.market) for a in accounts]
+        # accounts at other firms, traded through a webhook relay (see relay.py)
+        secret_fn = secret_fn or keychain
+        for cfg in (relays if relays is not None else relaymod.load_config()):
+            url = secret_fn(cfg["secret"]) if cfg.get("secret") else None
+            r = relaymod.RelayAPI(cfg, self.market.last_price, home, url if orders else None, relay_opener)
+            r.cid = c["id"]
+            acct = dict(r.account(), kind=cfg.get("kind", "combine"), rules=cfg.get("rules"),
+                        start_balance=cfg.get("start_balance"))
+            self.bots.append(Bot(r, None, orders and bool(url), contracts=contracts, home=home, clock=self.clock,
+                                 feed=quiet, account=acct, contract=c, market=relaymod.RelayMarket(self.market, r)))
 
     def step(self):
         notes = []
@@ -383,7 +405,8 @@ class Fleet:
                 notes.append("api problem")
         if any(b.last_status for b in self.bots):
             summary = {"time": self.clock().isoformat(), "accounts": [
-                dict(b.last_status, account=b.account.get("name"), state=b.state.to_dict()) for b in self.bots]}
+                dict(b.last_status, account=b.account.get("name"), firm=b.firm, estimated=b.estimated,
+                     state=b.state.to_dict()) for b in self.bots]}
             with open(os.path.join(self.home, "status.json"), "w") as f:
                 json.dump(summary, f, indent=1)
             if self.home == HOME:
