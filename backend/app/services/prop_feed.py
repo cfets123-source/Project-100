@@ -66,6 +66,7 @@ def _clean_accounts(accounts):
     for a in (accounts or [])[:MAX_ACCOUNTS]:
         if isinstance(a, dict):
             out.append({"account": str(a.get("account") or "")[:80], "orders": bool(a.get("orders")),
+                        "firm": str(a.get("firm") or "Topstep")[:40], "estimated": bool(a.get("estimated")),
                         "contract": str(a.get("contract") or "")[:40],
                         "status": a.get("status") if isinstance(a.get("status"), dict) else {}})
     return out
