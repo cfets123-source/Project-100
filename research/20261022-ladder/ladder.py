@@ -67,6 +67,7 @@ class Acct:
 
 def day_pnl(path, n, room, lo, need_fn, buffer, dll, bal):
     """Dollar P&L for one account on one day. Returns (pnl, breached, finished_near_floor)."""
+    n = max(1, int(round(n * path.get("scale", 1.0))))   # volatility sizing in whole contracts
     s = n * PER_CONTRACT
     end = path["end"]
     if end == 0.0 and path["flat"]:
@@ -268,7 +269,7 @@ def prep(days):
     out = {}
     for d, v in days.items():
         out[d] = {"c": np.asarray(v["c"]), "x": np.asarray(v["x"]), "w": np.asarray(v["w"]), "end": v["end"],
-                  "flat": all(abs(e) < 1e-12 for e in v["c"])}
+                  "flat": all(abs(e) < 1e-12 for e in v["c"]), "scale": v.get("scale", 1.0)}
         out[d]["c"], out[d]["x"], out[d]["w"] = out[d]["c"].tolist(), out[d]["x"].tolist(), out[d]["w"].tolist()
     return out
 
@@ -286,7 +287,7 @@ def haircut(days, frac):
             out[d] = v
         else:
             out[d] = {"c": [x - h for x in v["c"]], "x": [x - h for x in v["x"]], "w": [x - h for x in v["w"]],
-                      "end": v["end"] - h, "flat": False}
+                      "end": v["end"] - h, "flat": False, "scale": v.get("scale", 1.0)}
     return out
 
 

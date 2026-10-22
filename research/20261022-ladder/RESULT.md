@@ -36,3 +36,25 @@ Original policy, $500 budget: ruin 94%, $10k 7%.
 - Fixed along the way: payout cushion and cushion-based sizing (funded value x3.6), $150 buffer, 1 Combine at a time.
 - Next: (1) strengthen the edge on recent data (strategy research, dev 2019-2023 / confirm 2024-2026),
   (2) bot changes for the funded phase (v2 sizing/buffer), (3) test other API-friendly firms / rules.
+
+# Round 2 (2026-10-22): strategy upgrade + other firms
+## Strategy variants (score = expected profit per 50K Topstep Combine attempt; DEV 2019-2023 / CONF 2024-2026)
+| Variant | DEV | CONF |
+|---|---|---|
+| Current bot (30-min checks) | +$792 | −$61 |
+| Hourly checks | +$1,105 | +$394 |
+| Hourly + volatility sizing (1.0% target, whole contracts) | **+$1,370** | **+$376** |
+| Hourly + vol sizing 1.3% | +$994 | +$765 |
+| Band k 0.8 / 1.2 / 1.5 (30-min) | +$962 / +$818 / +$454 | −$13 / −$100 / −$58 |
+| Costs x3 (hourly) | +$519 | +$187 |
+Chosen by DEV: hourly + vol sizing 1.0%. Stays positive on unseen 2024-2026 data.
+Ladder with it (5y, $1k budget): full-period ruin 48%; 2024-2026-only ruin 82% (was 90%). Signal alone does not fix it.
+
+## Structural finding
+Topstep's $2k trailing cushion, 5-account cap, payout caps and $49/mo + $149 activation dominate the outcome.
+Scaling the way multi-account traders do needs more firms and cheap evaluations. Automation-friendly futures firms
+(Oct 2026, to verify per rulebook): FTMO Futures (VPS allowed, 3 accts), FundedNext Futures (VPS allowed, 5),
+Lucid (5), Tradeify (5, video check), Bulenox (Rithmic API/NinjaTrader, 5-11, EOD plans, evals as low as ~$16 on
+sale), MyFundedFutures (own strategy, no copy trading). Apex banned automation (Mar 2026); Phidias bans full automation.
+Route for non-Topstep firms: signal -> TradingView/relay (TradersPost/PickMyTrade) or NinjaTrader -> Tradovate/Rithmic.
+Next: model each firm's exact rules and sale prices on 2024-2026 data, then build the relay integration.
