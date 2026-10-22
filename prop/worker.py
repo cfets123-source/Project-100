@@ -22,14 +22,16 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E402
-from noise import LAST, OPEN, decide, is_check  # noqa: E402
+from noise import LAST, OPEN, decide, is_check, vol_scale  # noqa: E402
 from topstepx import BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
 MIRROR = os.path.expanduser("~/Documents/p100-prop/data")  # best-effort copy Claude can read (macOS may block it)
 TARGET_NOTIONAL = 100000.0  # per $50K of account size: "size 2" in the challenge test = 2 x $50K of Nasdaq exposure
-MAX_CONTRACTS_PER_50K = 3
+MAX_CONTRACTS_PER_50K = 3     # before volatility scaling
+MAX_SCALED_PER_50K = 4        # after volatility scaling (Topstep 50K allows 50 micros)
+FUNDED_ROOM_PER_CONTRACT = 2500.0  # funded accounts: one contract per $2,500 of room above the loss limit
 FLATTEN_AT = dt.time(15, 55)
 log = logging.getLogger("prop")
 
@@ -229,6 +231,7 @@ class Bot:
         days = group_days(raw)
         self.history = [days[d] for d in sorted(days) if OPEN in days[d] and LAST in days[d]][-20:]
         self.history_day = today
+        self.scale = vol_scale(self.history)
 
     def today_bars(self, now):
         start = dt.datetime.combine(now.date(), OPEN, ET)
@@ -254,8 +257,14 @@ class Bot:
         if self.fixed_contracts:
             return self.fixed_contracts
         units = self.size_k / 50.0  # a 150K account trades 3x a 50K account
-        cap = max(1, int(MAX_CONTRACTS_PER_50K * units))
-        return max(1, min(cap, round(TARGET_NOTIONAL * units / (price * self.point_value))))
+        if self.state.kind == "funded":
+            room = getattr(self, "room", 0.0)
+            base = max(1, min(int(2 * units), int(room // FUNDED_ROOM_PER_CONTRACT)))
+        else:
+            cap = max(1, int(MAX_CONTRACTS_PER_50K * units))
+            base = max(1, min(cap, round(TARGET_NOTIONAL * units / (price * self.point_value))))
+        n = max(1, int(round(base * getattr(self, "scale", 1.0))))
+        return min(n, max(1, int(MAX_SCALED_PER_50K * units)))
 
     # --- execution -------------------------------------------------------------------------------------------
     def go_to(self, target_sign, price, reason, tag):
@@ -310,6 +319,7 @@ class Bot:
         pos, avg = self.position()
         open_pnl = (price - avg) * pos * self.point_value if (pos and avg) else 0.0
         bal = self.balance()
+        self.room = bal + open_pnl - self.state.floor
         was_passed, was_halted = self.state.passed, self.state.halted_day == self.state.day or self.state.finished
         allowed, must_flat, why = check(self.state, bal, open_pnl)
         if self.state.passed and not was_passed:

@@ -38,6 +38,8 @@ def apply_rules(state, name):
     target, mll, daily, buffer = RULES[size_k(name)]
     state.kind = kind_for(name)
     state.target = target if state.kind == "combine" else None
+    if state.kind == "funded":
+        buffer = 150.0 * size_k(name) / 50  # after a payout the cushion is small; a $400 buffer would end the account
     state.mll, state.daily_stop, state.mll_buffer = mll, daily, buffer
     return state
 
