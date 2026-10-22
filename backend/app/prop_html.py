@@ -13,6 +13,8 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}a{colo
 .brand{font:800 13px var(--mono);letter-spacing:.14em}.brand span{color:var(--acc)}
 .acct{display:flex;align-items:center;gap:8px;min-width:0;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--p1)}
 .acct b{font:600 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+.acct select{min-width:0;max-width:52vw;background:transparent;color:var(--ink);border:0;font:600 12px var(--mono);outline:0}
+.acct select option{background:var(--p1)}
 .pill{font:700 10px var(--mono);letter-spacing:.08em;padding:3px 7px;border-radius:4px;background:var(--p3);color:var(--sub);white-space:nowrap}
 .pill.live{background:rgba(34,197,94,.16);color:var(--up)}.pill.dry{background:rgba(245,158,11,.16);color:var(--warn)}.pill.off{background:rgba(239,68,68,.16);color:var(--down)}
 .beat{margin-left:auto;display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--sub);white-space:nowrap}
@@ -70,7 +72,7 @@ code{display:block;margin:10px 0;padding:10px;border-radius:6px;background:#0507
 <header class="top">
   <a href="/dashboard" class="icon" aria-label="Main dashboard">&#8592;</a>
   <span class="brand">VELO<span>IKOS</span></span>
-  <div class="acct"><span id="mode" class="pill">…</span><b id="acct">Prop Challenge</b></div>
+  <div class="acct"><span id="mode" class="pill">…</span><b id="acct">Prop Challenge</b><select id="acctSel" hidden aria-label="Account"></select></div>
   <span class="beat"><span id="dot" class="dot"></span><span id="beat"></span></span>
   <button id="gear" class="icon" type="button" aria-label="Settings">&#9881;</button>
 </header>
@@ -97,10 +99,10 @@ code{display:block;margin:10px 0;padding:10px;border-radius:6px;background:#0507
       <div class="botstate"><span id="dot2" class="dot"></span><span id="botTxt">Waiting for the bot</span></div>
       <div class="kv"><span>Strategy</span><b>NOISE · MNQ</b><span>Schedule</span><b>Mon–Fri 9:20–4:05 ET</b><span>Flat by</span><b>3:55 PM ET</b></div>
       <p id="guard" class="muted" style="font-size:12px;margin:10px 0 0"></p></div>
-    <div class="box full"><span class="lbl">Challenge rules · 50K</span>
+    <div class="box full"><span class="lbl" id="rulesHd">Challenge rules · 50K</span>
       <div class="rule"><div class="row"><span>Profit target</span><span id="rT">$0 / $3,000</span></div><div class="bar"><em id="rTb" style="width:0;background:var(--up)"></em></div></div>
       <div class="rule"><div class="row"><span>Room above loss limit</span><span id="rL">—</span></div><div class="bar"><em id="rLb" style="width:0;background:var(--acc)"></em></div></div>
-      <div class="rule"><div class="row"><span>Daily loss (bot stops at $800)</span><span id="rD">$0</span></div><div class="bar"><em id="rDb" style="width:0;background:var(--down)"></em></div></div></div>
+      <div class="rule"><div class="row"><span id="rDl">Daily loss (bot stop)</span><span id="rD">$0</span></div><div class="bar"><em id="rDb" style="width:0;background:var(--down)"></em></div></div></div>
   </aside>
 </main>
 <div class="tabs" role="tablist">
@@ -126,13 +128,19 @@ const sgn=v=>num(v)==null?'—':(num(v)>=0?'+':'−')+Math.abs(num(v)).toLocaleS
 const cls=v=>num(v)==null||num(v)===0?'muted':num(v)>0?'up':'down';
 const tm=t=>new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
 const pct=(a,b)=>Math.max(0,Math.min(100,b?a/b*100:0));
-const TARGET=3000,DAILY=800;let S=null,tab='pos',hover=null;
+let S=null,tab='pos',hover=null,sel=(()=>{try{return localStorage.getItem('propAcct')||''}catch(e){return ''}})();
+function view(){const L=S.latest||{},A=L.accounts||[];if(!A.length)return L;let a=A.find(x=>x.account===sel)||A[0];sel=a.account;
+  return Object.assign({},L,{account:a.account,orders:a.orders,contract:a.contract||L.contract,status:a.status||{}})}
+function myEvents(){const A=(S.latest||{}).accounts||[];return A.length>1?(S.events||[]).filter(e=>!e.account||e.account===sel):(S.events||[])}
 function nextStart(){const f=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'numeric',minute:'numeric',hour12:false});
   const p=Object.fromEntries(f.formatToParts(new Date()).map(x=>[x.type,x.value]));const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];let d=days.indexOf(p.weekday),mins=(+p.hour%24)*60+(+p.minute);
   if(d>=1&&d<=5&&mins<9*60+20)return 'today at 9:20 AM ET';if(d>=1&&d<=5&&mins<16*60+5)return 'now (it should be running)';
   let n=d;do{n=(n+1)%7}while(n===0||n===6);return (n===(d+1)%7?'tomorrow':days[n])+' at 9:20 AM ET'}
 async function load(){try{let r=await fetch('/prop/state',{credentials:'same-origin'});if(r.status===401||r.redirected){location.href='/login';return}S=await r.json();render()}catch(e){q('#beat').textContent='reconnecting…'}}
-function render(){const L=S.latest||{},st=L.status||{},cs=st.state||{};
+function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}).accounts||[];
+  const TARGET=num(st.target)??num(cs.target),DAILY=num(cs.daily_stop)||800,MLL=num(cs.mll)||2000,funded=st.kind?st.kind!=='combine':cs.kind?cs.kind!=='combine':false;
+  const so=q('#acctSel');if(A.length>1){so.hidden=false;q('#acct').hidden=true;const opts=A.map(a=>'<option'+(a.account===sel?' selected':'')+'>'+esc(a.account)+'</option>').join('');if(so.dataset.o!==opts){so.innerHTML=opts;so.dataset.o=opts}}else{so.hidden=true;q('#acct').hidden=false}
+  q('#rulesHd').textContent=(funded?'Funded account rules · ':'Challenge rules · ')+(num(st.size_k)||50)+'K';
   const start=num(cs.start_balance)||50000,bal=num(st.balance),pos=num(st.position)||0,upl=pos?(num(st.open_pnl)||0):0,eq=bal==null?null:bal+upl;
   const dayStart=num(cs.day_start_balance),floor=num(st.floor)??num(cs.floor),real=bal!=null&&dayStart!=null?bal-dayStart:null,today=eq!=null&&dayStart!=null?eq-dayStart:null;
   // mode + heartbeat
@@ -145,12 +153,12 @@ function render(){const L=S.latest||{},st=L.status||{},cs=st.state||{};
   else if(!S.paired){b.className='banner show';q('#bannerTxt').innerHTML='<b>Not paired.</b> Tap ⚙ to get a pairing code for your Mac.'}else b.className='banner';
   // metrics strip
   q('#mBal').textContent=usd(eq);q('#mR').innerHTML='<span class="'+cls(real)+'">'+sgn(real)+'</span>';q('#mU').innerHTML='<span class="'+cls(pos?upl:null)+'">'+(pos?sgn(upl):'—')+'</span>';
-  const prog=eq==null?0:eq-start;q('#mT').innerHTML=cs.passed?'<span class="up">PASSED</span>':usd(Math.max(0,TARGET-prog))+' <span class="muted" style="font-size:11px">to go</span>';q('#mTb').style.width=pct(prog,TARGET)+'%';
-  q('#mL').textContent=usd(floor);const used=today!=null&&today<0?-today:0;q('#mD').innerHTML='<span class="'+(used?'down':'muted')+'">'+usd(used)+'</span> <span class="muted" style="font-size:11px">/ $800</span>';q('#mDb').style.width=pct(used,DAILY)+'%';
+  const prog=eq==null?0:eq-start;q('#mT').innerHTML=funded?'<span class="muted">Funded · payouts</span>':cs.passed?'<span class="up">PASSED</span>':usd(Math.max(0,(TARGET||3000)-prog))+' <span class="muted" style="font-size:11px">to go</span>';q('#mTb').style.width=funded?'0':pct(prog,TARGET||3000)+'%';
+  q('#mL').textContent=usd(floor);const used=today!=null&&today<0?-today:0;q('#mD').innerHTML='<span class="'+(used?'down':'muted')+'">'+usd(used)+'</span> <span class="muted" style="font-size:11px">/ '+usd(DAILY).replace('.00','')+'</span>';q('#mDb').style.width=pct(used,DAILY)+'%';
   // rules
-  q('#rT').textContent=usd(Math.max(0,prog))+' / $3,000';q('#rTb').style.width=pct(prog,TARGET)+'%';
-  const room=eq!=null&&floor!=null?eq-floor:null;q('#rL').textContent=room==null?'—':usd(room);q('#rLb').style.width=pct(room??0,2000)+'%';q('#rLb').style.background=room!=null&&room<600?'var(--down)':'var(--acc)';
-  q('#rD').textContent=usd(used);q('#rDb').style.width=pct(used,DAILY)+'%';
+  q('#rT').textContent=funded?'Profit '+sgn(prog):usd(Math.max(0,prog))+' / '+usd(TARGET||3000).replace('.00','')+(TARGET>(num(cs.target)||TARGET)?' (raised by consistency rule)':'');q('#rTb').style.width=pct(prog,funded?1e9:TARGET||3000)+'%';
+  const room=eq!=null&&floor!=null?eq-floor:null;q('#rL').textContent=room==null?'—':usd(room);q('#rLb').style.width=pct(room??0,MLL)+'%';q('#rLb').style.background=room!=null&&room<600?'var(--down)':'var(--acc)';
+  q('#rD').textContent=usd(used)+' / '+usd(DAILY).replace('.00','');q('#rDb').style.width=pct(used,DAILY)+'%';
   q('#guard').textContent=cs.passed?'Challenge passed — request the funded account on Topstep.':st.allowed===false&&st.note?'Stopped: '+st.note:'';
   // position
   const sp=q('#sidePill');sp.textContent=pos>0?'LONG':pos<0?'SHORT':'FLAT';sp.className='sidepill'+(pos>0?' long':pos<0?' short':'');
@@ -158,8 +166,8 @@ function render(){const L=S.latest||{},st=L.status||{},cs=st.state||{};
   q('#pAvg').textContent=pos&&num(st.avg)!=null?num(st.avg).toFixed(2):'—';q('#pLast').textContent=num(st.price)!=null?num(st.price).toFixed(2):'—';
   const c=(L.contract||'').split('.');q('#sym').textContent=c.length>3?c[3]+c[4].slice(0,1)+c[4].slice(-1):'MNQ';
   renderPanel();draw();}
-function evsToday(){const d=new Date().toDateString();return (S.events||[]).filter(e=>new Date(e.time).toDateString()===d)}
-function renderPanel(){if(!S)return;const L=S.latest||{},st=L.status||{},pos=num(st.position)||0,all=S.events||[],trades=all.filter(e=>['buy','sell','flat'].includes(e.kind));
+function evsToday(){const d=new Date().toDateString();return myEvents().filter(e=>new Date(e.time).toDateString()===d)}
+function renderPanel(){if(!S)return;const L=view(),st=L.status||{},pos=num(st.position)||0,all=myEvents(),trades=all.filter(e=>['buy','sell','flat'].includes(e.kind));
   q('#nT').textContent=trades.length||'';q('#nA').textContent=all.length||'';let h='';
   if(tab==='pos'){h=pos?'<table class="tbl"><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Avg</th><th>Last</th><th>P&amp;L</th></tr><tr><td>'+esc(q('#sym').textContent)+'</td><td class="'+(pos>0?'up':'down')+'">'+(pos>0?'Long':'Short')+'</td><td>'+Math.abs(pos)+'</td><td>'+(num(st.avg)!=null?num(st.avg).toFixed(2):'—')+'</td><td>'+(num(st.price)!=null?num(st.price).toFixed(2):'—')+'</td><td class="'+cls(st.open_pnl)+'">'+sgn(st.open_pnl)+'</td></tr></table>':'<div class="empty">No open positions.</div>'}
   else if(tab==='trades'){h=trades.length?'<table class="tbl"><tr><th>Time</th><th>Side</th><th>Qty</th><th>Price</th><th>P&amp;L</th></tr>'+trades.slice(0,60).map(e=>'<tr><td>'+esc(tm(e.time))+'</td><td><span class="k '+esc(e.kind)+'">'+esc(e.kind)+'</span></td><td>'+esc(e.size??'')+'</td><td>'+(num(e.price)!=null?num(e.price).toFixed(2):'')+'</td><td class="'+cls(e.pnl)+'">'+(num(e.pnl)!=null?sgn(e.pnl):'')+'</td></tr>').join('')+'</table>':'<div class="empty">No trades yet.</div>'}
@@ -169,7 +177,7 @@ function renderPanel(){if(!S)return;const L=S.latest||{},st=L.status||{},pos=num
   q('#panel').innerHTML=h}
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));tab=t.dataset.t;renderPanel()});
 const cv=q('#cv'),ctx=cv.getContext('2d');
-function draw(){if(!S)return;const L=S.latest||{},st=L.status||{},bars=L.bars||[],marks=(S.events||[]).filter(e=>num(e.price)!=null&&['buy','sell','flat'].includes(e.kind));
+function draw(){if(!S)return;const L=view(),st=L.status||{},bars=L.bars||[],marks=myEvents().filter(e=>num(e.price)!=null&&['buy','sell','flat'].includes(e.kind));
   const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   q('#cmsg').style.display=bars.length?'none':'flex';if(!bars.length){q('#lastPx').textContent='—';q('#chg').textContent='—';q('#ohlc').textContent='';return}
   const ax=64,pw=W-ax,ph=H-22,n=bars.length;let lo=Math.min(...bars.map(b=>b[3])),hi=Math.max(...bars.map(b=>b[2]));const avg=num(st.avg),pos=num(st.position)||0;
@@ -193,6 +201,7 @@ function draw(){if(!S)return;const L=S.latest||{},st=L.status||{},bars=L.bars||[
 function setHover(clientX){const r=cv.getBoundingClientRect();if(!cv._step)return;const i=Math.floor((clientX-r.left)/cv._step);hover=i>=0&&i<cv._n?i:null;draw()}
 cv.addEventListener('mousemove',e=>setHover(e.clientX));cv.addEventListener('mouseleave',()=>{hover=null;draw()});
 cv.addEventListener('touchmove',e=>setHover(e.touches[0].clientX),{passive:true});cv.addEventListener('touchend',()=>{hover=null;draw()});
+q('#acctSel').onchange=e=>{sel=e.target.value;try{localStorage.setItem('propAcct',sel)}catch(x){}render()};
 q('#gear').onclick=()=>q('#sheet').classList.add('show');q('#closeSheet').onclick=()=>q('#sheet').classList.remove('show');q('#sheet').onclick=e=>{if(e.target.id==='sheet')q('#sheet').classList.remove('show')};
 q('#pairBtn').onclick=async()=>{if(S&&S.paired&&!confirm('A new code disconnects the Mac until you run the new command. Continue?'))return;
   try{const r=await fetch('/prop/pair',{method:'POST',credentials:'same-origin'});const d=await r.json();q('#pairOut').innerHTML='<p>On your Mac, open Terminal and run:</p><code>bash ~/p100-prop/pair.sh '+esc(d.token)+'</code><p style="font-size:12px">This code is shown once.</p>'}catch(e){q('#pairOut').textContent='Could not create a code — try again.'}};
