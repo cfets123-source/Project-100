@@ -314,3 +314,33 @@ def test_funded_account_sizes_by_room(tmp_path):
     assert bot.size(29000) == 2
     bot.scale = 2.0
     assert bot.size(29000) == 4
+
+
+def test_aggressive_sizing(tmp_path):
+    api = FakeAPI(trading_days(45))
+    api.now = dt.datetime.combine(dt.date(2026, 9, 1), dt.time(9, 25), ET)
+    bot = worker.Bot(api, "PRACTICE", True, home=str(tmp_path), clock=lambda: api.now, aggressive=True)
+    bot.state.kind = "combine"
+    bot.scale = 1.0
+    assert bot.size(29000) == 4
+    bot.scale = 2.0
+    assert bot.size(29000) == 8
+    bot.scale = 0.5
+    assert bot.size(29000) == 2
+    bot.state.kind = "funded"
+    bot.scale = 1.0
+    assert bot.size(29000) == 2
+    combine = worker.Bot(FakeAPI(trading_days(45)), "PRACTICE", True, home=str(tmp_path / "b"),
+                         clock=lambda: api.now, aggressive=True)
+    combine.state.kind = "combine"
+    assert worker.Bot(api, "PRACTICE", True, home=str(tmp_path / "c"), clock=lambda: api.now).aggressive is False
+
+
+def test_aggressive_bot_trades_and_is_flat(tmp_path):
+    api = FakeAPI(trading_days(45))
+    api.now = dt.datetime.combine(dt.date(2026, 9, 1), dt.time(9, 25), ET)
+    bot = worker.Bot(api, "PRACTICE", True, home=str(tmp_path), clock=lambda: api.now, aggressive=True)
+    for d in sorted(api.days)[25:40]:
+        run_day(bot, api, d)
+        assert api.pos == 0
+    assert api.orders and max(s for _, s, _ in api.orders) <= 8
