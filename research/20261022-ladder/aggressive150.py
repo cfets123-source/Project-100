@@ -12,15 +12,16 @@ F.PLANS.update({
     min_days=2, act=0, f_dd=4500, f_lock=100, floor_after_payout=None, f_dll=None, rule="every", every=1,
     cycle_min=1, pmin=500, pmax=[1e9], pfrac=1.0, buffer=4600, f_cons=None, split=0.90, max_funded=3, extra_monthly=0),
 })
-days = pickle.load(open('/home/claude/data/qqq/v_hourly+vt1.0.pkl', 'rb')); keys = sorted(days)
-periods = [[days[k] for k in keys if k >= dt.date(2024, 1, 2)], [days[k] for k in keys]]
-for name in ("Topstep 150K (Standard)", "Lucid 150K Flex", "MFFU 150K Rapid EOD"):
-    P = F.PLANS[name]; rows = []
-    for ne in (4, 6, 9, 12):
-        for nf in (3, 6, 9):
-            for cush in (2000,):
-                r = [A.slot_income(seq, P, ne, nf, cush) for seq in periods]
-                rows.append((r[0][0], r[1][0], ne, nf, cush))
-    print("\n" + name + "  $/slot/month 2024-26 | all-years")
-    for a, b, ne, nf, c in sorted(rows, reverse=True)[:4]:
-        print("   %+6.0f | %+6.0f   eval %d  funded %d" % (a, b, ne, nf))
+if __name__ == "__main__":
+    days = pickle.load(open('/home/claude/data/qqq/v_hourly+vt1.0.pkl', 'rb')); keys = sorted(days)
+    periods = [[days[k] for k in keys if k >= dt.date(2024, 1, 2)], [days[k] for k in keys]]
+    for name in ("Topstep 150K (Standard)", "Lucid 150K Flex", "MFFU 150K Rapid EOD"):
+        P = F.PLANS[name]; rows = []
+        for ne in (4, 6, 9, 12):
+            for nf in (3, 6, 9):
+                for cush in (2000,):
+                    r = [A.slot_income(seq, P, ne, nf, cush) for seq in periods]
+                    rows.append((r[0][0], r[1][0], ne, nf, cush))
+        print("\n" + name + "  $/slot/month 2024-26 | all-years")
+        for a, b, ne, nf, c in sorted(rows, reverse=True)[:4]:
+            print("   %+6.0f | %+6.0f   eval %d  funded %d" % (a, b, ne, nf))

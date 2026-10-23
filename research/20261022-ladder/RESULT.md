@@ -90,3 +90,19 @@ cycle (evaluation + funded life, failures replaced). Funded: fixed contracts, wi
 Aggressive sizing with cheap one-time evaluations earns 2.5-4x more per slot than the protective policy.
 Full stack estimate (Topstep 5 + Lucid 5 + MFFU 3-5 + FTMO 3 + others): ~20-30 slots x ~$500-900 = ~$10k-25k/month
 on 2024-26 behaviour, before the ramp-up period. Next: multi-firm ladder simulation with this policy and staged cash.
+
+# Round 5 (2026-10-22 night): full multi-firm ladder, aggressive policy, staged cash (ladder2.py)
+Topstep + MFFU + Lucid + FTMO + Bulenox with each firm's rules and caps, same signal on all accounts (correlated),
+start = one paid Topstep Combine, everything else from payouts plus an owner budget for the early months.
+Relay $41.65/mo (+$10 per extra live account), Topstep API $14.50/mo. 150 paths, 20-day block bootstrap.
+| 5 years | Ruin | $10k | $100k | $1M | $1,000/day income (3-mo avg) | Median wealth at 5y |
+|---|---|---|---|---|---|---|
+| $149 owner money, 2024-26 (3y run) | 97% | 3% | 3% | 0% | 1% | - |
+| $400, 2024-26 | 58% | 43% @6.4mo | 41% @21mo | 2% | 40% @26mo | -$326 |
+| $400, all years | 60% | 40% @5.6mo | 40% @18mo | 8% | 39% @17mo | -$326 |
+| $1,000, 2024-26 | 36% | 66% @6.6mo | 63% @20mo | 4% @55mo | 59% @22mo | $327,915 |
+| $1,000, all years | 35% | 65% @6.7mo | 64% @18mo | 12% @56mo | 62% @19mo | $525,458 |
+| $1,000, safe start until $1.5k paid, all years | 23% | 77% | 77% @20mo | 9% | 76% @21mo | $557,206 |
+Outcome is bimodal: the stack either takes off (about $100k in ~1.5-2 years, $1k/day income in ~2 years) or the early
+attempts fail and the money runs out. Owner money for the first months is the main driver of success.
+$1M in 5 years: 2-12% with prop payouts only (cash left idle); Stage 5 brokerage compounding not included.
