@@ -1,13 +1,13 @@
 DASHBOARD_HTML = r'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Veloikos Trading</title>
-<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Veloikos">
+<title>PresNa Capital</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="PresNa Capital">
 <style>
 :root{--bg:#0b0e11;--panel:#12161b;--panel2:#171c22;--line:#232a32;--ink:#eaecef;--sub:#8b949e;--up:#0ecb81;--down:#f6465d;--gold:#f0b90b;--blue:#4c9aff}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit}
 .top{display:flex;align-items:center;gap:22px;height:56px;padding:0 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
-.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;white-space:nowrap}.brand img{height:26px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;white-space:nowrap}.brand img{height:28px}.bw{font:600 21px "Cormorant Garamond",Georgia,serif;letter-spacing:.3px;color:#E8ECF4}.bw b{color:#C8A452;font-weight:600}.bw i{font:600 11px/1 "DM Sans",system-ui,sans-serif;font-style:normal;letter-spacing:.28em;text-transform:uppercase;color:#C8A452;margin-left:6px;vertical-align:middle}
 .pill{font-size:11px;font-weight:700;letter-spacing:.6px;padding:4px 9px;border-radius:4px;background:#2b3139;color:var(--sub);white-space:nowrap}
 .pill.live{background:rgba(14,203,129,.15);color:var(--up)}.pill.halt{background:rgba(246,70,93,.15);color:var(--down)}.pill.paper{background:rgba(76,154,255,.15);color:var(--blue)}
 .kpis{display:flex;gap:26px;margin-left:auto;overflow-x:auto}.kpi{white-space:nowrap}.kpi>span{display:block;font-size:11px;color:var(--sub)}.kpi b{font-size:15px;font-variant-numeric:tabular-nums}
@@ -63,7 +63,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 .flag{font-family:var(--mono);font-size:12px;padding:3px 0}.flag.alert{color:var(--down)}.flag.warn{color:#f3d27a}.flag.info{color:var(--up)}
 @media(max-width:1000px){#pipeTs{display:none}.prow2{grid-template-columns:1fr}.stages{overflow-x:auto;grid-template-columns:repeat(7,minmax(92px,1fr))}}
 </style></head><body>
-<header class="top"><div class="brand"><img src="/static/veloikos-mark.png" alt="">Veloikos Trading</div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button><a class="pill abtn" href="/prop" style="text-decoration:none;color:var(--accent)">Prop challenge</a>
+<header class="top"><div class="brand"><img src="/static/presna-capital-mark.svg" alt="PresNa Capital"><span class="bw">Pres<b>N</b>a <i>Capital</i></span></div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button><a class="pill abtn" href="/prop" style="text-decoration:none;color:var(--accent)">Prop challenge</a>
 <div class="kpis"><div class="kpi"><span>Equity</span><b id="kEq">—</b></div><div class="kpi"><span>Open P&amp;L</span><b id="kPl">—</b></div><div class="kpi"><span>Cash</span><b id="kCash">—</b></div><div class="kpi"><span>Open positions</span><b id="kPos">—</b></div><div class="kpi"><span>Market</span><b id="kMkt">—</b></div></div></header>
 <div id="tape" class="tape"><span class="tk muted">Loading live markets…</span></div>
 <div class="wrap">
@@ -106,7 +106,7 @@ async function alertsLabel(){let b=q('#alerts'),on=false;try{on=!!(swReg&&Notifi
 function u8(t){let s=atob((t+'='.repeat((4-t.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(s,c=>c.charCodeAt(0))}
 async function post(u,body){let r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):'{}'});if(!r.ok)throw Error(u+' '+r.status);return r.json()}
 q('#alerts').onclick=async()=>{let b=q('#alerts');try{
-if(IOS&&!STANDALONE){tip('<b>iPhone:</b> tap the Share button, choose <b>Add to Home Screen</b>, open <b>Veloikos</b> from your home screen, then tap <b>Turn on alerts</b> there.');return}
+if(IOS&&!STANDALONE){tip('<b>iPhone:</b> tap the Share button, choose <b>Add to Home Screen</b>, open <b>PresNa Capital</b> from your home screen, then tap <b>Turn on alerts</b> there.');return}
 if(!swReg||!('PushManager' in window)){tip('This browser cannot receive alerts. Use Chrome or Safari, or install the app to your home screen.');return}
 if(b.dataset.on){let r=await post('/push/test');tip(r.sent?'Test alert sent to '+r.sent+' device'+(r.sent>1?'s':'')+'.':'No device received the test — turn alerts off and on in your phone settings.');return}
 if(await Notification.requestPermission()!=='granted'){tip('Notifications are blocked. Allow them for this site in your phone or browser settings, then tap again.');return}

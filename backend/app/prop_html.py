@@ -1,6 +1,6 @@
 PROP_HTML = r'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Prop Challenge · Veloikos</title>
+<title>Prop Challenge · PresNa Capital</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0a0d14"><link rel="apple-touch-icon" href="/static/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
@@ -10,7 +10,7 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}a{colo
 .up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--sub)}.mono{font-family:var(--mono)}
 /* top bar */
 .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:#0c1018;border-bottom:1px solid var(--line)}
-.brand{font:800 13px var(--mono);letter-spacing:.14em}.brand span{color:var(--acc)}
+.brand{display:flex;align-items:center;gap:8px;white-space:nowrap}.brand img{height:26px}.bw{font:600 19px "Cormorant Garamond",Georgia,serif;letter-spacing:.3px;color:#E8ECF4}.bw b{color:#C8A452;font-weight:600}.bw i{font:600 11px/1 "DM Sans",system-ui,sans-serif;font-style:normal;letter-spacing:.28em;text-transform:uppercase;color:#C8A452;margin-left:6px;vertical-align:middle}
 .acct{display:flex;align-items:center;gap:8px;min-width:0;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--p1)}
 .acct b{font:600 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
 .acct select{min-width:0;max-width:52vw;background:transparent;color:var(--ink);border:0;font:600 12px var(--mono);outline:0}
@@ -73,11 +73,11 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}a{colo
 .btn{background:var(--acc);border-radius:6px;padding:10px 14px;font-weight:700;color:#fff}.btn.ghost{background:var(--p3);color:var(--ink)}
 code{display:block;margin:10px 0;padding:10px;border-radius:6px;background:#05070b;font:13px var(--mono);word-break:break-all;color:var(--warn)}
 @media(max-width:820px){.grid{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.side .box.full{grid-column:1/-1}.chart{height:44vh}}
-@media(max-width:480px){.side{grid-template-columns:1fr}.brand{display:none}}
+@media(max-width:480px){.side{grid-template-columns:1fr}.bw{display:none}}
 </style></head><body>
 <header class="top">
   <a href="/dashboard" class="icon" aria-label="Main dashboard">&#8592;</a>
-  <span class="brand">VELO<span>IKOS</span></span>
+  <span class="brand"><img src="/static/presna-capital-mark.svg" alt="PresNa Capital"><span class="bw">Pres<b>N</b>a <i>Capital</i></span></span>
   <div class="acct"><span id="mode" class="pill">…</span><b id="acct">Prop Challenge</b><select id="acctSel" hidden aria-label="Account"></select></div>
   <span class="beat"><span id="dot" class="dot"></span><span id="beat"></span></span>
   <button id="gear" class="icon" type="button" aria-label="Settings">&#9881;</button>

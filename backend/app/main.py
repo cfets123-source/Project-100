@@ -43,7 +43,7 @@ from app.research.intraday_trend_pullback import STRATEGY_VERSION as INTRADAY_RE
 
 initialize_schema(engine)
 
-app = FastAPI(title="Veloikos Trading", version="1.0.0")
+app = FastAPI(title="PresNa Capital", version="1.0.0")
 from app.binance_routes import router as binance_router
 app.include_router(binance_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
@@ -725,7 +725,7 @@ def robinhood_option_quote(symbol: str = Query(min_length=1, max_length=6),
 
 # ---------- installable phone app (PWA) + trade notifications ----------
 PUSH_SUBJECT = os.getenv("PUSH_SUBJECT", "https://trade.veloikos.com")
-MANIFEST = {"name": "Veloikos Trading", "short_name": "Veloikos", "start_url": "/dashboard", "scope": "/",
+MANIFEST = {"name": "PresNa Capital", "short_name": "PresNa", "start_url": "/dashboard", "scope": "/",
             "display": "standalone", "background_color": "#0b0e11", "theme_color": "#0b0e11",
             "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
                       {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
@@ -733,8 +733,8 @@ MANIFEST = {"name": "Veloikos Trading", "short_name": "Veloikos", "start_url": "
 SERVICE_WORKER = """self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',()=>{});
-self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(_){d={title:'Veloikos Trading',body:e.data?e.data.text():''}}
-e.waitUntil(self.registration.showNotification(d.title||'Veloikos Trading',{body:d.body||'',tag:d.tag,renotify:true,icon:'/static/icon-192.png',badge:'/static/icon-192.png',data:{url:d.url||'/dashboard'}}))});
+self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(_){d={title:'PresNa Capital',body:e.data?e.data.text():''}}
+e.waitUntil(self.registration.showNotification(d.title||'PresNa Capital',{body:d.body||'',tag:d.tag,renotify:true,icon:'/static/icon-192.png',badge:'/static/icon-192.png',data:{url:d.url||'/dashboard'}}))});
 self.addEventListener('notificationclick',e=>{e.notification.close();const u=(e.notification.data||{}).url||'/dashboard';
 e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(ws=>{for(const w of ws){if(w.url.includes('/dashboard')&&'focus' in w)return w.focus()}return clients.openWindow(u)}))});
 """
@@ -775,7 +775,7 @@ async def push_subscribe(request: Request, db: Session = Depends(get_db)):
 def push_test(db: Session = Depends(get_db)):
     from app.services.trade_notifier import broadcast
     return broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY,
-                     {"title": "Veloikos Trading", "body": "Trade alerts are on for this device.", "tag": "test"},
+                     {"title": "PresNa Capital", "body": "Trade alerts are on for this device.", "tag": "test"},
                      PUSH_SUBJECT)
 
 
@@ -892,7 +892,7 @@ class DashboardLogin(BaseModel):
 
 
 LOGIN_HTML = """<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Veloikos Trading</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Veloikos"><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/veloikos-mark.png" alt="Veloikos Trading" style="width:70px;height:70px;object-fit:contain"><h1>Veloikos Trading</h1><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
+<title>PresNa Capital</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0e11"><link rel="apple-touch-icon" href="/static/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="PresNa Capital"><style>body{margin:0;background:#070d0b;color:#f4f0e6;font:16px system-ui;display:grid;place-items:center;height:100vh}.card{width:320px;padding:32px;background:#0d1713;border:1px solid #2a4939;border-radius:14px}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #496852;background:#09120e;color:#f4f0e6}button{background:#c9a45c;border:0;font-weight:700;cursor:pointer}.error{color:#ff8b8b;min-height:20px}</style></head><body><main class=card><img src="/static/presna-capital-mark.svg" alt="PresNa Capital" style="width:72px;height:72px"><h1 style="font:600 34px 'Cormorant Garamond',Georgia,serif;margin:12px 0 0">Pres<span style="color:#c9a45c">N</span>a</h1><div style="font:600 12px system-ui;letter-spacing:.3em;color:#c9a45c;margin-bottom:8px">CAPITAL</div><p>Sign in to the live trading console.</p><input id=u autocomplete=username placeholder=Username><input id=p type=password autocomplete=current-password placeholder=Password><div id=e class=error></div><button id=b>Sign in</button></main><script>document.querySelector('#b').onclick=async()=>{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok)location='/dashboard';else e.textContent='Incorrect username or password';};</script></body></html>"""
 
 
 @app.get("/login", response_class=HTMLResponse)
