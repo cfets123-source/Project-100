@@ -74,3 +74,19 @@ Tradeify excluded: its rules forbid running the same bot at multiple firms. Apex
 | FundedNext 50K Rapid Pro | +$33 | +$629 | 40% | $170 | $425 |
 Every plan is positive in both periods. Expansion order: Lucid Flex, then MFFU Rapid EOD, then FTMO (3 accounts).
 Cap with Topstep 5 + Lucid 5 + MFFU 5 + FTMO 3 = 18 funded accounts (all trade the same signal).
+
+# Round 4 (2026-10-22 night): aggressive "replace what fails" policy (Alex-style)
+Metric: steady-state net income per account slot per month = (payouts - evaluation/activation costs) / months per
+cycle (evaluation + funded life, failures replaced). Funded: fixed contracts, withdraw as soon as allowed above a cushion.
+| Plan | Protective (2 eval / 1 funded) 2024-26 | Best aggressive 2024-26 | all years | settings (eval/funded contracts) |
+|---|---|---|---|---|
+| MFFU 50K Rapid EOD | $180 | **$736** | $340-688 | 4/3 (2/2 best all-years) |
+| Lucid 50K Flex | $208 | **$609** | $537 | 4/3, $1k cushion |
+| Topstep 50K | $196 | **$491** | $507 | 4/2, $1k cushion |
+| Bulenox 50K | $61 | $218 | $231 | 4/2 |
+| MFFU 150K Rapid EOD | - | **$960** | $884 | 4/6 |
+| Lucid 150K Flex | - | $570 | $615-1,016 | 9/3 or 9/6 |
+| Topstep 150K | - | $544 | $847 | 4/6 |
+Aggressive sizing with cheap one-time evaluations earns 2.5-4x more per slot than the protective policy.
+Full stack estimate (Topstep 5 + Lucid 5 + MFFU 3-5 + FTMO 3 + others): ~20-30 slots x ~$500-900 = ~$10k-25k/month
+on 2024-26 behaviour, before the ramp-up period. Next: multi-firm ladder simulation with this policy and staged cash.
