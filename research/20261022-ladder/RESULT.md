@@ -106,3 +106,14 @@ Relay $41.65/mo (+$10 per extra live account), Topstep API $14.50/mo. 150 paths,
 Outcome is bimodal: the stack either takes off (about $100k in ~1.5-2 years, $1k/day income in ~2 years) or the early
 attempts fail and the money runs out. Owner money for the first months is the main driver of success.
 $1M in 5 years: 2-12% with prop payouts only (cash left idle); Stage 5 brokerage compounding not included.
+
+# Round 6: "$X funded" = total funded account size (how prop traders like fxalexg count it)
+Same multi-firm ladder, 2-year runs, 120 paths. Time until the live funded accounts add up to $100K / $1M of size:
+| Owner money / period | $100K funded | median | fastest 10% | $1M funded | median | fastest 10% |
+|---|---|---|---|---|---|---|
+| $400, 2024-26 | 43% | 2.2 mo | 1.8 mo | 32% | 10.1 mo | 6.9 mo |
+| $400, all years | 44% | 3.0 mo | 2.0 mo | 32% | 9.1 mo | 6.9 mo |
+| $1,000, 2024-26 | 69% | 2.7 mo | 1.7 mo | 49% | 10.7 mo | 6.8 mo |
+| $1,000, all years | 72% | 3.0 mo | 1.8 mo | 56% | 10.6 mo | 6.7 mo |
+This matches the "$100 -> $100K funded in a few months -> $1M funded in a year" ladder. Cash profit is a separate,
+smaller number (see round 5): $1M funded across ~7-20 accounts pays roughly $10k-25k/month when it runs well.
