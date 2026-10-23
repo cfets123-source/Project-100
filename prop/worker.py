@@ -33,6 +33,9 @@ TARGET_NOTIONAL = 100000.0  # per $50K of account size: "size 2" in the challeng
 MAX_CONTRACTS_PER_50K = 3     # before volatility scaling
 MAX_SCALED_PER_50K = 4        # after volatility scaling (Topstep 50K allows 50 micros)
 FUNDED_ROOM_PER_CONTRACT = 2500.0  # funded accounts: one contract per $2,500 of room above the loss limit
+# Aggressive mode (research/20261022-ladder rounds 4-6): bigger size, replace what fails. Turned on with AGGRESSIVE=1 in
+# ~/.p100-prop/config (or --aggressive). Evaluations: 4 contracts per $50K (x volatility, up to 8); funded: 2 per $50K.
+AGGR_EVAL_PER_50K, AGGR_FUNDED_PER_50K, AGGR_MAX_PER_50K, AGGR_DAILY_STOP_PER_50K = 4, 2, 8, 950.0
 FLATTEN_AT = dt.time(15, 55)
 log = logging.getLogger("prop")
 
@@ -171,7 +174,7 @@ def select_accounts(accounts, selector):
 
 class Bot:
     def __init__(self, api, account_name, orders, start_balance=None, symbol="MNQ", contracts=None, home=HOME,
-                 clock=None, feed=None, account=None, contract=None, market=None):
+                 clock=None, feed=None, account=None, contract=None, market=None, aggressive=False):
         self.api, self.orders, self.symbol, self.fixed_contracts = api, orders, symbol, contracts
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home = home
@@ -199,6 +202,9 @@ class Bot:
         self.done = set()
         self.events, self.last_bars, self.last_status, self.n_events = [], [], {}, 0
         self.feed = feed or Feed()
+        self.aggressive = aggressive
+        if aggressive and self.state.kind == "combine":
+            self.state.daily_stop = AGGR_DAILY_STOP_PER_50K * self.size_k / 50
 
     # --- persistence -----------------------------------------------------------------------------------------
     def _load(self, start_balance):
@@ -268,6 +274,10 @@ class Bot:
         if self.fixed_contracts:
             return self.fixed_contracts
         units = self.size_k / 50.0  # a 150K account trades 3x a 50K account
+        if self.aggressive:
+            base = AGGR_FUNDED_PER_50K if self.state.kind == "funded" else AGGR_EVAL_PER_50K
+            n = max(1, int(round(base * units * getattr(self, "scale", 1.0))))
+            return min(n, max(1, int(AGGR_MAX_PER_50K * units)))
         if self.state.kind == "funded":
             room = getattr(self, "room", 0.0)
             base = max(1, min(int(2 * units), int(room // FUNDED_ROOM_PER_CONTRACT)))
@@ -373,7 +383,7 @@ class Fleet:
     """Runs the same NOISE signals on every selected account, each with its own limits, state and log."""
 
     def __init__(self, api, selector, orders, contracts=None, home=HOME, clock=None, feed=None, symbol="MNQ",
-                 relays=None, secret_fn=None, relay_opener=None):
+                 relays=None, secret_fn=None, relay_opener=None, aggressive=False):
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home, self.feed = home, feed or Feed()
         accounts = select_accounts(api.accounts(), selector)
@@ -383,7 +393,7 @@ class Fleet:
         self.market = Market(api, c["id"], self.clock)
         quiet = Feed(token="")  # the fleet sends one combined report
         self.bots = [Bot(api, None, orders, contracts=contracts, home=home, clock=self.clock, feed=quiet,
-                         account=a, contract=c, market=self.market) for a in accounts]
+                         account=a, contract=c, market=self.market, aggressive=aggressive) for a in accounts]
         # accounts at other firms, traded through a webhook relay (see relay.py)
         secret_fn = secret_fn or keychain
         for cfg in (relays if relays is not None else relaymod.load_config()):
@@ -393,7 +403,8 @@ class Fleet:
             acct = dict(r.account(), kind=cfg.get("kind", "combine"), rules=cfg.get("rules"),
                         start_balance=cfg.get("start_balance"))
             self.bots.append(Bot(r, None, orders and bool(url), contracts=contracts, home=home, clock=self.clock,
-                                 feed=quiet, account=acct, contract=c, market=relaymod.RelayMarket(self.market, r)))
+                                 feed=quiet, account=acct, contract=c, market=relaymod.RelayMarket(self.market, r),
+                                 aggressive=aggressive))
 
     def step(self):
         notes = []
@@ -450,6 +461,7 @@ def main(argv=None):
     ap.add_argument("--start-balance", type=float, default=50000.0)
     ap.add_argument("--contracts", type=int, default=None)
     ap.add_argument("--interval", type=int, default=15)
+    ap.add_argument("--aggressive", action="store_true", help="aggressive sizing (see AGGR_* constants)")
     a = ap.parse_args(argv)
     os.makedirs(HOME, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
@@ -459,10 +471,10 @@ def main(argv=None):
         return run_check(api)
     if not a.account:
         sys.exit("--account is required (ALL, or part of the account name shown by --check)")
-    bot = Fleet(api, a.account, a.orders, contracts=a.contracts)
+    bot = Fleet(api, a.account, a.orders, contracts=a.contracts, aggressive=a.aggressive)
     for b in bot.bots:
-        log.info("trading %s (%s, %dK %s), contract %s, %s", b.account.get("name"), b.aid, b.size_k, b.state.kind,
-                 b.cid, "LIVE ORDERS" if a.orders else "dry run")
+        log.info("trading %s (%s, %dK %s), contract %s, %s%s", b.account.get("name"), b.aid, b.size_k, b.state.kind,
+                 b.cid, "LIVE ORDERS" if a.orders else "dry run", ", AGGRESSIVE sizing" if a.aggressive else "")
     while True:
         try:
             note = bot.step()

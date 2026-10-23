@@ -3,4 +3,5 @@
 CFG="$HOME/.p100-prop/config"; [ -f "$CFG" ] || exit 1
 . "$CFG"
 FLAG=""; [ "$ORDERS" = "1" ] && FLAG="--orders"
+[ "$AGGRESSIVE" = "1" ] && FLAG="$FLAG --aggressive"
 exec /usr/bin/caffeinate -i -s "${PY:-/usr/bin/python3}" "$HOME/p100-prop/worker.py" --account "$ACCOUNT" $FLAG
