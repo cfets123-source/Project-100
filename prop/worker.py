@@ -25,6 +25,7 @@ from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E
 from noise import LAST, OPEN, decide, is_check, vol_scale  # noqa: E402
 from topstepx import BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 import relay as relaymod  # noqa: E402
+import london as londonmod  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
@@ -405,9 +406,15 @@ class Fleet:
             self.bots.append(Bot(r, None, orders and bool(url), contracts=contracts, home=home, clock=self.clock,
                                  feed=quiet, account=acct, contract=c, market=relaymod.RelayMarket(self.market, r),
                                  aggressive=aggressive))
+        lead = self.bots[0]
+        self.london = londonmod.LondonDrift(api, c["id"], lead.point_value, lead.event, home, to_et, iso, group_days, ET)
 
     def step(self):
         notes = []
+        try:
+            self.london.step(self.clock())
+        except Exception as e:  # noqa: BLE001 - the dry-run study must never affect trading
+            log.warning("London dry run problem: %s", e)
         for b in self.bots:
             try:
                 notes.append(b.step())
