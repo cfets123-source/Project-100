@@ -2,6 +2,18 @@
 # .env.host file and supply the dashboard credentials there. This file does not
 # expose the dashboard to the public internet; use an authenticated tunnel until
 # a domain, TLS reverse proxy, and firewall policy have been configured.
+# Stage Runner v1 (owner-accepted unvalidated experiment). Requires
+# `python -m app.services.owner_experiment accept ...` before any cycle trades.
+x-stage-runner-risk: &stage_runner_risk
+  MAX_RISK_PER_TRADE: "0.25"
+  MAX_POSITION_PCT: "0.95"
+  MAX_DAILY_LOSS: "0.25"
+  MAX_WEEKLY_DRAWDOWN: "0.5"
+  MAX_TOTAL_DRAWDOWN: "0.5"
+  MAX_SECTOR_CONCENTRATION: "0.95"
+  ALPACA_BRACKET_TIME_IN_FORCE: gtc
+  WHOLE_SHARES_ONLY: "true"
+
 services:
   worker:
     build: .
@@ -233,6 +245,48 @@ services:
       ROBINHOOD_OPTION_WATCHLIST_MAX_PREMIUM_USD: "${ROBINHOOD_OPTION_WATCHLIST_MAX_PREMIUM_USD:-100}"
     volumes: ["paper-data:/data"]
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
+  stage-runner-paper:
+    build: .
+    profiles: ["stage-paper"]
+    command: ["python", "-m", "app.runtime.stage_runner_worker", "--mode", "paper", "--database", "sqlite:////data/paper.db", "--account-id", "alpaca-paper", "--interval", "120"]
+    env_file: .env.host
+    environment:
+      <<: *stage_runner_risk
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: paper
+      STATE_SCOPE: alpaca:paper
+      STARTING_CAPITAL: "100"
+      ALPACA_PAPER_EXECUTION_ENABLED: "true"
+      LIVE_TRADING_ENABLED: "false"
+    volumes: ["paper-data:/data"]
+    restart: "on-failure:3"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
+  stage-runner-live:
+    build: .
+    profiles: ["stage-live"]
+    command: ["python", "-m", "app.runtime.stage_runner_worker", "--mode", "live", "--database", "sqlite:////data/paper.db", "--interval", "60"]
+    env_file: .env.host
+    environment:
+      <<: *stage_runner_risk
+      DATABASE_URL: sqlite:////data/paper.db
+      TRADING_MODE: live
+      STATE_SCOPE: alpaca:live
+      LIVE_POSITION_MANAGEMENT_ENABLED: "${LIVE_POSITION_MANAGEMENT_ENABLED:-false}"
+      AUTONOMY_LEVEL: "4"
+      AUTO_EXECUTION: "true"
+      # Final switch comes only from the host-only env file.
+      LIVE_TRADING_ENABLED: "${STAGE_RUNNER_LIVE_TRADING_ENABLED:-false}"
+    volumes: ["paper-data:/data"]
+    restart: "on-failure:3"
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     read_only: true

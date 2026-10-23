@@ -8,6 +8,7 @@ from app.audit.logger import log_and_commit
 from app.models.models import ExternalPaperRuntimeState
 from app.services.alpaca_paper_protection import ensure_protective_stops
 from app.research.strategy_validation import require_passing_validation
+from app.services.owner_experiment import OWNER_EXPERIMENT_STRATEGIES, require_owner_experiment
 from app.brokers.alpaca_adapter import AlpacaBrokerError
 from app.runtime.alpaca_live_position_manager import (
     manage_paper_positions, manage_session_close, reconcile_broker_bracket_exits,
@@ -54,7 +55,10 @@ def run_cycle(db, cfg, account_id: str, symbols: list[str], references: dict[str
     adapter, paper = load_read_only_adapter(db, cfg.BROKER_TOKEN_ENCRYPTION_KEY)
     if not paper: raise RuntimeError('paper worker refuses live credential')
     strategy, entries = strategy or DailyTrendPullback(), []
-    require_passing_validation(db, strategy.name)
+    if strategy.name in OWNER_EXPERIMENT_STRATEGIES:
+        require_owner_experiment(db, strategy.name)
+    else:
+        require_passing_validation(db, strategy.name)
     if session_close["due"]:
         state.status = "session_closing"; db.commit()
         return {**reconciliation, "entries": [], "reason": "session_closing",

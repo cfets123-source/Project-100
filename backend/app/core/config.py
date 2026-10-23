@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     MAX_DAILY_LOSS: float = 0.03              # 3% -> halt new trades for session
     MAX_WEEKLY_DRAWDOWN: float = 0.06         # 6% -> disable live trading, require review
     MAX_TOTAL_DRAWDOWN: float = 0.12          # 12% -> automatic shutdown (10-15% band)
+    # Alpaca bracket legs inherit this TIF. "day" legs expire at the close;
+    # overnight holders (Stage Runner) must set "gtc".
+    ALPACA_BRACKET_TIME_IN_FORCE: str = "day"
+    WHOLE_SHARES_ONLY: bool = False            # floor sizes to whole shares (bracket-eligible)
     MAX_POSITIONS: int = 2
     MAX_POSITION_PCT: float = 0.50            # max % of equity in one position
     MAX_SECTOR_CONCENTRATION: float = 0.60
