@@ -344,3 +344,29 @@ def test_aggressive_bot_trades_and_is_flat(tmp_path):
         run_day(bot, api, d)
         assert api.pos == 0
     assert api.orders and max(s for _, s, _ in api.orders) <= 8
+
+
+def test_take_profit_closes_combine_trade_and_allows_reentry(tmp_path):
+    api = FakeAPI(trading_days(45))
+    bot = make_bot(tmp_path, api)
+    bot.state.kind = "combine"
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(11, 0), ET)
+    bot.step()
+    api.pos, api.avg = 2, api.last_price() - 160  # 2-contract long up $640
+    bot.step()
+    assert api.pos == 0 and bot.state.halted_day != d.isoformat()
+    assert any("take profit" in e.get("text", "") for e in bot.events)
+    api.pos, api.avg = 2, api.last_price() - 100  # up $400: below the target, keep holding
+    bot.step()
+    assert api.pos == 2
+
+
+def test_take_profit_is_off_outside_combines(tmp_path):
+    api = FakeAPI(trading_days(45))
+    bot = make_bot(tmp_path, api)
+    assert bot.state.kind == "practice" and bot.take_profit() == 0
+    bot.state.kind = "funded"
+    assert bot.take_profit() == 0
+    bot.state.kind = "combine"
+    assert bot.take_profit() == 600
