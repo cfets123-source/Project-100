@@ -37,6 +37,8 @@ FUNDED_ROOM_PER_CONTRACT = 2500.0  # funded accounts: one contract per $2,500 of
 # Aggressive mode (research/20261022-ladder rounds 4-6): bigger size, replace what fails. Turned on with AGGRESSIVE=1 in
 # ~/.p100-prop/config (or --aggressive). Evaluations: 4 contracts per $50K (x volatility, up to 8); funded: 2 per $50K.
 AGGR_EVAL_PER_50K, AGGR_FUNDED_PER_50K, AGGR_MAX_PER_50K, AGGR_DAILY_STOP_PER_50K = 4, 2, 8, 950.0
+# Combine only (research/20261027-takeprofit): bank the trade at +$600 per $50K, re-enter at the next hourly check
+TAKE_PROFIT_PER_50K = 600.0
 FLATTEN_AT = dt.time(15, 55)
 log = logging.getLogger("prop")
 
@@ -288,6 +290,10 @@ class Bot:
         n = max(1, int(round(base * getattr(self, "scale", 1.0))))
         return min(n, max(1, int(MAX_SCALED_PER_50K * units)))
 
+    def take_profit(self):
+        """$ open profit at which the whole position is closed (Combine accounts only; 0 = off)."""
+        return TAKE_PROFIT_PER_50K * self.size_k / 50.0 if self.state.kind == "combine" else 0.0
+
     # --- execution -------------------------------------------------------------------------------------------
     def go_to(self, target_sign, price, reason, tag):
         pos, _ = self.position()
@@ -354,6 +360,8 @@ class Bot:
                   "target": need, "size_k": self.size_k}
         if must_flat and pos:
             self.flatten(price, why)
+        elif pos and self.take_profit() and open_pnl >= self.take_profit() and now.time() < flatten_time(today):
+            self.flatten(price, "take profit +$%d" % self.take_profit())
         elif now.time() >= flatten_time(today):
             if pos:
                 self.flatten(price, "end of day")
