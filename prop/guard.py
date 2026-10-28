@@ -87,6 +87,8 @@ class ChallengeState:
 
 def new_day(state, day, balance):
     """Call once per trading day before the open with the realized balance."""
+    if state.day == day:  # bot restarted during the same day: keep the day's starting balance (daily stop, best day)
+        return state
     if state.day and state.day != day:  # yesterday's realized result counts toward the consistency rule
         state.best_day = max(state.best_day, balance - state.day_start_balance)
     state.eod_high = max(state.eod_high, balance)  # balance at the start of a day = prior day's closing balance
