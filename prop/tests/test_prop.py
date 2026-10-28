@@ -370,3 +370,12 @@ def test_take_profit_is_off_outside_combines(tmp_path):
     assert bot.take_profit() == 0
     bot.state.kind = "combine"
     assert bot.take_profit() == 600
+
+
+def test_restart_same_day_keeps_day_start_and_best_day():
+    s = guard.ChallengeState(start_balance=50000.0, eod_high=50000.0)
+    guard.new_day(s, "2026-10-27", 49560.68)
+    guard.new_day(s, "2026-10-27", 49833.80)       # restart after a +273.12 day
+    assert s.day_start_balance == 49560.68
+    guard.new_day(s, "2026-10-28", 49833.80)
+    assert abs(s.best_day - 273.12) < 1e-6
