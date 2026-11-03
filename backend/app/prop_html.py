@@ -107,7 +107,7 @@ code{display:block;margin:10px 0;padding:10px;border-radius:6px;background:#0507
       <div class="kv"><span>Contracts</span><b id="pQty">0</b><span>Avg price</span><b id="pAvg">—</b><span>Last price</span><b id="pLast">—</b></div></div>
     <div class="box"><span class="lbl">Bot</span>
       <div class="botstate"><span id="dot2" class="dot"></span><span id="botTxt">Waiting for the bot</span></div>
-      <div class="kv"><span>Strategy</span><b>NOISE · MNQ</b><span>Schedule</span><b>Mon–Fri 9:20–4:05 ET</b><span>Flat by</span><b>3:55 PM ET</b></div>
+      <div class="kv"><span>Strategy</span><b>NOISE · MNQ</b><span>Schedule</span><b>Mon–Fri 7:45–4:05 ET</b><span>Flat by</span><b>3:55 PM ET</b></div>
       <p id="guard" class="muted" style="font-size:12px;margin:10px 0 0"></p></div>
     <div class="box full"><span class="lbl" id="rulesHd">Challenge rules · 50K</span>
       <div class="rule"><div class="row"><span>Profit target</span><span id="rT">$0 / $3,000</span></div><div class="bar"><em id="rTb" style="width:0;background:var(--up)"></em></div></div>
@@ -144,8 +144,8 @@ function view(){const L=S.latest||{},A=L.accounts||[];if(!A.length)return L;let 
 function myEvents(){const A=(S.latest||{}).accounts||[];return A.length>1?(S.events||[]).filter(e=>!e.account||e.account===sel):(S.events||[])}
 function nextStart(){const f=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'numeric',minute:'numeric',hour12:false});
   const p=Object.fromEntries(f.formatToParts(new Date()).map(x=>[x.type,x.value]));const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];let d=days.indexOf(p.weekday),mins=(+p.hour%24)*60+(+p.minute);
-  if(d>=1&&d<=5&&mins<9*60+20)return 'today at 9:20 AM ET';if(d>=1&&d<=5&&mins<16*60+5)return 'now (it should be running)';
-  let n=d;do{n=(n+1)%7}while(n===0||n===6);return (n===(d+1)%7?'tomorrow':days[n])+' at 9:20 AM ET'}
+  if(d>=1&&d<=5&&mins<7*60+45)return 'today at 7:45 AM ET';if(d>=1&&d<=5&&mins<16*60+5)return 'now (it should be running)';
+  let n=d;do{n=(n+1)%7}while(n===0||n===6);return (n===(d+1)%7?'tomorrow':days[n])+' at 7:45 AM ET'}
 async function load(){try{let r=await fetch('/prop/state',{credentials:'same-origin'});if(r.status===401||r.redirected){location.href='/login';return}S=await r.json();render()}catch(e){q('#beat').textContent='reconnecting…'}}
 function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}).accounts||[];
   const TARGET=num(st.target)??num(cs.target),DAILY=num(cs.daily_stop)||800,MLL=num(cs.mll)||2000,funded=st.kind?st.kind!=='combine':cs.kind?cs.kind!=='combine':false;
@@ -159,7 +159,7 @@ function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}
   q('#beat').textContent=a==null?'no report yet':a<90?a+'s ago':(a<3600?Math.round(a/60)+'m':a<172800?Math.round(a/3600)+'h':Math.round(a/86400)+'d')+' ago';
   q('#dot').className='dot'+(S.online?' on':'');q('#dot2').className=q('#dot').className;
   q('#botTxt').textContent=!S.paired?'Not paired':!S.online?'Offline · next start '+nextStart():L.orders?'Running · placing real orders':'Running · dry run (no orders)';
-  const b=q('#banner');if(S.paired&&!S.online){b.className='banner show';q('#bannerTxt').innerHTML='<b>Bot offline.</b> It runs from your Mac on weekdays 9:20 AM–4:05 PM ET. Next start: <b>'+esc(nextStart())+'</b>. Keep the Mac on, plugged in and awake.'}
+  const b=q('#banner');if(S.paired&&!S.online){b.className='banner show';q('#bannerTxt').innerHTML='<b>Bot offline.</b> It runs from your Mac on weekdays 7:45 AM–4:05 PM ET. Next start: <b>'+esc(nextStart())+'</b>. Keep the Mac on, plugged in and awake.'}
   else if(!S.paired){b.className='banner show';q('#bannerTxt').innerHTML='<b>Not paired.</b> Tap ⚙ to get a pairing code for your Mac.'}else b.className='banner';
   // metrics strip
   q('#mBal').textContent=usd(eq);q('#mR').innerHTML='<span class="'+cls(real)+'">'+sgn(real)+'</span>';q('#mU').innerHTML='<span class="'+cls(pos?upl:null)+'">'+(pos?sgn(upl):'—')+'</span>';
