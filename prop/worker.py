@@ -11,6 +11,7 @@ Real orders need --orders. Credentials come from the macOS Keychain (install.sh)
 """
 import argparse
 import datetime as dt
+import math
 import json
 import logging
 import os
@@ -23,9 +24,11 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E402
 from noise import LAST, OPEN, decide, is_check, vol_scale  # noqa: E402
-from topstepx import BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
+from topstepx import LIMIT, BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 import relay as relaymod  # noqa: E402
 import london as londonmod  # noqa: E402
+import news as newsmod  # noqa: E402
+import tradelocker as tlmod  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
@@ -177,7 +180,10 @@ def select_accounts(accounts, selector):
 
 class Bot:
     def __init__(self, api, account_name, orders, start_balance=None, symbol="MNQ", contracts=None, home=HOME,
-                 clock=None, feed=None, account=None, contract=None, market=None, aggressive=False):
+                 clock=None, feed=None, account=None, contract=None, market=None, aggressive=False,
+                 sizer=None, tp_move_frac=None, tick=None, price_fn=None, news=None):
+        self.sizer, self.tp_move_frac, self.tick, self.price_fn, self.news = sizer, tp_move_frac, tick, price_fn, news
+        self.min_lot = 1  # smallest order (contracts); CFD accounts use their lot step
         self.api, self.orders, self.symbol, self.fixed_contracts = api, orders, symbol, contracts
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home = home
@@ -274,6 +280,8 @@ class Bot:
         raise TopstepXError("account disappeared")
 
     def size(self, price):
+        if self.sizer:
+            return self.sizer(price, getattr(self, "scale", 1.0), self)
         if self.fixed_contracts:
             return self.fixed_contracts
         units = self.size_k / 50.0  # a 150K account trades 3x a 50K account
@@ -294,12 +302,56 @@ class Bot:
         """$ open profit at which the whole position is closed (Combine accounts only; 0 = off)."""
         return TAKE_PROFIT_PER_50K * self.size_k / 50.0 if self.state.kind == "combine" else 0.0
 
+    def tp_dollars(self, pos, avg):
+        """Take-profit in $ for the open position: a fixed move (% of price) when tp_move_frac is set (CFD accounts,
+        same 0.52% move as the Topstep +$600 on 2 MNQ), otherwise take_profit()."""
+        if self.tp_move_frac:
+            if self.state.kind != "combine" or not pos or not avg:
+                return 0.0
+            return abs(pos) * self.point_value * avg * self.tp_move_frac
+        return self.take_profit()
+
+    def _tp_orders(self):
+        """Resting take-profit limit orders of this bot on the traded contract (TopstepX accounts only)."""
+        if not self.orders or not hasattr(self.api, "limit"):
+            return []
+        return [o for o in self.api.open_orders(self.aid) if o.get("contractId") == self.cid and o.get("type") == LIMIT]
+
+    def cancel_tp(self):
+        for o in self._tp_orders():
+            self.api.cancel(self.aid, o["id"])
+
+    def manage_tp(self, now):
+        """Keep exactly one resting take-profit order at the broker for the open position (research assumed a
+        resting order that fills the moment price touches the level, not a check on 5-minute closes)."""
+        if not self.orders or not hasattr(self.api, "limit"):
+            return
+        pos, avg = self.position()
+        tp = self.tp_dollars(pos, avg)
+        blocked = self.news.blocked(now)[0] if self.news else False
+        if not pos or not tp or not avg or blocked or now.time() >= flatten_time(now.date()):
+            self.cancel_tp()  # no resting order may fill inside a news window
+            return
+        tick = self.tick or 0.25
+        move = tp / (abs(pos) * self.point_value)
+        raw = avg + move if pos > 0 else avg - move
+        price = (math.ceil(raw / tick) if pos > 0 else math.floor(raw / tick)) * tick
+        side = SELL if pos > 0 else BUY
+        have = self._tp_orders()
+        if len(have) == 1 and have[0].get("side") == side and abs(float(have[0].get("size") or 0) - abs(pos)) < 1e-9 \
+                and abs(float(have[0].get("limitPrice") or 0) - price) < 1e-9:
+            return
+        for o in have:
+            self.api.cancel(self.aid, o["id"])
+        self.api.limit(self.aid, self.cid, side, abs(pos), price)
+        self.event("day", "Take-profit order resting at %.2f (+$%d)" % (price, tp), price, abs(pos))
+
     # --- execution -------------------------------------------------------------------------------------------
     def go_to(self, target_sign, price, reason, tag):
         pos, _ = self.position()
         n = self.size(price)
         want = target_sign * n
-        if pos == want:
+        if abs(pos - want) < 1e-6:  # fractional lots (CFD accounts) compare with a tolerance
             return
         log.info("%s: position %+d -> %+d at ~%.2f (%s)", "ORDER" if self.orders else "DRY RUN", pos, want, price, reason)
         _, avg = self.position()
@@ -315,12 +367,22 @@ class Bot:
         if not self.orders:
             self.virtual, self.virtual_avg = want, (price if want else None)
             return
+        try:
+            self.cancel_tp()  # a resting limit must never outlive the position it protects
+        except TopstepXError as e:  # never let it block a close; manage_tp cancels it on the next pass
+            log.warning("cancel take-profit order: %s", e)
         if pos != 0 and (want == 0 or (pos > 0) != (want > 0)):
             self.api.close(self.aid, self.cid)
             pos = 0
         delta = want - pos
-        if delta:
+        if abs(delta) > 1e-6:
             self.api.market(self.aid, self.cid, BUY if delta > 0 else SELL, abs(delta), tag=tag)
+        self.mark_trade_day()
+
+    def mark_trade_day(self):
+        d = self.state.day
+        if d and d not in self.state.trade_days:
+            self.state.trade_days = (self.state.trade_days + [d])[-60:]
 
     def flatten(self, price, reason):
         self.go_to(0, price, reason, None)
@@ -344,6 +406,8 @@ class Bot:
             return "waiting for bars"
         last_t = max(bars)
         price = bars[last_t][3]
+        if self.price_fn:
+            price = self.price_fn()  # CFD accounts: P&L, take-profit and size use the account's own price
         pos, avg = self.position()
         open_pnl = (price - avg) * pos * self.point_value if (pos and avg) else 0.0
         bal = self.balance()
@@ -358,10 +422,27 @@ class Bot:
         status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price, "avg": avg,
                   "floor": self.state.floor, "allowed": allowed, "note": why, "kind": self.state.kind,
                   "target": need, "size_k": self.size_k}
+        news_block, news_why = self.news.blocked(now) if self.news else (False, "")
+        if news_block and not must_flat:
+            status["note"] = news_why
+            for t in bars:  # checks that fall inside the window are skipped, not delayed
+                if is_check(t):
+                    closed_at = dt.datetime.combine(today, t, ET) + dt.timedelta(minutes=5)
+                    if closed_at <= now:
+                        self.done.add(t)
         if must_flat and pos:
             self.flatten(price, why)
-        elif pos and self.take_profit() and open_pnl >= self.take_profit() and now.time() < flatten_time(today):
-            self.flatten(price, "take profit +$%d" % self.take_profit())
+        elif (self.state.target_hit and not self.state.passed and not pos and self.orders and not news_block
+              and self.state.day not in self.state.trade_days and dt.time(10, 5) <= now.time() < dt.time(15, 30)):
+            # target already reached: one minimum-size round trip counts the day toward the firm's minimum
+            self.event("day", "Minimum-days trade %d/%d (target already reached)" % (
+                len(self.state.trade_days) + 1, self.state.min_days), price, self.min_lot)
+            self.api.market(self.aid, self.cid, BUY, self.min_lot, tag="minday-%s-%s" % (self.aid, self.state.day))
+            self.mark_trade_day()
+        elif news_block:
+            pass  # inside a news window: no orders except forced risk exits above
+        elif pos and self.tp_dollars(pos, avg) and open_pnl >= self.tp_dollars(pos, avg) and now.time() < flatten_time(today):
+            self.flatten(price, "take profit +$%d" % self.tp_dollars(pos, avg))
         elif now.time() >= flatten_time(today):
             if pos:
                 self.flatten(price, "end of day")
@@ -381,6 +462,10 @@ class Bot:
                                "noise-%s-%s-%s-%+d" % (self.aid, today.isoformat(), t.strftime("%H%M"), target))
                     sign = target
                 self.done.add(t)
+        try:
+            self.manage_tp(now)
+        except TopstepXError as e:
+            log.warning("take-profit order: %s (will retry)", e)
         self.save(status)
         self.last_status = status
         self.last_bars = [[dt.datetime.combine(today, t, ET).isoformat(), *bars[t][:4]] for t in sorted(bars)]
@@ -392,7 +477,8 @@ class Fleet:
     """Runs the same NOISE signals on every selected account, each with its own limits, state and log."""
 
     def __init__(self, api, selector, orders, contracts=None, home=HOME, clock=None, feed=None, symbol="MNQ",
-                 relays=None, secret_fn=None, relay_opener=None, aggressive=False):
+                 relays=None, secret_fn=None, relay_opener=None, aggressive=False, tl_configs=None, tl_factory=None,
+                 news=None):
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home, self.feed = home, feed or Feed()
         accounts = select_accounts(api.accounts(), selector)
@@ -414,8 +500,43 @@ class Fleet:
             self.bots.append(Bot(r, None, orders and bool(url), contracts=contracts, home=home, clock=self.clock,
                                  feed=quiet, account=acct, contract=c, market=relaymod.RelayMarket(self.market, r),
                                  aggressive=aggressive))
+        # accounts at TradeLocker prop firms (Eightcap Challenges ...), see tradelocker.py and add-tradelocker.sh
+        tl_cfgs = tl_configs if tl_configs is not None else tlmod.load_config(os.path.join(home, "tradelocker.json"))
+        if tl_cfgs:
+            cal = news or newsmod.NewsCalendar(home, ET)
+        for cfg in tl_cfgs:
+            try:
+                self.bots.append(self._tl_bot(cfg, c, orders, home, quiet, secret_fn, tl_factory, cal, aggressive))
+            except Exception as e:  # noqa: BLE001 - a TradeLocker problem must never stop Topstep trading
+                log.warning("TradeLocker account %s not started: %s", cfg.get("name"), e)
         lead = self.bots[0]
         self.london = londonmod.LondonDrift(api, c["id"], lead.point_value, lead.event, home, to_et, iso, group_days, ET)
+
+    def _tl_bot(self, cfg, c, orders, home, quiet, secret_fn, tl_factory, cal, aggressive):
+        pw = secret_fn(cfg["secret"]) if cfg.get("secret") else None
+        if not pw:
+            raise ValueError("no password in the Keychain item %s" % cfg.get("secret"))
+        tl = (tl_factory or tlmod.TradeLocker)(cfg["email"], pw, cfg["server"], cfg.get("env", "live"))
+        tl.select(cfg.get("acc_num"), cfg.get("account_id"))
+        instr = tl.instrument((cfg["symbol"],) if cfg.get("symbol") else tlmod.NASDAQ_NAMES)
+        acct_api = tlmod.TradeLockerAccount(tl, cfg, instr)
+        acct_api.cid = c["id"]
+        # minimum order size for the firm's minimum-trading-days trades
+        pv = float(cfg["point_value"])          # $ per 1.00 index point per 1.00 lot (from --check / the demo test)
+        tick = float(cfg.get("tick") or 0.01)
+        lev, start, step = float(cfg.get("leverage", 3.0)), float(cfg["start_balance"]), acct_api.lot_step
+
+        def sizer(price, scale, bot):
+            lots = lev * start * scale / (price * pv)
+            return max(step, math.floor(lots / step + 1e-9) * step)
+        acct = dict(acct_api.account(), kind=cfg.get("kind", "combine"), rules=cfg.get("rules"), start_balance=start)
+        bot = Bot(acct_api, None, orders and bool(cfg.get("orders")), home=home, clock=self.clock, feed=quiet,
+                   account=acct, contract={"id": c["id"], "tickSize": tick, "tickValue": tick * pv},
+                   market=relaymod.RelayMarket(self.market, acct_api), aggressive=False, sizer=sizer,
+                   tp_move_frac=float(cfg.get("tp_move_frac", 0.00526)), tick=tick, price_fn=acct_api.price,
+                   news=cal if cfg.get("news_blackout", True) else None)
+        bot.min_lot = step
+        return bot
 
     def step(self):
         notes = []
@@ -465,6 +586,21 @@ def run_check(api):
     bars = api.bars(c["id"], iso(now - dt.timedelta(days=3)), iso(now))
     print("  recent 5-min bars: %d (last %s close %s)" % (len(bars), bars[-1]["t"] if bars else "-",
                                                           bars[-1]["c"] if bars else "-"))
+    for cfg in tlmod.load_config(os.path.join(HOME, "tradelocker.json")):
+        try:
+            tl = tlmod.TradeLocker(cfg["email"], keychain(cfg["secret"]), cfg["server"], cfg.get("env", "live"))
+            print("TradeLocker %s (%s, %s): accounts %s" % (cfg["name"], cfg["server"], cfg.get("env", "live"),
+                  [(a.get("id"), a.get("accNum"), a.get("name"), a.get("accountBalance")) for a in tl.all_accounts()]))
+            tl.select(cfg.get("acc_num"), cfg.get("account_id"))
+            ins = tl.instrument((cfg["symbol"],) if cfg.get("symbol") else tlmod.NASDAQ_NAMES)
+            d = tl.details(ins)
+            ask, bid = tl.quote(ins)
+            print("  instrument %s id=%s  bid %.2f ask %.2f" % (ins.get("name"), ins.get("tradableInstrumentId"), bid, ask))
+            print("  details: " + ", ".join("%s=%s" % (k, d[k]) for k in sorted(d) if not isinstance(d[k], (list, dict))))
+            print("  state: " + ", ".join("%s=%s" % (k, v) for k, v in tl.state().items() if k in (
+                "balance", "projectedBalance", "availableFunds", "todayNet", "positionsCount", "ordersCount")))
+        except Exception as e:  # noqa: BLE001
+            print("TradeLocker %s: PROBLEM %s" % (cfg.get("name"), e))
     print("CHECK OK - no orders were placed.")
 
 

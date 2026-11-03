@@ -96,6 +96,13 @@ class TopstepX:
             body["customTag"] = tag
         return self._post("/api/Order/place", body, retries=0)["orderId"]
 
+    def limit(self, account_id, contract_id, side, size, price, tag=None):
+        body = {"accountId": account_id, "contractId": contract_id, "type": LIMIT, "side": side, "size": int(size),
+                "limitPrice": float(price)}
+        if tag:
+            body["customTag"] = tag
+        return self._post("/api/Order/place", body, retries=0)["orderId"]
+
     def cancel(self, account_id, order_id):
         return self._post("/api/Order/cancel", {"accountId": account_id, "orderId": order_id})
 

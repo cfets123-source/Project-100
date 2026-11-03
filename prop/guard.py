@@ -42,7 +42,11 @@ def apply_rules(state, name, kind=None, overrides=None):
         buffer = 150.0 * size_k(name) / 50  # after a payout the cushion is small; a $400 buffer would end the account
     state.mll, state.daily_stop, state.mll_buffer = mll, daily, buffer
     for k, v in (overrides or {}).items():
-        if k in ("target", "mll", "daily_stop", "mll_buffer", "consistency"):
+        if k == "static_mll":
+            state.static_mll = bool(v)
+        elif k == "min_days":
+            state.min_days = int(v)
+        elif k in ("target", "mll", "daily_stop", "mll_buffer", "consistency"):
             setattr(state, k, None if (k == "target" and state.kind != "combine") else float(v))
     return state
 
@@ -65,9 +69,15 @@ class ChallengeState:
     mll_buffer: float = MLL_BUFFER
     best_day: float = 0.0
     consistency: float = CONSISTENCY
+    static_mll: bool = False  # True: max loss fixed at start - mll (Eightcap); False: trails the EOD high (Topstep)
+    min_days: int = 0          # firm's minimum trading days before a pass counts (Eightcap 5, GFT 3 per phase)
+    trade_days: list = field(default_factory=list)  # days on which an order was placed
+    target_hit: bool = False   # target reached but minimum days not yet met: one tiny trade per day until then
 
     @property
     def floor(self):
+        if self.static_mll:
+            return self.start_balance - self.mll
         return min(self.start_balance, self.eod_high - self.mll)
 
     def required_target(self, today_pnl=0.0):
@@ -95,7 +105,10 @@ def new_day(state, day, balance):
     state.day, state.day_start_balance = day, balance
     need = state.required_target()
     if need is not None and balance >= state.start_balance + need:
-        state.passed = state.finished = True
+        if len(state.trade_days) >= state.min_days:
+            state.passed = state.finished = True
+        else:
+            state.target_hit = True
     if balance <= state.floor + state.mll_buffer:
         state.finished = True
         state.halted_reason = "too close to the trailing loss limit"
@@ -109,6 +122,10 @@ def check(state, balance, open_pnl):
         return False, True, state.halted_reason or ("target reached" if state.passed else "finished")
     need = state.required_target(equity - state.day_start_balance)
     if need is not None and equity >= state.start_balance + need:
+        if len(state.trade_days) < state.min_days:
+            state.target_hit = True
+            return False, True, "target reached - %d of %d trading days done; one tiny trade per day until then" % (
+                len(state.trade_days), state.min_days)
         state.passed = True
         return False, True, "profit target reached - stop and request the funded account"
     if equity <= state.floor + state.mll_buffer:
