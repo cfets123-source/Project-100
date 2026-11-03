@@ -379,3 +379,70 @@ def test_restart_same_day_keeps_day_start_and_best_day():
     assert s.day_start_balance == 49560.68
     guard.new_day(s, "2026-10-28", 49833.80)
     assert abs(s.best_day - 273.12) < 1e-6
+
+
+class LimitAPI(FakeAPI):
+    """FakeAPI plus resting limit orders (TopstepX searchOpen/place/cancel)."""
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.limits, self.cancels, self.n = {}, [], 0
+
+    def open_orders(self, aid):
+        return [dict(o) for o in self.limits.values()]
+
+    def limit(self, aid, cid, side, size, price, tag=None):
+        self.n += 1
+        self.limits[self.n] = {"id": self.n, "contractId": cid, "type": 1, "side": side, "size": size, "limitPrice": price}
+        return self.n
+
+    def cancel(self, aid, oid):
+        self.cancels.append(oid)
+        self.limits.pop(oid, None)
+
+
+def test_resting_take_profit_order_follows_the_position(tmp_path):
+    api = LimitAPI(trading_days(45))
+    bot = make_bot(tmp_path, api)
+    bot.state.kind = "combine"
+    bot.cid = "CON.F.US.MNQ.Z26"
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(11, 0), ET)
+    bot.step()
+    api.pos, api.avg = -2, 28444.0                    # short 2 at 28,444: +$600 = 150 points lower
+    bot.manage_tp(api.now)
+    (o,) = api.limits.values()
+    assert o["side"] == 0 and o["size"] == 2 and o["limitPrice"] == 28294.0
+    bot.manage_tp(api.now)
+    assert len(api.limits) == 1 and api.cancels == []  # unchanged order is left alone
+    api.pos, api.avg = 3, 28000.0                     # position changed: replace (long 3: +100 points)
+    bot.manage_tp(api.now)
+    (o,) = api.limits.values()
+    assert o["side"] == 1 and o["size"] == 3 and o["limitPrice"] == 28100.0
+    bot.flatten(28050.0, "test")                      # any close cancels the resting order first
+    assert api.limits == {} and api.pos == 0
+    api.pos, api.avg = 2, 28000.0
+    bot.state.kind = "funded"                         # funded accounts: no take-profit order
+    bot.manage_tp(api.now)
+    assert api.limits == {}
+
+
+def test_no_resting_order_after_the_flatten_time(tmp_path):
+    api = LimitAPI(trading_days(45))
+    bot = make_bot(tmp_path, api)
+    bot.state.kind = "combine"
+    bot.cid = "CON.F.US.MNQ.Z26"
+    api.pos, api.avg = 2, 28000.0
+    api.limits[99] = {"id": 99, "contractId": bot.cid, "type": 1, "side": 1, "size": 2, "limitPrice": 28150.0}
+    late = dt.datetime.combine(sorted(api.days)[30], dt.time(15, 56), ET)
+    bot.manage_tp(late)
+    assert api.limits == {}
+
+
+def test_full_days_with_resting_orders_end_flat_with_no_orders_left(tmp_path):
+    api = LimitAPI(trading_days(45))
+    bot = make_bot(tmp_path, api)
+    bot.state.kind = "combine"
+    for d in sorted(api.days)[25:40]:
+        run_day(bot, api, d)
+        assert api.pos == 0 and api.limits == {}, d
+    assert api.orders and api.n > 0, "the bot should have rested take-profit orders while in trades"
