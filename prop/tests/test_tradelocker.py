@@ -303,3 +303,29 @@ def test_tl_test_refuses_an_account_in_use():
     n = len(fake.placed)
     ok, steps = tl_test.run_test(acct, sleep=lambda s: None, say=lambda s: None)
     assert not ok and len(fake.placed) == n and fake.pos   # nothing placed, the existing trade untouched
+
+
+def test_rate_limit_429_waits_and_retries():
+    import urllib.error
+    fake = FakeTL(lambda: 21000.0)
+    calls = {"n": 0}
+
+    def flaky(req, timeout=20):
+        if "/orders" in req.full_url and req.get_method() == "GET" and calls["n"] < 2:
+            calls["n"] += 1
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+        return fake(req, timeout)
+    slept = []
+    tl = tlmod.TradeLocker("me@x.com", "pw", "EIGHTCAP-DEMO", "demo", opener=flaky, sleep=slept.append)
+    tl.select(1, None)
+    assert tl.orders() == [] and slept == [2, 4]
+
+
+def test_tl_test_cleanup_flattens_after_a_failed_test(monkeypatch):
+    import tl_test
+    monkeypatch.setattr(tl_test.time, "sleep", lambda s: None)
+    fake = FakeTL(lambda: 21000.0)
+    acct = _tl_acct(fake)
+    acct.market(acct.aid, None, worker.BUY, 0.01)
+    acct.limit(acct.aid, None, worker.SELL, 0.01, 21400.0)
+    assert tl_test.cleanup(acct, say=lambda s: None) and fake.pos == {} and fake.ord == {}
