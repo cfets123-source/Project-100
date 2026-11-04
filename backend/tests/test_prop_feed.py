@@ -13,7 +13,7 @@ ET = prop_feed.ET
 
 def _reset():
     db = SessionLocal()
-    for k in ("prop_token_hash", "prop_latest", "prop_events", "prop_missed_alert"):
+    for k in ("prop_token_hash", "prop_latest", "prop_events", "prop_missed_alert", "prop_command"):
         row = db.get(models.AppState, k)
         if row:
             db.delete(row)
@@ -77,4 +77,25 @@ def test_feed_keeps_every_account_and_tags_events():
     assert [a["account"] for a in st["latest"]["accounts"]] == ["50KTC-A", "EXPRESS-50K-B"]
     assert st["events"][0]["account"] == "EXPRESS-50K-B"
     assert prop_feed.push_message(pushed[0])["body"] == "EXPRESS: Bought 2 MNQ"
+    db.close()
+
+
+def test_close_button_command_is_sent_once_acknowledged_and_expires():
+    _reset()
+    with TestClient(app) as client:
+        token = client.post("/prop/pair").json()["token"]
+        hdr = {"X-Prop-Token": token}
+        assert client.post("/prop/feed", json={}, headers=hdr).json()["command"] is None
+        cmd = client.post("/prop/command/close").json()
+        sent = client.post("/prop/feed", json={}, headers=hdr).json()["command"]
+        assert sent["id"] == cmd["id"] and sent["kind"] == "close_now" and sent["status"] == "pending"
+        r = client.post("/prop/feed", json={"ack": {"id": cmd["id"], "result": "closed 50KTC"}}, headers=hdr).json()
+        assert r["command"] is None
+        st = client.get("/prop/state").json()["command"]
+        assert st["status"] == "done" and st["result"] == "closed 50KTC"
+    db = SessionLocal()
+    old = prop_feed.request_close(db, dt.datetime(2026, 11, 4, 15, 0, tzinfo=dt.timezone.utc))
+    late = dt.datetime(2026, 11, 4, 15, 4, tzinfo=dt.timezone.utc)
+    assert prop_feed.pending_command(db, late) is None              # never acts minutes later
+    assert prop_feed.state(db, late)["command"]["status"] == "expired" and old["id"]
     db.close()
