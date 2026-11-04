@@ -3,6 +3,7 @@ Buys the minimum size (0.01 lot), rests a take-profit limit far above the price,
 cancels the limit and closes. Cost: the spread on 0.01 lot (a few cents). Never runs if the account already has a
 position or a resting order on the instrument, and always tries to clean up what it opened.
 Run:  python3 ~/p100-prop/tl_test.py            (first account in ~/.p100-prop/tradelocker.json)
+      python3 ~/p100-prop/tl_test.py --cleanup  (cancel resting orders + close the position after a failed test)
       python3 ~/p100-prop/tl_test.py EIGHTCAP-5K-1"""
 import datetime as dt
 import json
@@ -18,7 +19,7 @@ from topstepx import BUY, SELL  # noqa: E402
 TP_FRAC = 0.02   # take-profit 2% above entry: confirms a resting order without any chance of filling during the test
 
 
-def wait(fn, ok, tries=20, pause=0.5, sleep=time.sleep):
+def wait(fn, ok, tries=10, pause=2.0, sleep=time.sleep):  # gentle polling: TradeLocker rate-limits fast loops
     val = fn()
     for _ in range(tries):
         if ok(val):
@@ -82,9 +83,25 @@ def run_test(acct, lot=0.01, sleep=time.sleep, say=print):
             say("CLEANUP PROBLEM: %s - check the account in TradeLocker now" % e)
 
 
+def cleanup(acct, say=print):
+    """Cancel resting orders and close the position on the instrument (after a failed test)."""
+    for o in acct.open_orders():
+        acct.cancel(acct.aid, o["id"])
+        say("cancelled order %s (%s @ %.2f)" % (o["id"], "buy" if o["side"] == BUY else "sell", o["limitPrice"]))
+    time.sleep(2)
+    if acct.positions():
+        acct.close(acct.aid, acct.cid)
+        say("closed the open position")
+    time.sleep(3)
+    left = (acct.positions(), acct.open_orders())
+    say("account is flat with no orders" if left == ([], []) else "STILL OPEN: %s - close it in TradeLocker" % (left,))
+    return left == ([], [])
+
+
 def main():
     cfgs = tlmod.load_config(os.path.join(worker.HOME, "tradelocker.json"))
-    want = sys.argv[1] if len(sys.argv) > 1 else None
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    want = args[0] if args else None
     cfgs = [c for c in cfgs if not want or c["name"] == want]
     if not cfgs:
         raise SystemExit("no TradeLocker account %s in ~/.p100-prop/tradelocker.json" % (want or ""))
@@ -93,6 +110,10 @@ def main():
     tl.select(cfg.get("acc_num"), cfg.get("account_id"))
     instr = tl.instrument((cfg["symbol"],) if cfg.get("symbol") else tlmod.NASDAQ_NAMES)
     acct = tlmod.TradeLockerAccount(tl, cfg, instr)
+    if "--cleanup" in sys.argv:
+        print("Cleaning up %s on %s" % (cfg["name"], instr.get("name")))
+        cleanup(acct)
+        return
     print("Testing %s (%s, %s) on %s" % (cfg["name"], cfg["server"], cfg.get("env", "live"), instr.get("name")))
     passed, steps = run_test(acct)
     rec = {"time": dt.datetime.now(worker.ET).isoformat(), "account": cfg["name"], "passed": passed, "steps": steps}

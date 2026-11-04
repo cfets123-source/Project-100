@@ -19,9 +19,9 @@ NASDAQ_NAMES = ("US100", "NAS100", "USTEC", "NDX100", "US100.i", "NAS100.i", "US
 
 
 class TradeLocker:
-    def __init__(self, email, password, server, env="live", opener=None, clock=time.time):
+    def __init__(self, email, password, server, env="live", opener=None, clock=time.time, sleep=time.sleep):
         self.email, self._pw, self.server, self.base = email, password, server, BASES[env]
-        self._open, self._clock = opener or urllib.request.urlopen, clock
+        self._open, self._clock, self._sleep = opener or urllib.request.urlopen, clock, sleep
         self.token, self.refresh, self.token_at = None, None, 0.0
         self.acc_num, self.account_id = None, None
         self._cfg, self._instr = None, None
@@ -40,20 +40,30 @@ class TradeLocker:
             text = r.read().decode()
         return json.loads(text) if text else {}
 
+    RATE_WAITS = (2, 4, 8)  # HTTP 429 (too many requests): the request was not processed, so waiting and retrying is safe
+
     def _req(self, method, path, params=None, body=None, auth=True, acc=True, retries=1):
-        for attempt in range(retries + 1):
+        waits = list(self.RATE_WAITS)
+        attempt = 0
+        while attempt <= retries:
             try:
                 out = self._raw(method, path, params, body, auth, acc)
             except urllib.error.HTTPError as e:
+                if e.code == 429 and waits:
+                    self._sleep(waits.pop(0))
+                    continue
                 if e.code == 401 and auth and attempt < retries:
+                    attempt += 1
                     self.token = None
                     continue
                 if e.code >= 500 and attempt < retries and method.lower() == "get":
+                    attempt += 1
                     time.sleep(1)
                     continue
                 raise TopstepXError("tradelocker %s HTTP %s" % (path, e.code))
             except (urllib.error.URLError, TimeoutError, OSError) as e:
                 if attempt < retries and method.lower() == "get":
+                    attempt += 1
                     time.sleep(1)
                     continue
                 raise TopstepXError("tradelocker %s network: %s" % (path, type(e).__name__))
