@@ -218,8 +218,10 @@ class Bot:
         self.state = apply_rules(self._load(start_balance or float(self.account.get("start_balance") or self.size_k * 1000.0)),
                                  self.account.get("name"), self.account.get("kind"), self.account.get("rules"))
         self.history, self.history_day = [], None
-        self.virtual = 0  # dry-run position (+n / -n contracts)
+        self.virtual = 0  # dry-run position (+n / -n contracts); restored after a restart on the same day
         self.virtual_avg = None
+        if self.state.dry_day == self.clock().date().isoformat():
+            self.virtual, self.virtual_avg = self.state.dry_pos, self.state.dry_avg
         self.done = set()
         self.events, self.last_bars, self.last_status, self.n_events = [], [], {}, 0
         self.feed = feed or Feed()
@@ -378,6 +380,7 @@ class Bot:
                 label, "Bought" if want > 0 else "Sold short", abs(want), price, reason), price, abs(want))
         if not self.orders:
             self.virtual, self.virtual_avg = want, (price if want else None)
+            self.state.dry_pos, self.state.dry_avg, self.state.dry_day = want, self.virtual_avg, self.clock().date().isoformat()
             return
         try:
             self.cancel_tp()  # a resting limit must never outlive the position it protects
@@ -550,6 +553,7 @@ class Fleet:
                    tp_move_frac=float(cfg.get("tp_move_frac", 0.00526)), tick=tick, price_fn=acct_api.price,
                    news=cal if cfg.get("news_blackout", True) else None)
         bot.min_lot = step
+        bot.size_k = int(start // 1000) if start >= 1000 else start / 1000.0  # label from the real balance (5K, not 50K)
         return bot
 
     def handle_command(self):
