@@ -275,3 +275,31 @@ def test_no_minimum_days_rule_for_topstep(tmp_path):
     ok, flat, why = guard.check(s, 53100.0, 0.0)
     assert s.passed and not s.target_hit and s.min_days == 0
 
+
+
+def _tl_acct(fake):
+    tl = tlmod.TradeLocker("me@x.com", "pw", "EIGHTCAP-DEMO", "demo", opener=fake)
+    tl.select(1, None)
+    instr = tl.instrument(("US100",))
+    return tlmod.TradeLockerAccount(tl, CFG, instr)
+
+
+def test_tl_test_round_trip_passes_and_leaves_account_flat():
+    import tl_test
+    fake = FakeTL(lambda: 21000.0)
+    acct = _tl_acct(fake)
+    ok, steps = tl_test.run_test(acct, sleep=lambda s: None, say=lambda s: None)
+    assert ok, steps
+    assert fake.pos == {} and fake.ord == {}
+    kinds = [b["type"] for b in fake.placed]
+    assert kinds.count("market") == 1 and kinds.count("limit") == 1 and float(fake.placed[0]["qty"]) == 0.01
+
+
+def test_tl_test_refuses_an_account_in_use():
+    import tl_test
+    fake = FakeTL(lambda: 21000.0)
+    acct = _tl_acct(fake)
+    acct.market(acct.aid, None, worker.BUY, 0.05)
+    n = len(fake.placed)
+    ok, steps = tl_test.run_test(acct, sleep=lambda s: None, say=lambda s: None)
+    assert not ok and len(fake.placed) == n and fake.pos   # nothing placed, the existing trade untouched
