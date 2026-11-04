@@ -73,6 +73,7 @@ class ChallengeState:
     min_days: int = 0          # firm's minimum trading days before a pass counts (Eightcap 5, GFT 3 per phase)
     trade_days: list = field(default_factory=list)  # days on which an order was placed
     target_hit: bool = False   # target reached but minimum days not yet met: one tiny trade per day until then
+    fast_day: str = ""         # day on which the owner closed manually: 5-min checks until the close (research 2026-11-04)
 
     @property
     def floor(self):

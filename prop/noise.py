@@ -19,6 +19,11 @@ def is_check(t):
     return t.minute in minutes and dt.time(9, 55) <= t <= dt.time(15, 25)
 
 
+def is_fast_check(t):
+    """Fast mode (after the owner's manual close): every 5-min bar in the same 9:55-15:25 window."""
+    return dt.time(9, 55) <= t <= dt.time(15, 25)
+
+
 def sigma(history, t):
     """history: list of previous days, each {time: (o,h,l,c,v)}. Average |close(t)/open - 1| over the last 14."""
     vals = []
@@ -41,10 +46,10 @@ def vwap(today, upto):
     return pv / vol if vol else last
 
 
-def decide(history, today, t, position):
+def decide(history, today, t, position, fast=False):
     """Decision after the bar starting at t closes. position: +1 long, -1 short, 0 flat.
-    Returns the target position (+1, -1, 0) or None when no check applies."""
-    if not is_check(t) or t not in today or OPEN not in today or not history:
+    Returns the target position (+1, -1, 0) or None when no check applies. fast=True checks every 5-min bar."""
+    if not (is_fast_check(t) if fast else is_check(t)) or t not in today or OPEN not in today or not history:
         return None
     prev_close = history[-1].get(LAST, (None, None, None, None))[3]
     s = sigma(history, t)

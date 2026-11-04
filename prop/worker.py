@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E402
-from noise import LAST, OPEN, decide, is_check, vol_scale  # noqa: E402
+from noise import LAST, OPEN, decide, is_check, is_fast_check, vol_scale  # noqa: E402
 from topstepx import LIMIT, BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 import relay as relaymod  # noqa: E402
 import london as londonmod  # noqa: E402
@@ -433,7 +433,7 @@ class Bot:
         need = self.state.required_target(bal + open_pnl - self.state.day_start_balance)
         status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price, "avg": avg,
                   "floor": self.state.floor, "allowed": allowed, "note": why, "kind": self.state.kind,
-                  "target": need, "size_k": self.size_k}
+                  "target": need, "size_k": self.size_k, "fast": self.state.fast_day == self.state.day}
         news_block, news_why = self.news.blocked(now) if self.news else (False, "")
         if news_block and not must_flat:
             status["note"] = news_why
@@ -460,14 +460,15 @@ class Bot:
                 self.flatten(price, "end of day")
         elif allowed:
             sign = (pos > 0) - (pos < 0)
+            fast = self.state.fast_day == self.state.day  # owner closed manually today: 5-min checks until the close
             for t in sorted(bars):
                 closed_at = dt.datetime.combine(today, t, ET) + dt.timedelta(minutes=5)
-                if not is_check(t) or t in self.done or closed_at > now:
+                if not (is_fast_check(t) if fast else is_check(t)) or t in self.done or closed_at > now:
                     continue
                 if now - closed_at > dt.timedelta(minutes=4):  # too old to act on (late start / outage)
                     self.done.add(t)
                     continue
-                target = decide(self.history, bars, t, sign)
+                target = decide(self.history, bars, t, sign, fast)
                 if target is not None and target != sign:
                     # the tag is unique per decision, so a retry after an unknown outcome cannot double the order
                     self.go_to(target, price, "NOISE check %s" % t.strftime("%H:%M"),
@@ -573,6 +574,10 @@ class Fleet:
                     continue
                 price = (b.last_status or {}).get("price") or avg
                 b.flatten(price, "owner: close now button")
+                if b.state.fast_day != b.state.day:
+                    b.state.fast_day = b.state.day
+                    b.event("day", "Fast mode on: checking every 5 minutes until the close (after manual close). "
+                                   "Back to hourly tomorrow.")
                 results.append({"account": name, "closed": True, "position": pos, "avg": avg})
             except Exception as e:  # noqa: BLE001 - one account's problem must not stop the others
                 log.warning("close now on %s: %s", name, e)
