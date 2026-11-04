@@ -180,3 +180,68 @@ def test_dry_run_fleet_places_no_orders(tmp_path):
         run_day(f, api, d)
     assert api.orders == []
     assert os.path.exists(os.path.join(str(tmp_path), "status-1.json"))
+
+
+class CmdOpener(FakeOpener):
+    """App feed that hands out the dashboard's "Close trade now" command until it is acknowledged."""
+
+    def __init__(self, cmd):
+        super().__init__()
+        self.cmd = cmd
+
+    def __call__(self, req, timeout=10):
+        import io
+        import json as _json
+        r = super().__call__(req, timeout)
+        ack = self.bodies[-1].get("ack")
+        if ack and ack["id"] == self.cmd["id"]:
+            self.cmd = dict(self.cmd, status="done")
+        reply = {"ok": True, "command": self.cmd if self.cmd["status"] == "pending" else None}
+        r.close()
+
+        class R(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+        return R(_json.dumps(reply).encode())
+
+
+def test_dashboard_close_button_closes_live_trades_once_and_trading_continues(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    opener = CmdOpener({"id": "abc123", "kind": "close_now", "status": "pending"})
+    f = fleet(tmp_path, api, feed=worker.Feed(url="https://example.test/prop/feed", token="tok", opener=opener))
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(11, 2), ET)
+    f.step()                                        # picks up the command from the app's reply
+    a = api.accts[1]
+    a.pos, a.avg = 2, api.last_price() - 20         # an open trade
+    api.now += dt.timedelta(minutes=1)
+    f.step()                                        # acts on it, reports the ack in the same send
+    assert a.pos == 0
+    assert opener.bodies[-1]["ack"] == {"id": "abc123", "result": "closed 50KTC-A"}
+    assert opener.cmd["status"] == "done" and f.feed.pending_ack is None
+    import json as _json
+    assert _json.load(open(tmp_path / "manual_closes.json"))[-1]["results"][0]["closed"]
+    a.pos, a.avg = 1, api.last_price()              # a newer trade is never closed by the same command
+    f.feed.command = {"id": "abc123", "kind": "close_now", "status": "pending"}
+    api.now += dt.timedelta(minutes=1)
+    f.step()
+    assert a.pos == 1
+    a.pos, a.avg = 0, None
+    st = f.bots[0].state
+    assert st.halted_day != d.isoformat() and not st.finished
+    n = len(api.orders)
+    for day in sorted(api.days)[31:36]:
+        run_day(f, api, day)
+    assert len(api.orders) > n and a.pos == 0       # the bot keeps trading afterwards
+
+
+def test_close_button_skips_dry_run_accounts(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api, orders=False)
+    api.now = dt.datetime.combine(sorted(api.days)[30], dt.time(11, 2), ET)
+    f.feed.command = {"id": "x1", "kind": "close_now", "status": "pending"}
+    assert f.handle_command() == []
+    assert f.feed.pending_ack == {"id": "x1", "result": "nothing open to close"}
