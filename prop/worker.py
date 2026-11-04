@@ -77,6 +77,8 @@ class Feed:
         self.token = token if token is not None else (os.environ.get("PROP_FEED_TOKEN") or keychain("p100-prop-token"))
         self.open = opener or urllib.request.urlopen
         self.sent_ids = set()
+        self.command = None      # latest owner command from the app (e.g. the "Close trade now" button)
+        self.pending_ack = None  # result of a handled command, reported on the next send
 
     def send(self, bot, status):
         if not self.token:
@@ -106,12 +108,22 @@ class Feed:
                      "status": dict(b.last_status, state=b.state.to_dict())} for b in fleet.bots]
         body = {"status": accounts[0]["status"], "orders": lead.orders, "account": lead.account.get("name"),
                 "contract": lead.cid, "bars": lead.last_bars[-90:], "events": events, "accounts": accounts}
+        ack = self.pending_ack
+        if ack:
+            body["ack"] = ack
         req = urllib.request.Request(self.url, data=json.dumps(body, default=str).encode(), method="POST",
                                      headers={"Content-Type": "application/json", "X-Prop-Token": self.token})
         try:
             with self.open(req, timeout=10) as r:
-                r.read()
+                raw = r.read()
             self.sent_ids.update(e["id"] for e in events)
+            if ack is not None and self.pending_ack is ack:
+                self.pending_ack = None
+            try:
+                reply = json.loads(raw or b"{}")
+                self.command = reply.get("command") if isinstance(reply, dict) else None
+            except (ValueError, TypeError):
+                self.command = None
             return True
         except Exception as exc:  # noqa: BLE001 - reporting must never stop trading
             log.warning("app report failed: %s", type(exc).__name__)
@@ -481,6 +493,7 @@ class Fleet:
                  news=None):
         self.clock = clock or (lambda: dt.datetime.now(ET))
         self.home, self.feed = home, feed or Feed()
+        self.handled = set()  # owner command ids already acted on
         accounts = select_accounts(api.accounts(), selector)
         if not accounts:
             raise SystemExit("no tradable account matches '%s': %s" % (selector, [a.get("name") for a in api.accounts()]))
@@ -538,8 +551,56 @@ class Fleet:
         bot.min_lot = step
         return bot
 
+    def handle_command(self):
+        """Owner's "Close trade now" button: close open trades on live accounts. Trading continues afterwards."""
+        cmd = self.feed.command
+        if not isinstance(cmd, dict) or cmd.get("kind") != "close_now" or cmd.get("status") != "pending":
+            return None
+        cid = cmd.get("id")
+        if not cid or cid in self.handled:
+            return None
+        self.handled.add(cid)
+        self.feed.command = None
+        results = []
+        for b in self.bots:
+            if not b.orders:
+                continue  # dry-run accounts have no real trade to close
+            name = b.account.get("name")
+            try:
+                pos, avg = b.position()
+                if not pos:
+                    results.append({"account": name, "closed": False, "note": "no open trade"})
+                    continue
+                price = (b.last_status or {}).get("price") or avg
+                b.flatten(price, "owner: close now button")
+                results.append({"account": name, "closed": True, "position": pos, "avg": avg})
+            except Exception as e:  # noqa: BLE001 - one account's problem must not stop the others
+                log.warning("close now on %s: %s", name, e)
+                results.append({"account": name, "closed": False, "note": "error: %s" % e})
+        entry = {"time": self.clock().isoformat(), "source": "dashboard", "command": cid, "results": results}
+        try:
+            path = os.path.join(self.home, "manual_closes.json")
+            log_rows = []
+            if os.path.exists(path):
+                with open(path) as f:
+                    log_rows = json.load(f)
+            log_rows.append(entry)
+            with open(path, "w") as f:
+                json.dump(log_rows[-200:], f, indent=1)
+        except (OSError, ValueError) as e:
+            log.warning("manual close log: %s", e)
+        closed = [r["account"] for r in results if r["closed"]]
+        text = ("closed " + ", ".join(closed)) if closed else "nothing open to close"
+        log.info("CLOSE NOW button: %s", text)
+        self.feed.pending_ack = {"id": cid, "result": text}
+        return results
+
     def step(self):
         notes = []
+        try:
+            self.handle_command()
+        except Exception as e:  # noqa: BLE001 - a command problem must never stop trading
+            log.warning("owner command problem: %s", e)
         try:
             self.london.step(self.clock())
         except Exception as e:  # noqa: BLE001 - the dry-run study must never affect trading
