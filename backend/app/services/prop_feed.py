@@ -19,6 +19,7 @@ MAX_EVENTS = 300
 MAX_BARS = 90
 MAX_ACCOUNTS = 20
 PUSH_KINDS = {"buy", "sell", "flat", "halt", "pass", "error"}
+COMMAND_TTL_S = 180  # a close request the Mac has not picked up within 3 minutes expires (never acts late)
 
 
 def _get(db, key, default=None):
@@ -93,8 +94,38 @@ def ingest(db, payload: dict, now: dt.datetime | None = None) -> list[dict]:
         seen.add(e["id"])
     if fresh:
         _put(db, "prop_events", (events + fresh)[-MAX_EVENTS:])
+    ack = payload.get("ack")
+    cmd = _get(db, "prop_command")
+    if isinstance(ack, dict) and cmd and ack.get("id") == cmd.get("id") and cmd.get("status") == "pending":
+        cmd.update(status="done", done_at=now.isoformat(), result=str(ack.get("result") or "")[:300])
+        _put(db, "prop_command", cmd)
     db.commit()
     return [e for e in fresh if e.get("kind") in PUSH_KINDS]
+
+
+def request_close(db, now: dt.datetime | None = None) -> dict:
+    """Owner pressed "Close trade now": the Mac bot picks this up with its next report (about every 15 s), closes the
+    open trade on every live account and keeps trading. The server itself never places or closes prop orders."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    cmd = {"id": secrets.token_hex(8), "kind": "close_now", "requested_at": now.isoformat(), "status": "pending",
+           "result": None}
+    _put(db, "prop_command", cmd)
+    db.commit()
+    return cmd
+
+
+def pending_command(db, now: dt.datetime | None = None) -> dict | None:
+    """The command for the Mac, if one is waiting and still fresh (expired ones are marked and not sent)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    cmd = _get(db, "prop_command")
+    if not cmd or cmd.get("status") != "pending":
+        return None
+    if (now - dt.datetime.fromisoformat(cmd["requested_at"])).total_seconds() > COMMAND_TTL_S:
+        cmd["status"] = "expired"
+        _put(db, "prop_command", cmd)
+        db.commit()
+        return None
+    return {"id": cmd["id"], "kind": cmd["kind"], "requested_at": cmd["requested_at"], "status": "pending"}
 
 
 def state(db, now: dt.datetime | None = None) -> dict:
@@ -106,7 +137,7 @@ def state(db, now: dt.datetime | None = None) -> dict:
     return {"paired": _get(db, "prop_token_hash") is not None, "latest": latest,
             "events": list(reversed(_get(db, "prop_events", [])))[:100],
             "heartbeat_age_s": round(age) if age is not None else None,
-            "online": age is not None and age < 120}
+            "online": age is not None and age < 120, "command": _get(db, "prop_command")}
 
 
 def missed_start(db, now: dt.datetime | None = None) -> dict | None:
