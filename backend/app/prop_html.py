@@ -108,7 +108,9 @@ code{display:block;margin:10px 0;padding:10px;border-radius:6px;background:#0507
     <div class="box"><span class="lbl">Bot</span>
       <div class="botstate"><span id="dot2" class="dot"></span><span id="botTxt">Waiting for the bot</span></div>
       <div class="kv"><span>Strategy</span><b>NOISE · MNQ</b><span>Schedule</span><b>Mon–Fri 7:45–4:05 ET</b><span>Flat by</span><b>3:55 PM ET</b></div>
-      <p id="guard" class="muted" style="font-size:12px;margin:10px 0 0"></p></div>
+      <p id="guard" class="muted" style="font-size:12px;margin:10px 0 0"></p>
+      <button id="closeNow" class="btn" type="button" style="margin-top:10px;width:100%;background:var(--down)">Close trade now</button>
+      <p id="cmdTxt" class="muted" style="font-size:12px;margin:6px 0 0"></p></div>
     <div class="box full"><span class="lbl" id="rulesHd">Challenge rules · 50K</span>
       <div class="rule"><div class="row"><span>Profit target</span><span id="rT">$0 / $3,000</span></div><div class="bar"><em id="rTb" style="width:0;background:var(--up)"></em></div></div>
       <div class="rule"><div class="row"><span>Room above loss limit</span><span id="rL">—</span></div><div class="bar"><em id="rLb" style="width:0;background:var(--acc)"></em></div></div>
@@ -147,7 +149,7 @@ function nextStart(){const f=new Intl.DateTimeFormat('en-US',{timeZone:'America/
   if(d>=1&&d<=5&&mins<7*60+45)return 'today at 7:45 AM ET';if(d>=1&&d<=5&&mins<16*60+5)return 'now (it should be running)';
   let n=d;do{n=(n+1)%7}while(n===0||n===6);return (n===(d+1)%7?'tomorrow':days[n])+' at 7:45 AM ET'}
 async function load(){try{let r=await fetch('/prop/state',{credentials:'same-origin'});if(r.status===401||r.redirected){location.href='/login';return}S=await r.json();render()}catch(e){q('#beat').textContent='reconnecting…'}}
-function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}).accounts||[];
+function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}).accounts||[];renderCmd();
   const TARGET=num(st.target)??num(cs.target),DAILY=num(cs.daily_stop)||800,MLL=num(cs.mll)||2000,funded=st.kind?st.kind!=='combine':cs.kind?cs.kind!=='combine':false;
   const so=q('#acctSel');if(A.length>1){so.hidden=false;q('#acct').hidden=true;const opts=A.map(a=>'<option value="'+esc(a.account)+'"'+(a.account===sel?' selected':'')+'>'+esc((a.firm||'Topstep')+' · '+a.account)+'</option>').join('');if(so.dataset.o!==opts){so.innerHTML=opts;so.dataset.o=opts}}else{so.hidden=true;q('#acct').hidden=false}
   q('#rulesHd').textContent=(funded?'Funded account rules · ':'Challenge rules · ')+(num(st.size_k)||50)+'K';
@@ -211,15 +213,19 @@ function draw(){if(!S)return;const L=view(),st=L.status||{},bars=L.bars||[],mark
 function setHover(clientX){const r=cv.getBoundingClientRect();if(!cv._step)return;const i=Math.floor((clientX-r.left)/cv._step);hover=i>=0&&i<cv._n?i:null;draw()}
 cv.addEventListener('mousemove',e=>setHover(e.clientX));cv.addEventListener('mouseleave',()=>{hover=null;draw()});
 cv.addEventListener('touchmove',e=>setHover(e.touches[0].clientX),{passive:true});cv.addEventListener('touchend',()=>{hover=null;draw()});
+function renderCmd(){const c=S&&S.command,t=q('#cmdTxt');if(!c){t.textContent='';return}const at=new Date(c.done_at||c.requested_at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  t.textContent=c.status==='pending'?'Close requested at '+at+' — waiting for the Mac (about 15 seconds)…':c.status==='done'?'Closed at '+at+': '+(c.result||'done')+' The bot keeps trading.':c.status==='expired'?'Close request at '+at+' expired — the Mac did not answer within 3 minutes. Is it on?':''}
 function renderFleet(){const A=(S.latest||{}).accounts||[];const box=q('#fleet');if(A.length<2){box.hidden=true;return}box.hidden=false;
   let tP=0,tT=0,tU=0,nE=0,nF=0;const rows=A.map(a=>{const st=a.status||{},cs=st.state||{},start=num(cs.start_balance)||50000,bal=num(st.balance),u=num(st.position)?(num(st.open_pnl)||0):0,eq=bal==null?null:bal+u,ds=num(cs.day_start_balance);
-    const prof=eq==null?null:eq-start,today=eq!=null&&ds!=null?eq-ds:null,funded=(st.kind||cs.kind)&&(st.kind||cs.kind)!=='combine';funded?nF++:nE++;tP+=prof||0;tT+=today||0;tU+=u;
+    const prof=eq==null?null:eq-start,today=eq!=null&&ds!=null?eq-ds:null,funded=(st.kind||cs.kind)&&(st.kind||cs.kind)!=='combine';funded?nF++:nE++;if(a.orders){tP+=prof||0;tT+=today||0;tU+=u}
     const stat=cs.passed?'<span class="up">PASSED</span>':cs.finished?'<span class="down">STOPPED</span>':st.allowed===false?'<span class="down">paused</span>':(num(st.position)?(num(st.position)>0?'<span class="up">LONG '+Math.abs(num(st.position))+'</span>':'<span class="down">SHORT '+Math.abs(num(st.position))+'</span>'):'<span class="muted">flat</span>');
     const est=a.estimated?'≈':'';
     return '<tr data-a="'+esc(a.account)+'"'+(a.account===sel?' class="sel"':'')+'><td><span class="firm">'+esc(a.firm||'Topstep')+'</span></td><td>'+esc(a.account)+'</td><td>'+(funded?'Funded':'Eval')+' '+(num(st.size_k)||50)+'K</td><td class="'+cls(prof)+'">'+est+sgn(prof)+'</td><td class="'+cls(today)+'">'+est+sgn(today)+'</td><td>'+stat+'</td><td>'+(a.orders?'<span class="up">live</span>':'<span class="muted">dry run</span>')+'</td></tr>'});
   q('#fleetTbl').innerHTML='<tr><th>Firm</th><th>Account</th><th>Type</th><th>Profit</th><th>Today</th><th>Now</th><th>Orders</th></tr>'+rows.join('');
-  q('#fleetSum').innerHTML=A.length+' accounts · '+nF+' funded · '+nE+' eval · total <span class="'+cls(tP)+'">'+sgn(tP)+'</span> · today <span class="'+cls(tT)+'">'+sgn(tT)+'</span>';
+  q('#fleetSum').innerHTML=A.length+' accounts · '+nF+' funded · '+nE+' eval · live total <span class="'+cls(tP)+'">'+sgn(tP)+'</span> · today <span class="'+cls(tT)+'">'+sgn(tT)+'</span>';
   document.querySelectorAll('#fleetTbl tr[data-a]').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.a;try{localStorage.setItem('propAcct',sel)}catch(x){}render()})}
+q('#closeNow').onclick=async()=>{if(!confirm('Close every open trade now?\n\nThe bot keeps running and can re-enter at its next hourly check.'))return;
+  try{const r=await fetch('/prop/command/close',{method:'POST',credentials:'same-origin'});if(!r.ok)throw 0;q('#cmdTxt').textContent='Close requested — waiting for the Mac (about 15 seconds)…'}catch(e){q('#cmdTxt').textContent='Could not send — try again, or run python3 ~/p100-prop/close_now.py on the Mac.'}load()};
 q('#acctSel').onchange=e=>{sel=e.target.value;try{localStorage.setItem('propAcct',sel)}catch(x){}render()};
 q('#gear').onclick=()=>q('#sheet').classList.add('show');q('#closeSheet').onclick=()=>q('#sheet').classList.remove('show');q('#sheet').onclick=e=>{if(e.target.id==='sheet')q('#sheet').classList.remove('show')};
 q('#pairBtn').onclick=async()=>{if(S&&S.paired&&!confirm('A new code disconnects the Mac until you run the new command. Continue?'))return;

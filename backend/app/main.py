@@ -830,7 +830,14 @@ async def prop_feed_ingest(request: Request, db: Session = Depends(get_db)):
                 broadcast(db, settings.BROKER_TOKEN_ENCRYPTION_KEY, prop_feed.push_message(event), PUSH_SUBJECT)
             except Exception:
                 pass
-    return {"ok": True, "pushed": len(pushed)}
+    return {"ok": True, "pushed": len(pushed), "command": prop_feed.pending_command(db)}
+
+
+@app.post("/prop/command/close", dependencies=[Depends(require_dashboard_access)])
+def prop_command_close(db: Session = Depends(get_db)):
+    """Owner's "Close trade now" button. Queued for the Mac bot; this server never places or closes prop orders."""
+    from app.services import prop_feed
+    return prop_feed.request_close(db)
 
 
 @app.get("/prop/state", dependencies=[Depends(require_dashboard_access)])
