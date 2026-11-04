@@ -220,6 +220,7 @@ def test_fleet_trades_eightcap_alongside_topstep(tmp_path):
     assert [b.firm for b in f.bots] == ["Topstep", "Eightcap"]
     ec = f.bots[1]
     assert ec.state.static_mll and ec.state.target == 500 and ec.orders
+    assert ec.size_k == 5 and f.bots[0].size_k == 50   # dashboard label "Eval 5K"
     for d in sorted(api.days)[25:40]:
         run_day(f, api, d)
         assert fake.pos == {} and fake.ord == {}, "Eightcap account must be flat with no orders after %s" % d
@@ -273,3 +274,4 @@ def test_no_minimum_days_rule_for_topstep(tmp_path):
     guard.new_day(s, "2026-11-02", 52000.0)          # earlier days made +2,000; today +1,100 (consistency OK)
     ok, flat, why = guard.check(s, 53100.0, 0.0)
     assert s.passed and not s.target_hit and s.min_days == 0
+

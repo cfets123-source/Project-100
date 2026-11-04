@@ -279,3 +279,19 @@ def test_after_close_button_fast_checks_until_close_then_hourly_next_day(tmp_pat
     run_day(f, api, nxt)
     assert _bar_minutes(api, nxt) <= {"55"} and b.last_status["fast"] is False   # hourly again the next day
     assert noise.decide([], {}, dt.time(10, 20), 0, fast=True) is None
+
+
+def test_dry_run_position_survives_a_restart_the_same_day_only(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api, orders=False)
+    b = f.bots[0]
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(11, 2), ET)
+    b.go_to(1, 21000.0, "test", None)
+    b.save()
+    f2 = worker.Fleet(api, "ALL", False, home=str(tmp_path), clock=lambda: api.now, feed=worker.Feed(token=""))
+    assert f2.bots[0].position() == (b.position()[0], 21000.0) and b.position()[0] > 0
+    api.now = dt.datetime.combine(sorted(api.days)[31], dt.time(9, 40), ET)
+    f3 = worker.Fleet(api, "ALL", False, home=str(tmp_path), clock=lambda: api.now, feed=worker.Feed(token=""))
+    assert f3.bots[0].position() == (0, None)
+    assert api.orders == []
