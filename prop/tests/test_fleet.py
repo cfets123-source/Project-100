@@ -245,3 +245,37 @@ def test_close_button_skips_dry_run_accounts(tmp_path):
     f.feed.command = {"id": "x1", "kind": "close_now", "status": "pending"}
     assert f.handle_command() == []
     assert f.feed.pending_ack == {"id": "x1", "result": "nothing open to close"}
+
+
+def _bar_minutes(api, day):
+    import re
+    out = set()
+    for _, _, _, tag in api.orders:
+        m = re.search(r"-(\d{4})-[+-]\d$", tag or "")
+        if m and tag.startswith("noise-") and day.isoformat() in tag:
+            out.add(m.group(1)[2:])
+    return out
+
+
+def test_after_close_button_fast_checks_until_close_then_hourly_next_day(tmp_path):
+    import noise
+    api = FakeMultiAPI(trading_days(60), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    b, a = f.bots[0], api.accts[1]
+    found = None
+    for d in sorted(api.days)[25:58]:              # find a day where a fast check would act between hourly checks
+        api.now = dt.datetime.combine(d, dt.time(9, 40), ET)
+        f.step()
+        a.pos, a.avg = 1, api.last_price()
+        f.feed.command = {"id": "c-%s" % d, "kind": "close_now", "status": "pending"}
+        f.step()
+        assert a.pos == 0 and b.state.fast_day == d.isoformat() and b.last_status["fast"] is True
+        run_day(f, api, d)
+        if _bar_minutes(api, d) - {"55"}:
+            found = d
+            break
+    assert found, "fast mode never placed an order off the hourly schedule"
+    nxt = sorted(api.days)[sorted(api.days).index(found) + 1]
+    run_day(f, api, nxt)
+    assert _bar_minutes(api, nxt) <= {"55"} and b.last_status["fast"] is False   # hourly again the next day
+    assert noise.decide([], {}, dt.time(10, 20), 0, fast=True) is None
