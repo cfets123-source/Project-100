@@ -168,7 +168,7 @@ function render(){const L=view(),st=L.status||{},cs=st.state||{},A=(S.latest||{}
   const prog=eq==null?0:eq-start;q('#mT').innerHTML=funded?'<span class="muted">Funded · payouts</span>':cs.passed?'<span class="up">PASSED</span>':usd(Math.max(0,(TARGET||3000)-prog))+' <span class="muted" style="font-size:11px">to go</span>';q('#mTb').style.width=funded?'0':pct(prog,TARGET||3000)+'%';
   q('#mL').textContent=usd(floor);const used=today!=null&&today<0?-today:0;q('#mD').innerHTML='<span class="'+(used?'down':'muted')+'">'+usd(used)+'</span> <span class="muted" style="font-size:11px">/ '+usd(DAILY).replace('.00','')+'</span>';q('#mDb').style.width=pct(used,DAILY)+'%';
   // rules
-  q('#rT').textContent=funded?'Profit '+sgn(prog):usd(Math.max(0,prog))+' / '+usd(TARGET||3000).replace('.00','')+(TARGET>(num(cs.target)||TARGET)?' (raised by consistency rule)':'');q('#rTb').style.width=pct(prog,funded?1e9:TARGET||3000)+'%';
+  q('#rT').textContent=funded?'Profit '+sgn(prog):sgn(prog)+' / '+usd(TARGET||3000).replace('.00','')+(TARGET>(num(cs.target)||TARGET)?' (raised by consistency rule)':'');q('#rTb').style.width=pct(prog,funded?1e9:TARGET||3000)+'%';
   const room=eq!=null&&floor!=null?eq-floor:null;q('#rL').textContent=room==null?'—':usd(room);q('#rLb').style.width=pct(room??0,MLL)+'%';q('#rLb').style.background=room!=null&&room<600?'var(--down)':'var(--acc)';
   q('#rD').textContent=usd(used)+' / '+usd(DAILY).replace('.00','');q('#rDb').style.width=pct(used,DAILY)+'%';
   q('#guard').textContent=cs.passed?'Challenge passed — request the funded account on Topstep.':st.allowed===false&&st.note?'Stopped: '+st.note:'';
