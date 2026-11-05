@@ -295,3 +295,26 @@ def test_dry_run_position_survives_a_restart_the_same_day_only(tmp_path):
     f3 = worker.Fleet(api, "ALL", False, home=str(tmp_path), clock=lambda: api.now, feed=worker.Feed(token=""))
     assert f3.bots[0].position() == (0, None)
     assert api.orders == []
+
+
+def test_explicit_rejection_retries_with_a_new_tag_but_lost_reply_keeps_it(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    real, burned = api.market, []
+
+    def flaky(aid, cid, side, size, tag=None):
+        if not burned:                      # TopstepX 2026-11-05: rejects, but the tag counts as used
+            burned.append(tag)
+            api.tags.add(tag)
+            raise TopstepXError("/api/Order/place failed: code 2 Trading is currently unavailable. "
+                                "The instrument is not in an active trading status.")
+        return real(aid, cid, side, size, tag=tag)
+    api.market = flaky
+    for d in sorted(api.days)[25:45]:
+        run_day(f, api, d)
+        if api.orders:
+            break
+    assert burned and api.orders, "the bot never traded"
+    first = api.orders[0][3]
+    assert first == burned[0] + "-r1", (first, burned)        # same decision, retried with a fresh tag
+    assert sum(1 for o in api.orders if o[3].startswith(burned[0])) == 1   # exactly one order for that decision

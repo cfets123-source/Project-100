@@ -28,13 +28,18 @@ ACC_COLS = ["balance", "projectedBalance", "availableFunds", "todayNet", "positi
 class FakeTL:
     """In-memory TradeLocker backend for one account and one US100 CFD (pv $1/point/lot)."""
 
-    def __init__(self, price_fn, balance=5000.0):
-        self.price_fn, self.bal = price_fn, balance
+    def __init__(self, price_fn, balance=5000.0, hedging=True):
+        # hedging=True copies the real Eightcap account (2026-11-05): every order opens its own position
+        self.price_fn, self.bal, self.hedging = price_fn, balance, hedging
         self.pos = {}      # id -> [side, qty, avg]
         self.ord = {}      # id -> [side, qty, price]
         self.n, self.calls, self.placed = 100, [], []
 
-    def _fill(self, side, qty, px):
+    def _fill(self, side, qty, px, closing=False):
+        if self.hedging and not closing:
+            self.n += 1
+            self.pos[self.n] = [side, qty, px]
+            return
         net = sum(q if s == "buy" else -q for s, q, _ in self.pos.values())
         d = qty if side == "buy" else -qty
         if net and (net > 0) != (d > 0):     # reduce / close (net position)
@@ -56,7 +61,15 @@ class FakeTL:
             self.n += 1
             self.pos[self.n] = [side, qty, px]
 
+    @property
+    def max_sides(self):
+        return self._max_sides
+
+    def _track(self):
+        self._max_sides = max(getattr(self, "_max_sides", 0), len({s for s, _, _ in self.pos.values()}))
+
     def _touch(self):
+        self._track()
         px = self.price_fn()
         for oid, (side, qty, lim) in list(self.ord.items()):
             if (side == "sell" and px >= lim) or (side == "buy" and px <= lim):
@@ -94,7 +107,8 @@ class FakeTL:
         elif path == "/trade/accounts/11/positions" and m == "DELETE":
             assert q["tradableInstrumentId"] == "77"
             for pid, (s, qty, a) in list(self.pos.items()):
-                self._fill("sell" if s == "buy" else "buy", qty, px)
+                self.bal += (px - a) * qty * (1 if s == "buy" else -1)
+                del self.pos[pid]
             out = {"s": "ok"}
         elif path == "/trade/accounts/11/orders" and m == "GET":
             out = {"s": "ok", "d": {"orders": [[oid, 77, 5, qq, s, "limit", "New", 0, 0, p, 0, "GTC"]
@@ -125,6 +139,7 @@ class FakeTL:
 
             def __exit__(self, *a):
                 return False
+        self._track()
         return R(json.dumps(out).encode())
 
 
@@ -227,7 +242,8 @@ def test_fleet_trades_eightcap_alongside_topstep(tmp_path):
     mk = [b for b in fake.placed if b["type"] == "market"]
     assert mk and api.orders, "both firms trade the same signals"
     assert all(0.01 <= float(b["qty"]) <= 2.0 and abs(float(b["qty"]) * 100 - round(float(b["qty"]) * 100)) < 1e-6 for b in mk)
-    assert any(b["type"] == "limit" for b in fake.placed), "take-profit rests at the broker"
+    assert not any(b["type"] == "limit" for b in fake.placed), "no resting limit on a hedging account"
+    assert fake.max_sides == 1, "the account never held buy and sell positions at the same time"
 
 
 def test_news_window_blocks_eightcap_orders_only(tmp_path):
@@ -286,13 +302,21 @@ def _tl_acct(fake):
 
 def test_tl_test_round_trip_passes_and_leaves_account_flat():
     import tl_test
-    fake = FakeTL(lambda: 21000.0)
+    fake = FakeTL(lambda: 21000.0)                 # hedging account, like the real one
     acct = _tl_acct(fake)
     ok, steps = tl_test.run_test(acct, sleep=lambda s: None, say=lambda s: None)
     assert ok, steps
-    assert fake.pos == {} and fake.ord == {}
-    kinds = [b["type"] for b in fake.placed]
-    assert kinds.count("market") == 1 and kinds.count("limit") == 1 and float(fake.placed[0]["qty"]) == 0.01
+    assert fake.pos == {} and fake.ord == {} and fake.max_sides == 1
+    assert not any(b["type"] == "limit" for b in fake.placed)
+
+
+def test_tl_test_catches_a_hedging_bug():
+    import tl_test
+    fake = FakeTL(lambda: 21000.0)
+    acct = _tl_acct(fake)
+    acct.market = lambda aid, cid, side, size, tag=None: acct.tl.place(acct.instr, "buy" if side == worker.BUY else "sell", size)
+    ok, steps = tl_test.run_test(acct, sleep=lambda s: None, say=lambda s: None)
+    assert not ok and fake.pos == {}               # fails at step 3 and still cleans up both sides
 
 
 def test_tl_test_refuses_an_account_in_use():
@@ -321,11 +345,25 @@ def test_rate_limit_429_waits_and_retries():
     assert tl.orders() == [] and slept == [2, 4]
 
 
-def test_tl_test_cleanup_flattens_after_a_failed_test(monkeypatch):
+def test_tl_test_cleanup_flattens_hedged_positions(monkeypatch):
     import tl_test
     monkeypatch.setattr(tl_test.time, "sleep", lambda s: None)
     fake = FakeTL(lambda: 21000.0)
     acct = _tl_acct(fake)
-    acct.market(acct.aid, None, worker.BUY, 0.01)
-    acct.limit(acct.aid, None, worker.SELL, 0.01, 21400.0)
+    acct.tl.place(acct.instr, "buy", 0.03)
+    acct.tl.place(acct.instr, "sell", 0.03)      # net zero, two real positions (the 11/05 situation)
+    acct.tl.place(acct.instr, "buy", 0.01, "limit", 20000.0)
     assert tl_test.cleanup(acct, say=lambda s: None) and fake.pos == {} and fake.ord == {}
+
+
+def test_hedged_leftovers_are_flattened_before_any_new_trade():
+    fake = FakeTL(lambda: 21000.0)
+    acct = _tl_acct(fake)
+    acct.tl.place(acct.instr, "buy", 0.03)
+    acct.tl.place(acct.instr, "sell", 0.03)
+    try:
+        acct.positions()
+        raise AssertionError("expected an error")
+    except tlmod.TopstepXError as e:
+        assert "hedging" in str(e)
+    assert fake.pos == {}
