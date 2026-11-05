@@ -29,8 +29,16 @@ def wait(fn, ok, tries=10, pause=2.0, sleep=time.sleep):  # gentle polling: Trad
     return val
 
 
+def raw(acct):
+    """The broker's own position rows on the instrument (not the bot's net view): [(side, qty)]."""
+    return [(str(p.get("side")).lower(), float(p.get("qty") or 0)) for p in acct.tl.positions()
+            if int(p.get("tradableInstrumentId") or 0) == acct.iid]
+
+
 def run_test(acct, lot=0.01, sleep=time.sleep, say=print):
-    """Returns (passed, steps). acct: a tradelocker.TradeLockerAccount."""
+    """Full-day order sequence at the minimum size, checking the broker's raw positions after every step:
+    entry, reversal, an opposite order while in a position (must never create a hedge), net view, end-of-day close.
+    Returns (passed, steps). acct: a tradelocker.TradeLockerAccount."""
     steps = []
 
     def step(name, good, info=""):
@@ -38,64 +46,63 @@ def run_test(acct, lot=0.01, sleep=time.sleep, say=print):
         say("%s %s %s" % ("OK  " if good else "FAIL", name, info))
         return good
 
-    if acct.positions() or acct.open_orders():
-        step("account is flat with no resting orders", False, "refusing to test on an account that is in use")
+    def settle(expect):
+        return wait(lambda: raw(acct), lambda r: sorted(r) == sorted(expect), sleep=sleep)
+
+    if raw(acct) or acct.tl.orders():
+        step("account is flat with no orders", False, "refusing to test on an account that is in use")
         return False, steps
     bal0 = acct.account()["balance"]
     step("signed in, balance %.2f" % bal0, True)
-    opened, limit_id = False, None
     try:
         acct.market(acct.aid, acct.cid, BUY, lot, tag="tltest-buy")
-        pos = wait(acct.positions, bool, sleep=sleep)
-        opened = bool(pos)
-        if not step("market buy %.2f lot filled" % lot, pos, "avg %.2f" % pos[0]["averagePrice"] if pos else "no position"):
+        r = settle([("buy", lot)])
+        if not step("1 entry: one buy position", r == [("buy", lot)], str(r)):
             return False, steps
-        tp = round(pos[0]["averagePrice"] * (1 + TP_FRAC), 2)
-        acct.limit(acct.aid, acct.cid, SELL, lot, tp, tag="tltest-tp")
-        orders = wait(acct.open_orders, bool, sleep=sleep)
-        limit_id = orders[0]["id"] if orders else None
-        if not step("take-profit limit resting", orders and abs(orders[0]["limitPrice"] - tp) < 0.02,
-                    "sell %.2f @ %.2f" % (lot, tp) if orders else "no resting order"):
-            return False, steps
-        acct.cancel(acct.aid, limit_id)
-        left = wait(acct.open_orders, lambda o: not o, sleep=sleep)
-        if not step("take-profit cancelled", not left):
-            return False, steps
-        limit_id = None
         acct.close(acct.aid, acct.cid)
-        flat = wait(acct.positions, lambda p: not p, sleep=sleep)
-        if not step("position closed", not flat):
+        acct.market(acct.aid, acct.cid, SELL, lot, tag="tltest-rev")
+        r = settle([("sell", lot)])
+        if not step("2 reversal: only one sell position", r == [("sell", lot)], str(r)):
             return False, steps
-        opened = False
-        bal1 = acct.account()["balance"]
-        step("round trip cost %.2f" % (bal1 - bal0), True)
+        acct.market(acct.aid, acct.cid, BUY, lot, tag="tltest-opp")
+        r = settle([("buy", lot)])
+        if not step("3 opposite order while short: closes first, never a hedge", r == [("buy", lot)], str(r)):
+            return False, steps
+        p = acct.positions()
+        if not step("4 bot view matches the broker", p and abs(p[0]["size"] - lot) < 1e-9, str(p)):
+            return False, steps
+        acct.close(acct.aid, acct.cid)
+        r = settle([])
+        if not step("5 end-of-day close: no positions left", r == [], str(r)):
+            return False, steps
+        step("orders left", not acct.tl.orders())
+        step("round trip cost %.2f" % (acct.account()["balance"] - bal0), True)
         return True, steps
     except Exception as e:  # noqa: BLE001 - report and clean up below
         step("broker call", False, "%s: %s" % (type(e).__name__, e))
         return False, steps
     finally:
         try:
-            for o in acct.open_orders():
-                acct.cancel(acct.aid, o["id"])
-            if opened and acct.positions():
-                acct.close(acct.aid, acct.cid)
+            for o in acct.tl.orders():
+                acct.tl.delete_order(o["id"])
+            if raw(acct):
+                acct.tl.close_all(acct.instr)
         except Exception as e:  # noqa: BLE001
-            say("CLEANUP PROBLEM: %s - check the account in TradeLocker now" % e)
+            say("CLEANUP PROBLEM: %s - run python3 ~/p100-prop/tl_closeall.py" % e)
 
 
 def cleanup(acct, say=print):
-    """Cancel resting orders and close the position on the instrument (after a failed test)."""
-    for o in acct.open_orders():
-        acct.cancel(acct.aid, o["id"])
-        say("cancelled order %s (%s @ %.2f)" % (o["id"], "buy" if o["side"] == BUY else "sell", o["limitPrice"]))
-    time.sleep(2)
-    if acct.positions():
-        acct.close(acct.aid, acct.cid)
-        say("closed the open position")
+    """Cancel every order and close every position on the instrument (both sides), checked on the raw rows."""
+    for o in acct.tl.orders():
+        acct.tl.delete_order(o["id"])
+    n = len(raw(acct))
+    if n:
+        acct.tl.close_all(acct.instr)
     time.sleep(3)
-    left = (acct.positions(), acct.open_orders())
-    say("account is flat with no orders" if left == ([], []) else "STILL OPEN: %s - close it in TradeLocker" % (left,))
-    return left == ([], [])
+    left = raw(acct)
+    say("closed %d positions; " % n + ("account is flat with no orders" if not left and not acct.tl.orders()
+                                        else "STILL OPEN: %s - close it in TradeLocker" % left))
+    return not left
 
 
 def main():

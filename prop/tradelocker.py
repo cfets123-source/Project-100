@@ -170,6 +170,10 @@ class TradeLockerAccount:
         self.aid = "tl-%s" % cfg["name"]
         self.cid = None   # set by the fleet to the signal contract id (MNQ); orders always go to self.instr
         self.lot_step = float(cfg.get("lot_step") or 0.01)
+        # Eightcap TradeLocker accounts are HEDGING accounts: an opposite order opens a second position instead of
+        # closing the first (found live 2026-11-05). So: no resting take-profit limit (the bot closes at the take-profit
+        # level itself), closes always use close_all, and the account never holds both sides at once.
+        self.resting_tp = False
 
     def account(self):
         st = self.tl.state()
@@ -185,10 +189,13 @@ class TradeLockerAccount:
         return (ask + bid) / 2
 
     def positions(self, account_id=None):
+        rows = [p for p in self.tl.positions() if int(p.get("tradableInstrumentId") or 0) == self.iid]
+        sides = {str(p.get("side")).lower() for p in rows}
+        if "buy" in sides and "sell" in sides:   # hedged leftovers: never trade on top of them - flatten everything
+            self.tl.close_all(self.instr)
+            raise TopstepXError("tradelocker: both buy and sell positions were open (hedging) - closed all of them")
         net, cost = 0.0, 0.0
-        for p in self.tl.positions():
-            if int(p.get("tradableInstrumentId") or 0) != self.iid:
-                continue
+        for p in rows:
             q = float(p.get("qty") or 0) * (1 if str(p.get("side")).lower() == "buy" else -1)
             net += q
             cost += q * float(p.get("avgPrice") or 0)
@@ -199,6 +206,10 @@ class TradeLockerAccount:
                  "averagePrice": cost / net}]
 
     def market(self, account_id, contract_id, side, size, tag=None):
+        want = "buy" if side == BUY else "sell"
+        if any(str(p.get("side")).lower() not in (want, "none") and int(p.get("tradableInstrumentId") or 0) == self.iid
+               for p in self.tl.positions()):
+            self.tl.close_all(self.instr)   # an opposite order would open a hedge here, not reduce the position
         return self.tl.place(self.instr, "buy" if side == BUY else "sell", round(float(size), 2),
                              strategy_id=(tag or "")[:30] or None)
 

@@ -32,6 +32,7 @@ import tradelocker as tlmod  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 HOME = os.path.expanduser("~/.p100-prop")
+REJECTED_MSGS = ("not in an active trading status", "Trading is currently unavailable")  # TopstepX, 2026-11-05
 MIRROR = os.path.expanduser("~/Documents/p100-prop/data")  # best-effort copy Claude can read (macOS may block it)
 TARGET_NOTIONAL = 100000.0  # per $50K of account size: "size 2" in the challenge test = 2 x $50K of Nasdaq exposure
 MAX_CONTRACTS_PER_50K = 3     # before volatility scaling
@@ -218,6 +219,7 @@ class Bot:
         self.state = apply_rules(self._load(start_balance or float(self.account.get("start_balance") or self.size_k * 1000.0)),
                                  self.account.get("name"), self.account.get("kind"), self.account.get("rules"))
         self.history, self.history_day = [], None
+        self.rejected_tags = {}  # order tag -> number of explicit broker rejections (see go_to)
         self.virtual = 0  # dry-run position (+n / -n contracts); restored after a restart on the same day
         self.virtual_avg = None
         if self.state.dry_day == self.clock().date().isoformat():
@@ -338,8 +340,8 @@ class Bot:
     def manage_tp(self, now):
         """Keep exactly one resting take-profit order at the broker for the open position (research assumed a
         resting order that fills the moment price touches the level, not a check on 5-minute closes)."""
-        if not self.orders or not hasattr(self.api, "limit"):
-            return
+        if not self.orders or not hasattr(self.api, "limit") or not getattr(self.api, "resting_tp", True):
+            return  # accounts without a safe resting take-profit (TradeLocker hedging) use the polled take-profit
         pos, avg = self.position()
         tp = self.tp_dollars(pos, avg)
         blocked = self.news.blocked(now)[0] if self.news else False
@@ -391,7 +393,16 @@ class Bot:
             pos = 0
         delta = want - pos
         if abs(delta) > 1e-6:
-            self.api.market(self.aid, self.cid, BUY if delta > 0 else SELL, abs(delta), tag=tag)
+            n_rej = self.rejected_tags.get(tag, 0) if tag else 0
+            use = "%s-r%d" % (tag, n_rej) if n_rej else tag
+            try:
+                self.api.market(self.aid, self.cid, BUY if delta > 0 else SELL, abs(delta), tag=use)
+            except TopstepXError as e:
+                # an explicit rejection means no order exists: the retry may use a new tag (an unknown outcome keeps
+                # the same tag, so a lost reply can never double the position)
+                if tag and any(m in str(e) for m in REJECTED_MSGS):
+                    self.rejected_tags[tag] = n_rej + 1
+                raise
         self.mark_trade_day()
 
     def mark_trade_day(self):
