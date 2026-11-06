@@ -212,7 +212,7 @@ def test_news_calendar_and_fallback(tmp_path):
     assert cal2.blocked(at(10, 5))[0] and cal2.blocked(at(13, 55))[0] and not cal2.blocked(at(11, 0))[0]
 
 
-def make_fleet(tmp_path, nonews=None):
+def make_fleet(tmp_path, nonews=None, cfg=None):
     api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
     api.now = dt.datetime.combine(dt.date(2026, 9, 1), dt.time(9, 25), ET)
     def px():
@@ -225,7 +225,7 @@ def make_fleet(tmp_path, nonews=None):
     def factory(email, pw, server, env):
         return tlmod.TradeLocker(email, pw, server, env, opener=fake)
     f = worker.Fleet(api, "ALL", True, home=str(tmp_path), clock=lambda: api.now, feed=worker.Feed(token=""),
-                     relays=[], secret_fn=lambda name: "pw", tl_configs=[CFG], tl_factory=factory,
+                     relays=[], secret_fn=lambda name: "pw", tl_configs=[cfg or CFG], tl_factory=factory,
                      news=nonews or NoNews())
     return api, fake, f
 
@@ -367,3 +367,77 @@ def test_hedged_leftovers_are_flattened_before_any_new_trade():
     except tlmod.TopstepXError as e:
         assert "hedging" in str(e)
     assert fake.pos == {}
+
+
+def _funded_state():
+    st = guard.ChallengeState(start_balance=5000.0, eod_high=5000.0)
+    rules = {"mll": 400, "daily_stop": 150, "mll_buffer": 60, "static_mll": True, "consistency": 1.0, "min_days": 0,
+             "cycle_cap": 250, "cycle_days": 14, "payout_min_days": 7, "payout_day_share": 0.30, "payout_split": 0.8}
+    return guard.apply_rules(st, "EIGHTCAP-5K-F", "funded", rules)
+
+
+def test_payout_stage_stops_at_the_cap_and_needs_seven_days():
+    st = _funded_state()
+    guard.new_day(st, "2026-12-01", 5000.0)
+    assert st.cycle_start == "2026-12-01" and st.target is None
+    st.trade_days = ["2026-12-01", "2026-12-02"]
+    allowed, flat, why = guard.check(st, 5000.0, 260.0)            # above the 5% cap after 2 trading days
+    assert not allowed and flat and "2 of 7" in why and st.target_hit and st.cap_hit
+    st.trade_days += ["2026-12-03", "2026-12-04", "2026-12-05", "2026-12-08", "2026-12-09"]
+    allowed, flat, why = guard.check(st, 5260.0, 0.0)
+    assert not allowed and "request the payout" in why
+    assert st.payout_ready("2026-12-09", 5260.0)
+
+
+def test_payable_applies_cap_and_best_day_rule():
+    st = _funded_state()
+    guard.new_day(st, "2026-12-01", 5000.0)
+    st.cycle_best_day = 150.0                                        # one day made 150 of 200 (75% > 30%)
+    gross, mine = st.payable(5200.0)
+    assert gross == round(200 - (150 - 0.3 * 200), 2) and mine == round(gross * 0.8, 2)
+    st.cycle_best_day = 50.0
+    assert st.payable(5400.0) == (250.0, 200.0)                      # capped at 5%
+
+
+def test_new_cycle_after_the_firm_resets_the_account():
+    st = _funded_state()
+    guard.new_day(st, "2026-12-01", 5000.0)
+    st.cap_hit, st.payout_notified = True, "2026-12-01"
+    guard.new_day(st, "2026-12-16", 5000.0)                          # payout paid, balance back to start
+    assert st.cycle_start == "2026-12-16" and not st.cap_hit and st.cycle_best_day == 0.0
+    allowed, _, _ = guard.check(st, 5000.0, 0.0)
+    assert allowed
+
+
+def test_payout_ready_after_fourteen_days_with_profit():
+    st = _funded_state()
+    guard.new_day(st, "2026-12-01", 5000.0)
+    st.trade_days = ["2026-12-%02d" % d for d in range(1, 9)]
+    assert not st.payout_ready("2026-12-10", 5100.0)                 # only 9 days old
+    assert st.payout_ready("2026-12-15", 5100.0)
+    assert not st.payout_ready("2026-12-15", 4990.0)                 # nothing to pay
+
+
+def test_funded_eightcap_stops_at_the_payout_cap_and_tells_the_owner(tmp_path):
+    cfg = dict(CFG, name="EIGHTCAP-5K-F", kind="funded", leverage=1.5,
+               rules={"mll": 400, "daily_stop": 150, "mll_buffer": 60, "static_mll": True, "consistency": 1.0,
+                      "min_days": 0, "cycle_cap": 5, "cycle_days": 14, "payout_min_days": 1, "payout_day_share": 0.3})
+    api, fake, f = make_fleet(tmp_path, cfg=cfg)
+    ec = f.bots[1]
+    assert ec.state.kind == "funded" and ec.state.cycle_cap == 5 and ec.state.target is None
+    msgs, orig = [], ec.event
+
+    def spy(kind, text, *a, **k):
+        if "Payout ready" in text:
+            msgs.append(text)
+        return orig(kind, text, *a, **k)
+    ec.event = spy
+    for d in sorted(api.days)[25:45]:
+        run_day(f, api, d)
+        assert fake.pos == {} and fake.max_sides == 1, d
+        if ec.state.cap_hit:
+            break
+    assert ec.state.cap_hit and len(msgs) == 1, msgs
+    n = len(fake.placed)
+    run_day(f, api, sorted(api.days)[sorted(api.days).index(d) + 1])     # cap hit, no payout yet: no new trades
+    assert len(fake.placed) == n and fake.pos == {}
