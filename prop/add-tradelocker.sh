@@ -35,11 +35,13 @@ rules = {"mll": p["mll"] * size, "daily_stop": 0.75 * p["daily"] * size, "mll_bu
          "static_mll": True, "consistency": 1.0, "min_days": 0 if funded else p["min_days"]}
 if not funded:
     rules["target"] = p["targets"][stage] * size
+elif firm == "eightcap":   # payout stage rules (challenges.eightcap.com, read 2026-11-06)
+    rules.update(cycle_cap=0.05 * size, cycle_days=14, payout_min_days=7, payout_day_share=0.30, payout_split=0.8)
 cfg = json.load(open(path)) if os.path.exists(path) else []
 cfg = [c for c in cfg if c.get("name") != name]
 cfg.append({"firm": p["label"], "name": name, "env": env, "email": email, "server": server, "secret": secret,
             "acc_num": None, "symbol": None, "start_balance": size, "kind": "funded" if funded else "combine",
-            "leverage": 3, "point_value": None, "tick": 0.01, "orders": False, "news_blackout": True, "rules": rules})
+            "leverage": 1.5 if funded else 3, "point_value": None, "tick": 0.01, "orders": False, "news_blackout": True, "rules": rules})
 json.dump(cfg, open(path, "w"), indent=1)
 print("Saved %s (%s stage %s, dry run). Next: python3 ~/p100-prop/worker.py --check" % (name, p["label"], stage))
 PY

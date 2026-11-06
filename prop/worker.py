@@ -322,7 +322,7 @@ class Bot:
         """Take-profit in $ for the open position: a fixed move (% of price) when tp_move_frac is set (CFD accounts,
         same 0.52% move as the Topstep +$600 on 2 MNQ), otherwise take_profit()."""
         if self.tp_move_frac:
-            if self.state.kind != "combine" or not pos or not avg:
+            if self.state.kind not in ("combine", "funded") or not pos or not avg:
                 return 0.0
             return abs(pos) * self.point_value * avg * self.tp_move_frac
         return self.take_profit()
@@ -440,6 +440,12 @@ class Bot:
         self.room = bal + open_pnl - self.state.floor
         was_passed, was_halted = self.state.passed, self.state.halted_day == self.state.day or self.state.finished
         allowed, must_flat, why = check(self.state, bal, open_pnl)
+        if self.state.cycle_cap and self.state.payout_ready(self.state.day, bal + open_pnl) \
+                and self.state.payout_notified != self.state.cycle_start:
+            gross, mine = self.state.payable(bal + open_pnl)
+            self.state.payout_notified = self.state.cycle_start
+            self.event("pass", "Payout ready on %s: request $%.2f (you receive about $%.2f). The firm resets the account "
+                               "after the payout; the bot starts a new cycle by itself." % (self.account.get("name"), gross, mine))
         if self.state.passed and not was_passed:
             self.event("pass", "Profit target reached at %s. Request the funded account on Topstep." % round(bal + open_pnl))
         elif not allowed and must_flat and not was_halted:

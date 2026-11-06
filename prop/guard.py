@@ -46,6 +46,10 @@ def apply_rules(state, name, kind=None, overrides=None):
             state.static_mll = bool(v)
         elif k == "min_days":
             state.min_days = int(v)
+        elif k in ("cycle_cap", "payout_day_share", "payout_split"):     # payout stage (Eightcap funded)
+            setattr(state, k, float(v))
+        elif k in ("cycle_days", "payout_min_days"):
+            setattr(state, k, int(v))
         elif k in ("target", "mll", "daily_stop", "mll_buffer", "consistency"):
             setattr(state, k, None if (k == "target" and state.kind != "combine") else float(v))
     return state
@@ -77,6 +81,40 @@ class ChallengeState:
     dry_avg: object = None
     dry_day: str = ""
     fast_day: str = ""         # day on which the owner closed manually: 5-min checks until the close (research 2026-11-04)
+    # payout stage (Eightcap One Phase funded, rules read 2026-11-06): profit above cycle_cap per payout cycle is forfeited and
+    # the account resets to the starting balance after each payout; best day <= payout_day_share of the requested profit;
+    # payout_min_days trading days per cycle; payout every cycle_days calendar days. cycle_cap 0 = no payout stage rules.
+    cycle_cap: float = 0.0
+    cycle_days: int = 14
+    payout_min_days: int = 0
+    payout_day_share: float = 0.0
+    payout_split: float = 0.8
+    cycle_start: str = ""
+    cycle_start_balance: float = 0.0
+    cycle_best_day: float = 0.0
+    cap_hit: bool = False
+    payout_notified: str = ""   # cycle_start of the last "payout ready" message
+
+    def cycle_trade_days(self):
+        return [d for d in self.trade_days if self.cycle_start and d >= self.cycle_start]
+
+    def payable(self, equity):
+        """(gross requestable profit, owner's share) for the current cycle under the cap and the best-day rule."""
+        if not self.cycle_cap:
+            return 0.0, 0.0
+        r = max(0.0, min(equity - self.cycle_start_balance, self.cycle_cap))
+        if self.payout_day_share and r > 0:
+            r -= max(0.0, self.cycle_best_day - self.payout_day_share * r)
+        r = max(0.0, r)
+        return round(r, 2), round(r * self.payout_split, 2)
+
+    def payout_ready(self, day, equity):
+        """True when a payout can be requested: cycle length reached (or cap hit), enough trading days, profit > 0."""
+        if not self.cycle_cap or not self.cycle_start or self.payable(equity)[0] <= 0:
+            return False
+        import datetime as _dt
+        age = (_dt.date.fromisoformat(day) - _dt.date.fromisoformat(self.cycle_start)).days
+        return len(self.cycle_trade_days()) >= self.payout_min_days and (age >= self.cycle_days or self.cap_hit)
 
     @property
     def floor(self):
@@ -105,6 +143,15 @@ def new_day(state, day, balance):
         return state
     if state.day and state.day != day:  # yesterday's realized result counts toward the consistency rule
         state.best_day = max(state.best_day, balance - state.day_start_balance)
+        if state.cycle_cap and state.cycle_start:
+            state.cycle_best_day = max(state.cycle_best_day, balance - state.day_start_balance)
+    if state.cycle_cap:
+        # after a payout the firm resets the account to the starting balance
+        reset = bool(state.cycle_start) and state.payout_notified == state.cycle_start \
+            and abs(balance - state.start_balance) < 0.5 and state.day != day
+        if not state.cycle_start or reset:   # first funded day, or the firm reset the account after a payout
+            state.cycle_start, state.cycle_start_balance = day, balance
+            state.cycle_best_day, state.cap_hit, state.target_hit = 0.0, False, False
     state.eod_high = max(state.eod_high, balance)  # balance at the start of a day = prior day's closing balance
     state.day, state.day_start_balance = day, balance
     need = state.required_target()
@@ -124,6 +171,13 @@ def check(state, balance, open_pnl):
     equity = balance + open_pnl
     if state.finished:
         return False, True, state.halted_reason or ("target reached" if state.passed else "finished")
+    if state.cycle_cap and equity - state.cycle_start_balance >= state.cycle_cap:
+        state.cap_hit = True    # anything above the cap is forfeited: stop and request the payout
+        if len(state.cycle_trade_days()) < state.payout_min_days:
+            state.target_hit = True
+            return False, True, "payout cap reached - %d of %d trading days this cycle; one tiny trade per day until then" % (
+                len(state.cycle_trade_days()), state.payout_min_days)
+        return False, True, "payout cap reached - request the payout"
     need = state.required_target(equity - state.day_start_balance)
     if need is not None and equity >= state.start_balance + need:
         if len(state.trade_days) < state.min_days:
