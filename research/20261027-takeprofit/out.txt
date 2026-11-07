@@ -1,0 +1,26 @@
+current rules                DEV  $/day    52  win 26.5%  pass(fresh) 43.4%  med days  27  pass(from today) 36.4%
+                             CONF $/day    45  win 23.8%  pass(fresh) 36.3%  med days  25  pass(from today) 31.5%
+take profit $150 + re-enter  DEV  $/day    14  win 31.5%  pass(fresh) 31.5%  med days  40  pass(from today) 24.3%
+                             CONF $/day    17  win 30.0%  pass(fresh) 45.7%  med days  51  pass(from today) 31.1%
+take profit $250 + re-enter  DEV  $/day    27  win 28.7%  pass(fresh) 45.9%  med days  31  pass(from today) 37.3%
+                             CONF $/day    26  win 27.3%  pass(fresh) 49.8%  med days  36  pass(from today) 39.8%
+take profit $400 + re-enter  DEV  $/day    40  win 27.7%  pass(fresh) 49.0%  med days  30  pass(from today) 38.2%
+                             CONF $/day    29  win 26.0%  pass(fresh) 42.2%  med days  26  pass(from today) 36.3%
+take profit $600 + re-enter  DEV  $/day    42  win 27.1%  pass(fresh) 48.5%  med days  29  pass(from today) 40.4%
+                             CONF $/day    38  win 25.2%  pass(fresh) 38.8%  med days  22  pass(from today) 33.2%
+take profit $1000 + re-enter DEV  $/day    50  win 26.5%  pass(fresh) 43.1%  med days  28  pass(from today) 36.2%
+                             CONF $/day    36  win 24.0%  pass(fresh) 43.9%  med days  24  pass(from today) 38.4%
+daily lock $300              DEV  $/day    45  win 27.3%  pass(fresh) 34.8%  med days  45  pass(from today) 25.6%
+                             CONF $/day    53  win 25.6%  pass(fresh) 19.7%  med days  44  pass(from today) 13.5%
+daily lock $500              DEV  $/day    52  win 27.3%  pass(fresh) 37.8%  med days  41  pass(from today) 29.4%
+                             CONF $/day    52  win 24.6%  pass(fresh) 21.1%  med days  36  pass(from today) 15.2%
+daily lock $800              DEV  $/day    48  win 26.6%  pass(fresh) 41.1%  med days  33  pass(from today) 30.6%
+                             CONF $/day    51  win 24.2%  pass(fresh) 30.4%  med days  32  pass(from today) 26.3%
+daily lock $1200             DEV  $/day    47  win 26.4%  pass(fresh) 41.6%  med days  28  pass(from today) 35.0%
+                             CONF $/day    48  win 23.9%  pass(fresh) 32.9%  med days  28  pass(from today) 28.4%
+trail 50% after $200         DEV  $/day    27  win 28.5%  pass(fresh) 34.6%  med days  27  pass(from today) 26.7%
+                             CONF $/day    26  win 25.7%  pass(fresh) 36.3%  med days  28  pass(from today) 28.0%
+trail 50% after $400         DEV  $/day    44  win 27.3%  pass(fresh) 42.0%  med days  28  pass(from today) 35.7%
+                             CONF $/day    37  win 25.2%  pass(fresh) 42.2%  med days  26  pass(from today) 31.1%
+trail 50% after $700         DEV  $/day    47  win 26.8%  pass(fresh) 44.7%  med days  27  pass(from today) 37.5%
+                             CONF $/day    47  win 24.2%  pass(fresh) 40.5%  med days  25  pass(from today) 33.9%

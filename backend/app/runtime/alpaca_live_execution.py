@@ -2,6 +2,7 @@
 from app.brokers.alpaca_connection import load_live_execution_adapter, verify_read_only
 from app.services.state_machine import StateManager
 from app.research.strategy_validation import require_passing_validation
+from app.services.owner_experiment import OWNER_EXPERIMENT_STRATEGIES, require_owner_experiment
 from app.strategies.daily_trend_pullback import (
     BROAD_STRATEGY_VERSION, EXPANDED_STRATEGY_VERSION,
     PORTFOLIO_BROAD_STRATEGY_VERSION, STRATEGY_VERSION,
@@ -19,6 +20,8 @@ CONTRACT_REQUIRED_STRATEGIES = frozenset({
 
 
 def require_execution_validation(db, strategy):
+    if strategy in OWNER_EXPERIMENT_STRATEGIES:
+        return require_owner_experiment(db, strategy)
     if strategy in CONTRACT_REQUIRED_STRATEGIES:
         return require_passing_validation(
             db, strategy, execution_contract=DAILY_PULLBACK_EXECUTION_CONTRACT)

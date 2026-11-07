@@ -1,0 +1,94 @@
+{
+ "generated": "2026-10-07",
+ "gate": {
+  "max_p_floor": 0.1,
+  "crash_min_above": 50.0,
+  "rule": "P(touch $50 within 12 months) <= 10% in a 4,000-path 20-day block bootstrap of the backtest's daily returns, AND starting from $100 the account never falls to $50 inside any listed historical crash window."
+ },
+ "strategies": {
+  "allocator-core-satellite-v1": {
+   "sample": "2011-01-03..2026-09-25",
+   "monte_carlo_12m": {
+    "paths": 4000,
+    "days": 252,
+    "block": 20,
+    "p_floor": 0.0158,
+    "p5": 68.34,
+    "median": 122.94,
+    "p95": 210.49
+   },
+   "crashes": [
+    {
+     "start": "2020-02-19",
+     "end": "2020-03-23",
+     "end_value": 65.88,
+     "lowest": 61.91,
+     "name": "COVID crash"
+    },
+    {
+     "start": "2022-01-03",
+     "end": "2022-12-30",
+     "end_value": 55.52,
+     "lowest": 51.88,
+     "name": "2022 bear market"
+    },
+    {
+     "start": "2018-09-20",
+     "end": "2018-12-24",
+     "end_value": 65.91,
+     "lowest": 64.66,
+     "name": "Q4 2018 selloff"
+    }
+   ],
+   "passed": true,
+   "daily_return_bands": {
+    "p01": -0.0619,
+    "p05": -0.0389,
+    "p95": 0.0334,
+    "p99": 0.0516
+   }
+  },
+  "binance-crypto-signals-v1": {
+   "sample": "2018-01-01..2026-09-25",
+   "monte_carlo_12m": {
+    "paths": 4000,
+    "days": 365,
+    "block": 20,
+    "p_floor": 0.0,
+    "p5": 80.12,
+    "median": 130.17,
+    "p95": 231.53
+   },
+   "crashes": [
+    {
+     "start": "2018-01-06",
+     "end": "2018-12-15",
+     "end_value": 95.38,
+     "lowest": 95.38,
+     "name": "2018 crypto winter"
+    },
+    {
+     "start": "2020-03-01",
+     "end": "2020-03-31",
+     "end_value": 100.0,
+     "lowest": 100.0,
+     "name": "March 2020"
+    },
+    {
+     "start": "2021-11-08",
+     "end": "2022-11-21",
+     "end_value": 83.87,
+     "lowest": 83.87,
+     "name": "2022 crypto bear"
+    }
+   ],
+   "passed": true,
+   "daily_return_bands": {
+    "p01": -0.0384,
+    "p05": -0.0164,
+    "p95": 0.0228,
+    "p99": 0.0498
+   }
+  }
+ }
+}
