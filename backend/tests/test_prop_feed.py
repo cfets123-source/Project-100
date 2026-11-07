@@ -40,7 +40,7 @@ def test_feed_requires_pairing_and_dedupes_events():
         assert client.post("/prop/feed", json={}, headers={"X-Prop-Token": token}).status_code == 401
         assert client.post("/prop/feed", json={}, headers={"X-Prop-Token": new}).status_code == 200
         page = client.get("/prop")
-        assert page.status_code == 200 and "PresNa Capital Terminal" in page.text
+        assert page.status_code == 200 and "PROP TERMINAL" in page.text
         classic = client.get("/prop/classic")
         assert classic.status_code == 200 and "Prop Challenge" in classic.text
 
@@ -106,6 +106,12 @@ def test_close_button_command_is_sent_once_acknowledged_and_expires():
 def test_terminal_is_the_prop_page_and_classic_stays_available():
     from app.prop_terminal_html import PROP_TERMINAL_HTML
     from app.prop_html import PROP_HTML
-    assert "PresNa Capital Terminal" in PROP_TERMINAL_HTML and "/prop/command/close" in PROP_TERMINAL_HTML
+    assert "PROP TERMINAL" in PROP_TERMINAL_HTML and "/prop/command/close" in PROP_TERMINAL_HTML
     assert "/prop/state" in PROP_TERMINAL_HTML and 'href="/prop/classic"' in PROP_TERMINAL_HTML
     assert "closeNow" in PROP_HTML
+
+
+def test_prop_and_alpaca_pages_link_to_each_other():
+    from app.prop_terminal_html import PROP_TERMINAL_HTML
+    from app.dashboard_html import DASHBOARD_HTML
+    assert 'href="/dashboard">ALPACA' in PROP_TERMINAL_HTML and 'href="/prop">PROP' in DASHBOARD_HTML
