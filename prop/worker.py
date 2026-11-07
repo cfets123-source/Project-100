@@ -432,6 +432,15 @@ class Bot:
         now = self.clock()
         today = now.date()
         if now.weekday() >= 5 or now.time() < dt.time(9, 25) or now.time() > dt.time(16, 5):
+            if not self.last_status:   # once while closed: balances for the dashboard (one read, never an order)
+                try:
+                    pos, avg = self.position()
+                    self.last_status = {"balance": self.balance(), "open_pnl": 0.0, "position": pos, "avg": avg,
+                                        "floor": self.state.floor, "allowed": True, "note": "market closed",
+                                        "kind": self.state.kind, "target": self.state.target, "size_k": self.size_k,
+                                        "fast": False}
+                except Exception as e:  # noqa: BLE001 - display only
+                    log.warning("closed-market status: %s", e)
             return "market closed"
         if self.history_day != today:
             self.load_history(today)
