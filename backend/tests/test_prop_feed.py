@@ -115,3 +115,19 @@ def test_prop_and_alpaca_pages_link_to_each_other():
     from app.prop_terminal_html import PROP_TERMINAL_HTML
     from app.dashboard_html import DASHBOARD_HTML
     assert 'href="/dashboard">ALPACA' in PROP_TERMINAL_HTML and 'href="/prop">PROP' in DASHBOARD_HTML
+
+
+def test_closed_market_report_keeps_last_balances_and_bars():
+    _reset()
+    db = SessionLocal()
+    live = {"status": {"balance": 50172.32, "position": 0}, "bars": [["2026-11-06T20:55:00Z", 1, 2, 0.5, 1.5]],
+            "accounts": [{"account": "50KTC-A", "status": {"balance": 50172.32, "size_k": 50, "state": {"day": "2026-11-06"}}}]}
+    prop_feed.ingest(db, live)
+    idle = {"status": {"state": {"day": "2026-11-07"}}, "bars": [],
+            "accounts": [{"account": "50KTC-A", "status": {"state": {"day": "2026-11-07"}}}]}
+    prop_feed.ingest(db, idle)
+    st = prop_feed.state(db)["latest"]
+    assert st["bars"] and st["status"]["balance"] == 50172.32
+    a = st["accounts"][0]["status"]
+    assert a["balance"] == 50172.32 and a["size_k"] == 50 and a["state"]["day"] == "2026-11-07"
+    db.close()
