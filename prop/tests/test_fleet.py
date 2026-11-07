@@ -343,3 +343,12 @@ def test_rejected_orders_are_not_logged_as_trades(tmp_path):
     assert len(fails) == 3 and api.orders
     assert len(entries) == sum(1 for o in api.orders if o[3] and o[3].startswith("noise-")), entries
     assert all(" MNQ at " in t for t in entries)
+
+
+def test_closed_market_reports_balances_once_without_orders(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50123.0)])
+    f = fleet(tmp_path, api)
+    api.now = dt.datetime(2026, 11, 7, 10, 0, tzinfo=ET)          # Saturday
+    f.step()
+    st = f.bots[0].last_status
+    assert st["balance"] == 50123.0 and st["position"] == 0 and st["size_k"] == 50 and api.orders == []
