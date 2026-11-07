@@ -235,6 +235,8 @@ def test_fleet_trades_eightcap_alongside_topstep(tmp_path):
     assert [b.firm for b in f.bots] == ["Topstep", "Eightcap"]
     ec = f.bots[1]
     assert ec.state.static_mll and ec.state.target == 500 and ec.orders
+    spy, orig = [], ec.event
+    ec.event = lambda kind, text, *a, **k: (spy.append(text) if kind in ("buy", "sell", "flat") else None, orig(kind, text, *a, **k))[1]
     assert ec.size_k == 5 and f.bots[0].size_k == 50   # dashboard label "Eval 5K"
     for d in sorted(api.days)[25:40]:
         run_day(f, api, d)
@@ -243,6 +245,7 @@ def test_fleet_trades_eightcap_alongside_topstep(tmp_path):
     assert mk and api.orders, "both firms trade the same signals"
     assert all(0.01 <= float(b["qty"]) <= 2.0 and abs(float(b["qty"]) * 100 - round(float(b["qty"]) * 100)) < 1e-6 for b in mk)
     assert not any(b["type"] == "limit" for b in fake.placed), "no resting limit on a hedging account"
+    assert spy and all(" lot at " in t and " MNQ" not in t for t in spy), spy[:3]
     assert fake.max_sides == 1, "the account never held buy and sell positions at the same time"
 
 

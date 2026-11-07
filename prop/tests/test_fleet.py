@@ -318,3 +318,28 @@ def test_explicit_rejection_retries_with_a_new_tag_but_lost_reply_keeps_it(tmp_p
     first = api.orders[0][3]
     assert first == burned[0] + "-r1", (first, burned)        # same decision, retried with a fresh tag
     assert sum(1 for o in api.orders if o[3].startswith(burned[0])) == 1   # exactly one order for that decision
+
+
+def test_rejected_orders_are_not_logged_as_trades(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    real, fails = api.market, []
+
+    def flaky(aid, cid, side, size, tag=None):
+        if len(fails) < 3:                              # three rejections in a row, like 11/05
+            fails.append(tag)
+            raise TopstepXError("/api/Order/place failed: code 2 Trading is currently unavailable. "
+                                "The instrument is not in an active trading status.")
+        return real(aid, cid, side, size, tag=tag)
+    api.market = flaky
+    b, logged = f.bots[0], []
+    orig = b.event
+    b.event = lambda kind, text, *a, **k: (logged.append((kind, text)), orig(kind, text, *a, **k))[1]
+    for d in sorted(api.days)[25:45]:
+        run_day(f, api, d)
+        if api.orders:
+            break
+    entries = [t for k, t in logged if k in ("buy", "sell")]
+    assert len(fails) == 3 and api.orders
+    assert len(entries) == sum(1 for o in api.orders if o[3] and o[3].startswith("noise-")), entries
+    assert all(" MNQ at " in t for t in entries)
