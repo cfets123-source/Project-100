@@ -850,6 +850,14 @@ def prop_state(db: Session = Depends(get_db)):
 def prop_page(request: Request):
     if not dashboard_access_granted(request):
         return RedirectResponse("/login", status_code=303)
+    from app.prop_terminal_html import PROP_TERMINAL_HTML
+    return HTMLResponse(PROP_TERMINAL_HTML, headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.get("/prop/classic", response_class=HTMLResponse)
+def prop_classic_page(request: Request):
+    if not dashboard_access_granted(request):
+        return RedirectResponse("/login", status_code=303)
     from app.prop_html import PROP_HTML
     return HTMLResponse(PROP_HTML, headers={"Cache-Control": "no-store, max-age=0"})
 
