@@ -83,6 +83,7 @@ td{padding:8px 6px;border-bottom:1px solid #ffffff08;white-space:nowrap}tr.sel t
 /* stats */
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat{background:#ffffff06;border:1px solid #ffffff0d;border-radius:10px;padding:9px}.stat .v{font:800 18px var(--mono)}.stat .l{font:10px var(--mono);color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+.tabs{display:flex;gap:6px;margin:0 0 10px}.tabs a{font:800 11px var(--mono);letter-spacing:.16em;padding:9px 16px;border-radius:9px;border:1px solid var(--line);color:var(--sub);background:#0d1014}.tabs a.on{color:var(--gold);border-color:rgba(200,164,82,.55);background:rgba(200,164,82,.08)}
 .banner{display:none;margin-bottom:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(200,164,82,.4);background:rgba(200,164,82,.07);color:#ecd9a8;font-size:13px}.banner.show{display:block}
 .foot{margin-top:14px;font:11px var(--mono);color:var(--dim);display:flex;gap:16px;flex-wrap:wrap}
 select{background:#0d1014;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:12px var(--mono)}
@@ -91,7 +92,7 @@ select{background:#0d1014;color:var(--ink);border:1px solid var(--line);border-r
  .chartbox,.neural,.log{height:250px}.node .c{width:38px;height:38px;font-size:15px}.node .m{font-size:10px}.stats{grid-template-columns:repeat(3,1fr)}.ringwrap{grid-template-columns:110px 1fr}.ringwrap canvas{width:110px;height:110px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><div class="wrap">
-
+<nav class="tabs"><a class="on" href="/prop">PROP</a><a href="/dashboard">ALPACA</a></nav>
 <div class="banner" id="banner"></div>
 
 <div class="panel hdr">
@@ -146,7 +147,7 @@ select{background:#0d1014;color:var(--ink);border:1px solid var(--line);border-r
   <div class="panel"><h3>$ tail -f bot.log<span class="r" id="logR"></span></h3><div class="log" id="log"></div></div>
  </div>
 </div>
-<div class="foot"><span>Real data only · nothing on this screen is simulated</span><a href="/prop/classic">Classic view &amp; pairing ⚙</a><a href="/">Home</a></div>
+<div class="foot"><span>Real data only · nothing on this screen is simulated</span><a href="/prop/classic">Classic view &amp; pairing ⚙</a><a href="/dashboard">Alpaca</a></div>
 </div>
 <script>
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -172,6 +173,9 @@ function startOf(a){const s=(a.status||{}).state||{};return num(s.start_balance)
 function dayStartOf(a){return num(((a.status||{}).state||{}).day_start_balance)}
 function short(a){return (a.firm||'Topstep')+' '+(num(a.status.size_k)?num(a.status.size_k)+'K':'')}
 function evs(){return (S&&S.events)||[]}
+/* one line per decision: retries of the same check (rejected orders) are merged, e.g. 11/05 */
+function ekey(e){const m=/\((NOISE check \d\d:\d\d)\)/.exec(e.text||'');return m&&e.time?[e.account,e.kind,et(new Date(e.time)).date,m[1]].join('|'):e.id}
+function dedup(E){const seen=new Map(),out=[];for(const e of E){const k=ekey(e);if(seen.has(k)){seen.get(k).n++;continue}const c=Object.assign({n:1},e);seen.set(k,c);out.push(c)}return out}
 function todayBars(){const B=(S&&S.latest&&S.latest.bars)||[];if(!B.length)return [];const day=et(new Date(B[B.length-1][0])).date;return B.filter(b=>et(new Date(b[0])).date===day)}
 /* ---------- load ---------- */
 async function load(){try{const r=await fetch('/prop/state',{credentials:'same-origin'});if(r.status===401||r.redirected){location.href='/login';return}
@@ -235,15 +239,15 @@ function renderRing(a){if(!a){$('#ringKv').innerHTML='';return}const st=a.status
   $('#ringR').textContent=short(a);const days=(cs.trade_days||[]).length;
   $('#ringKv').innerHTML=(funded?'<span>stage</span><span class="up">FUNDED · payouts</span>':'<span>target</span><span>'+usd(tgt,0)+'</span><span>progress</span><span class="'+cls(prog)+'">'+sgn(prog)+'</span><span>still needed</span><span>'+usd(Math.max(0,(tgt||0)-prog),0)+'</span>')+
    '<span>room to limit</span><span class="'+(room!=null&&room<mll*0.3?'down':'')+'">'+usd(room,0)+'</span><span>trading days</span><span>'+days+(num(cs.min_days)?' / '+num(cs.min_days)+' min':'')+'</span>'+(cs.passed?'<span>status</span><span class="up">PASSED</span>':'')}
-function renderStats(a){const E=evs().filter(e=>!a||!e.account||e.account===a.account);const fl=E.filter(e=>e.kind==='flat'&&num(e.pnl)!=null&&!/dry run/i.test(e.text||''));
+function renderStats(a){const E=dedup(evs()).filter(e=>!a||!e.account||e.account===a.account);const fl=E.filter(e=>e.kind==='flat'&&num(e.pnl)!=null&&!/dry run/i.test(e.text||''));
   const w=fl.filter(e=>num(e.pnl)>0),l=fl.filter(e=>num(e.pnl)<=0),best=fl.length?Math.max(...fl.map(e=>num(e.pnl))):null,worst=fl.length?Math.min(...fl.map(e=>num(e.pnl))):null,net=fl.reduce((s,e)=>s+num(e.pnl),0);
   const tr=E.filter(e=>(e.kind==='buy'||e.kind==='sell')&&!/dry run/i.test(e.text||'')).length;
   const st=[['trades',tr,''],['wins / losses',w.length+' / '+l.length,''],['win rate',fl.length?Math.round(w.length/fl.length*100)+'%':'—',''],['closed net',sgn(net,0),cls(net)],['best trade',sgn(best,0),cls(best)],['worst trade',sgn(worst,0),cls(worst)]];
   $('#stats').innerHTML=st.map(s=>'<div class="stat"><div class="v '+s[2]+'">'+s[1]+'</div><div class="l">'+s[0]+'</div></div>').join('')}
 let logShown='';
-function renderLog(){const E=evs().slice(0,40);const key=E.map(e=>e.id).join();if(key===logShown)return;logShown=key;
+function renderLog(){const E=dedup(evs()).slice(0,40);const key=E.map(e=>e.id).join();if(key===logShown)return;logShown=key;
   $('#log').innerHTML=E.slice(0,24).map(e=>{const tt=e.time?new Date(e.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';const acc=e.account?String(e.account).split('-')[0]+' ':'';
-   return '<div class="ln"><span class="tm">'+tt+'</span><span class="k-'+esc(e.kind)+'">'+esc(String(e.kind||'').toUpperCase().padEnd(6,' '))+'</span> <span class="dim">'+esc(acc)+'</span>'+esc(e.text)+'</div>'}).join('')+'<div class="ln"><span class="cursor"></span></div>';
+   return '<div class="ln"><span class="tm">'+tt+'</span><span class="k-'+esc(e.kind)+'">'+esc(String(e.kind||'').toUpperCase().padEnd(6,' '))+'</span> <span class="dim">'+esc(acc)+'</span>'+esc(e.text)+(e.n>1?' <span class="dim">(×'+e.n+' attempts)</span>':'')+'</div>'}).join('')+'<div class="ln"><span class="cursor"></span></div>';
   $('#logR').textContent='line #'+evs().length}
 function renderCmd(A){const c=S.command,el=$('#cmdTxt'),btn=$('#closeNow'),anyPos=A.some(x=>x.orders&&num(x.status.position));
   btn.disabled=!S.online||!anyPos;btn.textContent=anyPos?'CLOSE TRADE NOW':'NO OPEN TRADE';$('#cYou').textContent=c&&c.status==='pending'?'SENT':'READING';

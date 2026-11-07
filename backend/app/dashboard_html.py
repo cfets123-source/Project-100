@@ -62,8 +62,8 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 .rv{padding:12px 14px;display:grid;gap:12px}.rv-card{border:1px solid var(--line);border-radius:4px;padding:10px 12px}
 .flag{font-family:var(--mono);font-size:12px;padding:3px 0}.flag.alert{color:var(--down)}.flag.warn{color:#f3d27a}.flag.info{color:var(--up)}
 @media(max-width:1000px){#pipeTs{display:none}.prow2{grid-template-columns:1fr}.stages{overflow-x:auto;grid-template-columns:repeat(7,minmax(92px,1fr))}}
-</style></head><body>
-<header class="top"><div class="brand"><img src="/static/presna-capital-mark.svg" alt="PresNa Capital"><span class="bw">Pres<b>N</b>a <i>Capital</i></span></div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button><a class="pill abtn" href="/prop" style="text-decoration:none;color:var(--accent)">Prop challenge</a>
+.navtabs{display:flex;gap:6px}.navtabs a{font:800 11px var(--mono,ui-monospace);letter-spacing:.16em;padding:8px 14px;border-radius:8px;border:1px solid var(--line);color:var(--sub);text-decoration:none}.navtabs a.on{color:#C8A452;border-color:rgba(200,164,82,.55);background:rgba(200,164,82,.08)}.navtabs a:not(.on){color:var(--accent,#ff7a1a)}</style></head><body>
+<header class="top"><div class="brand"><img src="/static/presna-capital-mark.svg" alt="PresNa Capital"><span class="bw">Pres<b>N</b>a <i>Capital</i></span></div><span id="mode" class="pill">Checking execution state</span><button id="alerts" class="pill abtn" type="button">Turn on alerts</button><nav class="navtabs"><a href="/prop">PROP</a><a class="on" href="/dashboard">ALPACA</a></nav>
 <div class="kpis"><div class="kpi"><span>Equity</span><b id="kEq">—</b></div><div class="kpi"><span>Open P&amp;L</span><b id="kPl">—</b></div><div class="kpi"><span>Cash</span><b id="kCash">—</b></div><div class="kpi"><span>Open positions</span><b id="kPos">—</b></div><div class="kpi"><span>Market</span><b id="kMkt">—</b></div></div></header>
 <div id="tape" class="tape"><span class="tk muted">Loading live markets…</span></div>
 <div class="wrap">
