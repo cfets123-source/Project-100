@@ -369,18 +369,22 @@ class Bot:
         want = target_sign * n
         if abs(pos - want) < 1e-6:  # fractional lots (CFD accounts) compare with a tolerance
             return
-        log.info("%s: position %+d -> %+d at ~%.2f (%s)", "ORDER" if self.orders else "DRY RUN", pos, want, price, reason)
+        log.info("%s: position %+g -> %+g at ~%.2f (%s)", "ORDER" if self.orders else "DRY RUN", pos, want, price, reason)
         _, avg = self.position()
         pnl = (price - avg) * pos * self.point_value if (pos and avg) else None
         label = "" if self.orders else "[dry run] "  # display prefix only; `tag` stays the unique order tag
-        if want == 0:
-            self.event("flat", "%sClosed %+d MNQ at %.2f (%s)" % (label, pos, price, reason), price, abs(pos), pnl)
-        else:
-            if pos and (pos > 0) != (want > 0):
-                self.event("flat", "%sClosed %+d MNQ at %.2f to reverse" % (label, pos, price), price, abs(pos), pnl)
-            self.event("buy" if want > 0 else "sell", "%s%s %d MNQ at %.2f (%s)" % (
-                label, "Bought" if want > 0 else "Sold short", abs(want), price, reason), price, abs(want))
+        # events are written only after the broker accepted the order (11/05: rejected retries were logged as trades)
+        close_ev = entry_ev = None
+        if pos and (want == 0 or (pos > 0) != (want > 0)):
+            close_ev = ("flat", "%sClosed %s at %.2f (%s)" % (label, self.qty(pos, True), price,
+                                                              reason if want == 0 else "to reverse"), price, abs(pos), pnl)
+        if want and abs(want - (0 if close_ev else pos)) > 1e-6:
+            entry_ev = ("buy" if want > 0 else "sell", "%s%s %s at %.2f (%s)" % (
+                label, "Bought" if want > 0 else "Sold short", self.qty(want), price, reason), price, abs(want))
         if not self.orders:
+            for ev in (close_ev, entry_ev):
+                if ev:
+                    self.event(*ev)
             self.virtual, self.virtual_avg = want, (price if want else None)
             self.state.dry_pos, self.state.dry_avg, self.state.dry_day = want, self.virtual_avg, self.clock().date().isoformat()
             return
@@ -391,6 +395,8 @@ class Bot:
         if pos != 0 and (want == 0 or (pos > 0) != (want > 0)):
             self.api.close(self.aid, self.cid)
             pos = 0
+            if close_ev:
+                self.event(*close_ev)
         delta = want - pos
         if abs(delta) > 1e-6:
             n_rej = self.rejected_tags.get(tag, 0) if tag else 0
@@ -403,7 +409,15 @@ class Bot:
                 if tag and any(m in str(e) for m in REJECTED_MSGS):
                     self.rejected_tags[tag] = n_rej + 1
                 raise
+            if entry_ev:
+                self.event(*entry_ev)
         self.mark_trade_day()
+
+    def qty(self, n, signed=False):
+        """Order size for messages: '1 MNQ' on futures, '0.02 lot' on CFD accounts (fractional lots)."""
+        frac = getattr(self, "min_lot", 1) < 1
+        body = ("%.2f lot" % abs(n)) if frac else ("%d MNQ" % round(abs(n)))
+        return (("+" if n > 0 else "-") + body) if signed else body
 
     def mark_trade_day(self):
         d = self.state.day
