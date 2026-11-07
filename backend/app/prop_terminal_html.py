@@ -171,7 +171,7 @@ function cur(){const A=accts();if(!A.length)return null;return A.find(a=>a.accou
 function eqOf(a){const s=a.status||{},b=num(s.balance),u=num(s.position)?num(s.open_pnl)||0:0;return b==null?null:b+u}
 function startOf(a){const s=(a.status||{}).state||{};return num(s.start_balance)||((num(a.status.size_k)||50)*1000)}
 function dayStartOf(a){return num(((a.status||{}).state||{}).day_start_balance)}
-function short(a){return (a.firm||'Topstep')+' '+(num(a.status.size_k)?num(a.status.size_k)+'K':'')}
+function short(a){return (a.firm||'Topstep')+(num(a.status.size_k)?' '+num(a.status.size_k)+'K':'')}
 function evs(){return (S&&S.events)||[]}
 /* one line per decision: retries of the same check (rejected orders) are merged, e.g. 11/05 */
 function ekey(e){const m=/\((NOISE check \d\d:\d\d)\)/.exec(e.text||'');return m&&e.time?[e.account,e.kind,et(new Date(e.time)).date,m[1]].join('|'):e.id}
@@ -231,7 +231,7 @@ function renderAgents(A,a,t,open,online){const tb=todayBars(),last=tb.length?tb[
 }
 function renderAccounts(A,a){$('#accR').textContent=A.length+' accounts';
   $('#accBody').innerHTML=A.map(x=>{const e=eqOf(x),ds=dayStartOf(x),td=e!=null&&ds!=null?e-ds:null,tot=e!=null?e-startOf(x):null,p=num(x.status.position)||0;
-   return '<tr data-a="'+esc(x.account)+'"'+(a&&x.account===a.account?' class="sel"':'')+'><td><span class="firm">'+esc((x.firm||'Topstep').toUpperCase())+'</span> <span class="dim">'+(num(x.status.size_k)||'')+'K</span></td><td>'+(p>0?'<span class="up">LONG '+p+'</span>':p<0?'<span class="down">SHORT '+Math.abs(p)+'</span>':'<span class="dim">flat</span>')+'</td><td class="'+cls(td)+'">'+sgn(td)+'</td><td class="'+cls(tot)+'">'+sgn(tot)+'</td></tr>'}).join('')||'<tr><td colspan="4" class="dim">no accounts reported yet</td></tr>';
+   return '<tr data-a="'+esc(x.account)+'"'+(a&&x.account===a.account?' class="sel"':'')+'><td><span class="firm">'+esc((x.firm||'Topstep').toUpperCase())+'</span> <span class="dim">'+(num(x.status.size_k)?num(x.status.size_k)+'K':'')+'</span></td><td>'+(p>0?'<span class="up">LONG '+p+'</span>':p<0?'<span class="down">SHORT '+Math.abs(p)+'</span>':'<span class="dim">flat</span>')+'</td><td class="'+cls(td)+'">'+sgn(td)+'</td><td class="'+cls(tot)+'">'+sgn(tot)+'</td></tr>'}).join('')||'<tr><td colspan="4" class="dim">no accounts reported yet</td></tr>';
   document.querySelectorAll('#accBody tr[data-a]').forEach(r=>r.onclick=()=>{sel=r.dataset.a;try{localStorage.setItem('termAcct',sel)}catch(e){}render();drawChart()})}
 let ringV={p:0,r:0};
 function renderRing(a){if(!a){$('#ringKv').innerHTML='';return}const st=a.status||{},cs=st.state||{},e=eqOf(a),start=startOf(a),tgt=num(st.target)??num(cs.target),floor=num(st.floor),mll=num(cs.mll)||(start*0.04),prog=e!=null?e-start:0,room=e!=null&&floor!=null?e-floor:null;
