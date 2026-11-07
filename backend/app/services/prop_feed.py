@@ -73,6 +73,22 @@ def _clean_accounts(accounts):
     return out
 
 
+def _keep_last_values(prev, latest):
+    """A report sent while the market is closed has no balance and no bars (the bot is idle). Keep the last real values
+    so the dashboard never blanks out; the new report's state and heartbeat still replace the old ones."""
+    if not prev:
+        return
+    if not latest["bars"] and prev.get("bars"):
+        latest["bars"] = prev["bars"]
+    if "balance" not in latest["status"] and "balance" in (prev.get("status") or {}):
+        latest["status"] = dict(prev["status"], **latest["status"])
+    before = {a.get("account"): a for a in prev.get("accounts") or []}
+    for a in latest["accounts"]:
+        old = before.get(a["account"])
+        if old and "balance" not in a["status"] and "balance" in (old.get("status") or {}):
+            a["status"] = dict(old["status"], **a["status"])
+
+
 def ingest(db, payload: dict, now: dt.datetime | None = None) -> list[dict]:
     """Store the latest status and new events. Returns events that should be pushed to phones."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -80,6 +96,7 @@ def ingest(db, payload: dict, now: dt.datetime | None = None) -> list[dict]:
     latest = {"received_at": now.isoformat(), "status": status, "bars": _clean_bars(payload.get("bars")),
               "account": str(payload.get("account") or "")[:80], "orders": bool(payload.get("orders")),
               "contract": str(payload.get("contract") or "")[:40], "accounts": _clean_accounts(payload.get("accounts"))}
+    _keep_last_values(_get(db, "prop_latest"), latest)
     _put(db, "prop_latest", latest)
     events = _get(db, "prop_events", [])
     seen = {e.get("id") for e in events}
