@@ -94,6 +94,7 @@ class ChallengeState:
     cycle_best_day: float = 0.0
     cap_hit: bool = False
     payout_notified: str = ""   # cycle_start of the last "payout ready" message
+    check_log: dict = field(default_factory=dict)  # today's hourly decisions for the dashboard ("10:00" -> outcome)
 
     def cycle_trade_days(self):
         return [d for d in self.trade_days if self.cycle_start and d >= self.cycle_start]
@@ -141,6 +142,7 @@ def new_day(state, day, balance):
     """Call once per trading day before the open with the realized balance."""
     if state.day == day:  # bot restarted during the same day: keep the day's starting balance (daily stop, best day)
         return state
+    state.check_log = {}
     if state.day and state.day != day:  # yesterday's realized result counts toward the consistency rule
         state.best_day = max(state.best_day, balance - state.day_start_balance)
         if state.cycle_cap and state.cycle_start:

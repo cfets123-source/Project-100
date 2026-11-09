@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard import ChallengeState, apply_rules, check, new_day, size_k  # noqa: E402
-from noise import LAST, OPEN, decide, is_check, is_fast_check, vol_scale  # noqa: E402
+from noise import LAST, OPEN, bands, decide, is_check, is_fast_check, vol_scale  # noqa: E402
 from topstepx import LIMIT, BUY, LONG, SELL, TopstepX, TopstepXError  # noqa: E402
 import relay as relaymod  # noqa: E402
 import london as londonmod  # noqa: E402
@@ -413,6 +413,19 @@ class Bot:
                 self.event(*entry_ev)
         self.mark_trade_day()
 
+    def log_check(self, t, action, reason, lv=None, force=False):
+        """Record what an hourly decision did and why, for the dashboard (fast-mode checks only when they act)."""
+        if t.minute != 55 and not force:
+            return
+        at = (dt.datetime.combine(dt.date(2000, 1, 1), t) + dt.timedelta(minutes=5)).strftime("%H:%M")
+        old = self.state.check_log.get(at)
+        if old and action == "skip" and old.get("action") != "skip":
+            return  # after a restart a past check looks "missed"; keep what really happened
+        row = {"at": at, "action": action, "reason": reason}
+        if lv:
+            row.update({k: round(v, 2) for k, v in lv.items() if v is not None})
+        self.state.check_log[at] = row
+
     def qty(self, n, signed=False):
         """Order size for messages: '1 MNQ' on futures, '0.02 lot' on CFD accounts (fractional lots)."""
         frac = getattr(self, "min_lot", 1) < 1
@@ -484,6 +497,8 @@ class Bot:
                 if is_check(t):
                     closed_at = dt.datetime.combine(today, t, ET) + dt.timedelta(minutes=5)
                     if closed_at <= now:
+                        if t not in self.done:
+                            self.log_check(t, "skip", "news window: %s" % news_why)
                         self.done.add(t)
         if must_flat and pos:
             self.flatten(price, why)
@@ -509,19 +524,42 @@ class Bot:
                 if not (is_fast_check(t) if fast else is_check(t)) or t in self.done or closed_at > now:
                     continue
                 if now - closed_at > dt.timedelta(minutes=4):  # too old to act on (late start / outage)
+                    self.log_check(t, "skip", "missed: the bot was not running at this check")
                     self.done.add(t)
                     continue
                 target = decide(self.history, bars, t, sign, fast)
+                lv = bands(self.history, bars, t)
                 if target is not None and target != sign:
                     # the tag is unique per decision, so a retry after an unknown outcome cannot double the order
-                    self.go_to(target, price, "NOISE check %s" % t.strftime("%H:%M"),
-                               "noise-%s-%s-%s-%+d" % (self.aid, today.isoformat(), t.strftime("%H%M"), target))
+                    try:
+                        self.go_to(target, price, "NOISE check %s" % t.strftime("%H:%M"),
+                                   "noise-%s-%s-%s-%+d" % (self.aid, today.isoformat(), t.strftime("%H%M"), target))
+                    except TopstepXError as e:
+                        self.log_check(t, "rejected", "order not accepted (%s) - retrying" % str(e)[:80], lv, force=True)
+                        raise
+                    act = "exit" if target == 0 else ("reverse" if sign else ("buy" if target > 0 else "sell"))
+                    why_txt = {"buy": "price broke above the buy level", "sell": "price broke below the short level",
+                               "exit": "price fell back inside its trend levels", "reverse": "the trend flipped"}[act]
+                    self.log_check(t, act, why_txt, lv, force=True)
                     sign = target
+                elif target is None:
+                    self.log_check(t, "wait", "not enough price history yet")
+                elif sign:
+                    self.log_check(t, "hold", "still beyond its trend levels - keeping the %s" % ("long" if sign > 0 else "short"), lv)
+                else:
+                    self.log_check(t, "none", "no breakout - price stayed inside the range", lv)
                 self.done.add(t)
+        elif not allowed:   # stopped by a risk rule: the checks pass without a decision
+            for t in sorted(bars):
+                closed_at = dt.datetime.combine(today, t, ET) + dt.timedelta(minutes=5)
+                if is_check(t) and t not in self.done and closed_at <= now:
+                    self.log_check(t, "skip", "stopped: %s" % (why or "risk rule"))
+                    self.done.add(t)
         try:
             self.manage_tp(now)
         except TopstepXError as e:
             log.warning("take-profit order: %s (will retry)", e)
+        status["checks"] = [self.state.check_log[k] for k in sorted(self.state.check_log)]
         self.save(status)
         self.last_status = status
         self.last_bars = [[dt.datetime.combine(today, t, ET).isoformat(), *bars[t][:4]] for t in sorted(bars)]

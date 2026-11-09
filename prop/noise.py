@@ -70,6 +70,19 @@ def decide(history, today, t, position, fast=False):
     return target
 
 
+def bands(history, today, t):
+    """The levels the decision at bar t compares against (for the dashboard): close, buy level, short level, VWAP."""
+    if t not in today or OPEN not in today or not history:
+        return None
+    prev_close = history[-1].get(LAST, (None, None, None, None))[3]
+    s = sigma(history, t)
+    if prev_close is None or s is None:
+        return None
+    op = today[OPEN][0]
+    return {"close": today[t][3], "up": max(op, prev_close) * (1 + s), "dn": min(op, prev_close) * (1 - s),
+            "vwap": vwap(today, t)}
+
+
 VOL_TARGET = 0.010  # daily volatility target for position sizing (research/20261022-ladder)
 
 
