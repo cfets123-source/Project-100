@@ -131,3 +131,8 @@ def test_closed_market_report_keeps_last_balances_and_bars():
     a = st["accounts"][0]["status"]
     assert a["balance"] == 50172.32 and a["size_k"] == 50 and a["state"]["day"] == "2026-11-07"
     db.close()
+
+
+def test_terminal_shows_hourly_decisions():
+    from app.prop_terminal_html import PROP_TERMINAL_HTML
+    assert "Hourly decisions" in PROP_TERMINAL_HTML and "renderDecisions" in PROP_TERMINAL_HTML
