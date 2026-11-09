@@ -352,3 +352,37 @@ def test_closed_market_reports_balances_once_without_orders(tmp_path):
     f.step()
     st = f.bots[0].last_status
     assert st["balance"] == 50123.0 and st["position"] == 0 and st["size_k"] == 50 and api.orders == []
+
+
+def test_dashboard_gets_every_hourly_decision_with_its_reason(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    b = f.bots[0]
+    seen = set()
+    for d in sorted(api.days)[25:35]:
+        run_day(f, api, d)
+        log = b.state.check_log
+        assert sorted(log) == ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"], (d, sorted(log))
+        for row in log.values():
+            assert row["action"] in ("buy", "sell", "exit", "reverse", "hold", "none", "wait", "skip", "rejected")
+            assert row["reason"]
+            if row["action"] in ("none", "buy", "sell", "hold"):
+                assert row["up"] > row["dn"] and "close" in row
+            seen.add(row["action"])
+        assert b.last_status["checks"][0]["at"] == "10:00"
+    assert "none" in seen and ({"buy", "sell"} & seen)
+
+
+def test_restart_keeps_the_logged_decisions(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    d = sorted(api.days)[30]
+    for minute in range(0, 200):                       # run to ~12:45
+        api.now = dt.datetime.combine(d, dt.time(9, 25), ET) + dt.timedelta(minutes=minute)
+        f.step()
+    before = dict(f.bots[0].state.check_log)
+    f.bots[0].save()
+    f2 = worker.Fleet(api, "ALL", True, home=str(tmp_path), clock=lambda: api.now, feed=worker.Feed(token=""))
+    f2.step()
+    after = f2.bots[0].state.check_log
+    assert before and all(after[k]["action"] == before[k]["action"] for k in before)
