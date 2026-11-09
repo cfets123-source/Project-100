@@ -118,6 +118,77 @@ class StrategyValidationRecord(Base):
     reasons = Column(JSON, nullable=False, default=list)
 
 
+class OwnerAcceptedExperiment(Base):
+    """Account owner's explicit acceptance to run an UNVALIDATED strategy live.
+
+    This is never a validation record and is never read by
+    require_passing_validation.  It is bounded by an equity cap and floor.
+    """
+    __tablename__ = "owner_accepted_experiments"
+    strategy = Column(String, primary_key=True)
+    accepted_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    accepted_by = Column(String, nullable=False)
+    max_equity = Column(Float, nullable=False)
+    floor_equity = Column(Float, nullable=False)
+    acknowledgement = Column(Text, nullable=False)
+    revoked = Column(Boolean, nullable=False, default=False)
+
+
+class ScannerSignal(Base):
+    """Watch-only multi-market scanner signal and its forward outcome (no order path)."""
+    __tablename__ = "scanner_signals"
+    id = Column(String, primary_key=True)          # uuid5(version:symbol:rule:date)
+    rules_version = Column(String, nullable=False)
+    symbol = Column(String, nullable=False, index=True)
+    rule = Column(String, nullable=False)
+    asset_group = Column(String, nullable=False)
+    signal_date = Column(String, nullable=False, index=True)
+    signal_close = Column(Float, nullable=False)
+    stop_pct = Column(Float, nullable=False)
+    target_pct = Column(Float, nullable=False)
+    max_hold = Column(Integer, nullable=False)
+    momentum_6m = Column(Float, nullable=True)
+    status = Column(String, nullable=False, default="waiting_entry")
+    entry_price = Column(Float, nullable=True)
+    mark_pct = Column(Float, nullable=True)
+    result_pct = Column(Float, nullable=True)
+    exit_reason = Column(String, nullable=True)
+    exit_date = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class AllocatorLot(Base):
+    """One position lot managed by the all-in allocator (core TQQQ or a satellite)."""
+    __tablename__ = "allocator_lots"
+    id = Column(String, primary_key=True)
+    mode = Column(String, nullable=False)          # paper|live
+    sleeve = Column(String, nullable=False)        # core|satellite
+    symbol = Column(String, nullable=False, index=True)
+    rule = Column(String, nullable=False)
+    quantity = Column(Float, nullable=False)
+    entry_price = Column(Float, nullable=False)
+    stop_price = Column(Float, nullable=False)
+    target_price = Column(Float, nullable=False)
+    max_hold_days = Column(Integer, nullable=False)
+    broker_bracket = Column(Boolean, nullable=False, default=False)
+    opened_on = Column(String, nullable=False)
+    order_id = Column(String, nullable=True)
+    confirmed = Column(Boolean, nullable=False, default=True)  # fill price confirmed
+    status = Column(String, nullable=False, default="open")   # open|closed
+    exit_reason = Column(String, nullable=True)
+    exit_price = Column(Float, nullable=True)
+    closed_on = Column(String, nullable=True)
+
+
+class AllocatorState(Base):
+    __tablename__ = "allocator_state"
+    mode = Column(String, primary_key=True)
+    peak_equity = Column(Float, nullable=False, default=0.0)
+    last_daily_review = Column(String, nullable=True)
+    halted = Column(Boolean, nullable=False, default=False)
+    reason = Column(String, nullable=True)
+
+
 class StrategyExecutionEvidence(Base):
     """Execution contract attached to one particular validation run."""
     __tablename__ = "strategy_execution_evidence"
@@ -401,3 +472,19 @@ class ExternalTargetExitRetry(Base):
     retry_after = Column(Float, nullable=False)
     failures = Column(Integer, nullable=False, default=1)
     updated_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class PushSubscription(Base):
+    """One browser/phone Web Push subscription for trade notifications."""
+    __tablename__ = "push_subscriptions"
+    endpoint = Column(String, primary_key=True)
+    p256dh = Column(String, nullable=False)
+    auth = Column(String, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class AppState(Base):
+    """Small key/value state (encrypted VAPID keys, notifier cursor)."""
+    __tablename__ = "app_state"
+    key = Column(String, primary_key=True)
+    value = Column(Text, nullable=False)

@@ -138,6 +138,8 @@ class RiskEngine:
         max_position_dollars = p.account_equity * self.cfg.MAX_POSITION_PCT
         size_capped_by_notional = max_position_dollars / p.entry_price
         position_size = min(raw_size, size_capped_by_notional)
+        if getattr(self.cfg, "WHOLE_SHARES_ONLY", False):
+            position_size = float(int(position_size))  # broker brackets need integer qty
 
         if position_size <= 0:
             return RiskDecision(approved=False, reasons=["position_size_zero"])

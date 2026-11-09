@@ -149,6 +149,44 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                                 bid=bid, ask=ask, last=(bid + ask) / 2, market_status="unknown"))
         return result
 
+    def get_crypto_quotes(self, symbols: list[str]) -> list[Quote]:
+        """Latest Alpaca crypto quotes (e.g. 'BTC/USD'); read-only, 24/7."""
+        if not symbols:
+            return []
+        raw = self._request("GET", "/v1beta3/crypto/us/latest/quotes", data_api=True,
+                            params={"symbols": ",".join(symbols)})
+        result = []
+        for symbol, item in raw.get("quotes", {}).items():
+            try:
+                timestamp = datetime.fromisoformat(item["t"].replace("Z", "+00:00")).timestamp()
+                bid, ask = float(item["bp"]), float(item["ap"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise AlpacaBrokerError("Alpaca returned an invalid crypto quote") from exc
+            result.append(Quote(provider="alpaca_crypto_us", symbol=symbol, timestamp=timestamp,
+                                age_seconds=max(0, datetime.now(timezone.utc).timestamp() - timestamp),
+                                bid=bid, ask=ask, last=(bid + ask) / 2, market_status="open"))
+        return result
+
+    def get_crypto_daily_bars(self, symbol: str, start: str, end: str) -> list[dict]:
+        """Daily crypto bars (UTC days); read-only."""
+        rows, token = [], None
+        for _ in range(20):
+            params = {"symbols": symbol, "timeframe": "1Day", "start": start, "end": end, "limit": 10000,
+                      **({"page_token": token} if token else {})}
+            raw = self._request("GET", "/v1beta3/crypto/us/bars", data_api=True, params=params)
+            rows.extend(raw.get("bars", {}).get(symbol, []))
+            token = raw.get("next_page_token")
+            if not token:
+                break
+        return [{"timestamp": item["t"], "open": float(item["o"]), "high": float(item["h"]),
+                 "low": float(item["l"]), "close": float(item["c"]), "volume": float(item["v"])}
+                for item in rows]
+
+    def get_asset(self, symbol: str) -> dict:
+        """Asset metadata (tradable, min_order_size, increments); read-only."""
+        from urllib.parse import quote
+        return self._request("GET", f"/v2/assets/{quote(symbol, safe='')}")
+
     def get_daily_bars(self, symbol: str, start: str, end: str) -> list[dict]:
         """Read adjusted daily bars for research. This endpoint cannot trade."""
         params = {
