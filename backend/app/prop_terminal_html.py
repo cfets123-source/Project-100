@@ -80,6 +80,10 @@ td{padding:8px 6px;border-bottom:1px solid #ffffff08;white-space:nowrap}tr.sel t
 @keyframes fadein{from{opacity:0;transform:translateX(-6px)}}
 .k-buy{color:var(--up)}.k-sell{color:var(--down)}.k-flat{color:var(--cy)}.k-halt,.k-error{color:var(--am)}.k-pass{color:#fff;background:rgba(14,203,129,.2)}.k-day{color:var(--vi)}.k-london{color:var(--dim)}
 .cursor{display:inline-block;width:7px;height:13px;background:var(--gold);vertical-align:middle;animation:blink 1s steps(1) infinite}
+/* hourly decisions */
+.dec{display:grid;grid-template-columns:58px 26px 1fr;gap:4px 10px;align-items:start;padding:8px 0;border-bottom:1px solid #ffffff08;font:12px var(--mono)}
+.dec:last-child{border:0}.dec .at{color:var(--sub);font-weight:700}.dec .ic{font-size:15px;text-align:center}.dec .tx b{color:#fff}.dec .lv{color:var(--dim);font-size:11px;margin-top:2px}
+.dec.next{background:rgba(200,164,82,.06);border-radius:8px}.dec.future{opacity:.45}
 /* stats */
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat{background:#ffffff06;border:1px solid #ffffff0d;border-radius:10px;padding:9px}.stat .v{font:800 18px var(--mono)}.stat .l{font:10px var(--mono);color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
@@ -135,6 +139,7 @@ select{background:#0d1014;color:var(--ink);border:1px solid var(--line);border-r
    </div></div></div>
   <div class="panel"><h3>MNQ · 5 min · today<span class="r" id="chartR"></span></h3><div class="chartbox"><canvas id="chart"></canvas></div>
    <div class="legend"><span><i style="background:var(--cy)"></i>entry</span><span><i style="background:var(--up)"></i>take-profit</span><span><i style="background:none;height:0;border-top:1px dashed var(--gold)"></i>hourly decision</span><span id="lgPos"></span></div></div>
+  <div class="panel"><h3>Hourly decisions · why trade or no trade<span class="r" id="decR"></span></h3><div id="decs"></div></div>
   <div class="panel"><h3>Neural shell · market pulse<span class="r" id="neuR"></span></h3><div class="neural"><canvas id="neu"></canvas>
    <div class="decide"><span>decision state</span><b id="dState">—</b><span id="dSub"></span></div></div>
    <div class="caption">Bright dots are real 5-minute bars from the feed (green up, red down, size = move); the faint shell is decoration. Inputs on the left are live values the bot checks.</div></div>
@@ -197,7 +202,7 @@ function render(){if(!S)return;const A=accts(),a=cur(),t=et(),open=marketOpen(t)
   $('#tEq').textContent=okE&&T.length?usd(eq):'—';$('#tToday').innerHTML='<span class="'+cls(today)+'">'+sgn(today)+' today</span> <span class="dim">·</span> <span class="'+cls(total)+'">'+sgn(total)+' total</span>';
   const bn=$('#banner');if(!S.paired){bn.className='banner show';bn.innerHTML='<b>Not paired.</b> Open the <a href="/prop/classic">classic view</a> and tap ⚙ to pair your Mac.'}
   else if(!online){bn.className='banner show';bn.innerHTML='<b>Bot offline.</b> It runs from your Mac Mon–Fri 7:45 AM–4:05 PM ET. Next start <b>'+esc(nextStartTxt(t))+'</b>.'}else bn.className='banner';
-  renderAgents(A,a,t,open,online);renderAccounts(A,a);renderRing(a);renderStats(a);renderLog();renderCmd(A);drawSpark();
+  renderAgents(A,a,t,open,online);renderDecisions(a);renderAccounts(A,a);renderRing(a);renderStats(a);renderLog();renderCmd(A);drawSpark();
 }
 function renderAgents(A,a,t,open,online){const tb=todayBars(),last=tb.length?tb[tb.length-1]:null,first=tb.length?tb[0]:null;
   const st=(a&&a.status)||{},cs=st.state||{};
@@ -239,6 +244,20 @@ function renderRing(a){if(!a){$('#ringKv').innerHTML='';return}const st=a.status
   $('#ringR').textContent=short(a);const days=(cs.trade_days||[]).length;
   $('#ringKv').innerHTML=(funded?'<span>stage</span><span class="up">FUNDED · payouts</span>':'<span>target</span><span>'+usd(tgt,0)+'</span><span>progress</span><span class="'+cls(prog)+'">'+sgn(prog)+'</span><span>still needed</span><span>'+usd(Math.max(0,(tgt||0)-prog),0)+'</span>')+
    '<span>room to limit</span><span class="'+(room!=null&&room<mll*0.3?'down':'')+'">'+usd(room,0)+'</span><span>trading days</span><span>'+days+(num(cs.min_days)?' / '+num(cs.min_days)+' min':'')+'</span>'+(cs.passed?'<span>status</span><span class="up">PASSED</span>':'')}
+const ICON={buy:['▲','up','Bought'],sell:['▼','down','Sold short'],exit:['■','sub','Exited'],reverse:['⇄','up','Reversed'],hold:['↻','up','Holding'],none:['✕','sub','No trade'],wait:['…','sub','Waiting'],skip:['⏸','am','Skipped'],rejected:['!','down','Order rejected']};
+function renderDecisions(a){const st=(a&&a.status)||{},rows=st.checks||[],by={},t=et(),m=mins(t),nc=nextCheck(t),open=marketOpen(t),today=t.wd>=1&&t.wd<=5;
+  rows.forEach(r=>by[r.at]=r);let html='',lastLv=null;rows.forEach(r=>{if(r.up)lastLv=r});
+  for(let h=10;h<=15;h++){const at=String(h).padStart(2,'0')+':00',r=by[at],lbl=(h>12?h-12:h)+':00';
+    if(r){const ic=ICON[r.action]||['•','sub',r.action];let lv='';
+      if(r.up&&r.close){const pu=(r.up/r.close-1)*100,pd=(r.dn/r.close-1)*100;
+        lv=r.action==='none'?'price <b>'+r.close.toFixed(2)+'</b> · buy above '+r.up.toFixed(2)+' ('+(pu>=0?'+':'')+pu.toFixed(2)+'%) · short below '+r.dn.toFixed(2)+' ('+pd.toFixed(2)+'%)'
+          :'price '+r.close.toFixed(2)+' · buy level '+r.up.toFixed(2)+' · short level '+r.dn.toFixed(2)}
+      html+='<div class="dec"><span class="at">'+lbl+'</span><span class="ic '+ic[1]+'" style="color:var(--'+(ic[1]==='am'?'am':ic[1]==='sub'?'sub':ic[1])+')">'+ic[0]+'</span><span class="tx"><b>'+ic[2]+'</b> — '+esc(r.reason)+(lv?'<div class="lv">'+lv+'</div>':'')+'</span></div>'}
+    else{const isNext=today&&nc===h*60,past=today&&m>=h*60+1;let txt;
+      if(isNext){const left=nc-m,mm=Math.floor(left),ss=Math.floor((left-mm)*60);txt='<b>Next decision</b> in '+mm+':'+String(ss).padStart(2,'0')+(lastLv?'<div class="lv">last levels: buy above '+lastLv.up.toFixed(2)+' · short below '+lastLv.dn.toFixed(2)+'</div>':'')}
+      else if(past&&rows.length)txt='<span class="dim">no record (bot not reporting at this time)</span>';else txt='<span class="dim">'+(today&&open?'later today':'waiting for the next session')+'</span>';
+      html+='<div class="dec'+(isNext?' next':' future')+'"><span class="at">'+lbl+'</span><span class="ic dim">'+(isNext?'⏳':'·')+'</span><span class="tx">'+txt+'</span></div>'}}
+  $('#decs').innerHTML=html;$('#decR').textContent=(a?short(a):'')+' · '+rows.length+'/6 logged'}
 function renderStats(a){const E=dedup(evs()).filter(e=>!a||!e.account||e.account===a.account);const fl=E.filter(e=>e.kind==='flat'&&num(e.pnl)!=null&&!/dry run/i.test(e.text||''));
   const w=fl.filter(e=>num(e.pnl)>0),l=fl.filter(e=>num(e.pnl)<=0),best=fl.length?Math.max(...fl.map(e=>num(e.pnl))):null,worst=fl.length?Math.min(...fl.map(e=>num(e.pnl))):null,net=fl.reduce((s,e)=>s+num(e.pnl),0);
   const tr=E.filter(e=>(e.kind==='buy'||e.kind==='sell')&&!/dry run/i.test(e.text||'')).length;
@@ -311,7 +330,7 @@ let ringA={p:0,r:0};function drawRing(dt){const cv=$('#ring');const [g,w,h]=fit(
 /* loop */
 let lt=performance.now(),chartT=0;function loop(now){const dt=Math.min(.1,(now-lt)/1000);lt=now;drawFlow(dt);drawNeural(dt);drawRing(dt);chartT+=dt;if(chartT>.05){drawChart();chartT=0}
   const t=et();$('#clock').textContent=String(t.h).padStart(2,'0')+':'+String(t.m).padStart(2,'0')+':'+String(t.s).padStart(2,'0')+' ET';requestAnimationFrame(loop)}
-setInterval(()=>{if(S)renderAgents(accts(),cur(),et(),marketOpen(),!!S.online)},1000);
+setInterval(()=>{if(S){renderAgents(accts(),cur(),et(),marketOpen(),!!S.online);renderDecisions(cur())}},1000);
 load();setInterval(load,5000);requestAnimationFrame(loop);window.addEventListener('resize',()=>{drawChart();drawSpark()});
 </script></body></html>
 '''
