@@ -733,7 +733,25 @@ class Fleet:
                 except OSError:
                     pass
         self.feed.send_fleet(self)
+        self.act_on_command()   # a button press that arrived with this report is handled now, not on the next step
         return "market closed" if notes and all(n == "market closed" for n in notes) else "ok"
+
+    def act_on_command(self):
+        """Handle a waiting "Close trade now" and report the result straight away."""
+        try:
+            if self.handle_command() is not None:
+                self.feed.send_fleet(self)
+                return True
+        except Exception as e:  # noqa: BLE001 - a command problem must never stop trading
+            log.warning("owner command problem: %s", e)
+        return False
+
+    def poll(self):
+        """Between trading checks: re-send the last report (no broker calls) to pick up a button press within seconds."""
+        if not self.feed.token or not any(b.last_status for b in self.bots):
+            return False
+        self.feed.send_fleet(self)
+        return self.act_on_command()
 
 
 def run_check(api):
@@ -781,6 +799,7 @@ def main(argv=None):
     ap.add_argument("--start-balance", type=float, default=50000.0)
     ap.add_argument("--contracts", type=int, default=None)
     ap.add_argument("--interval", type=int, default=15)
+    ap.add_argument("--poll", type=int, default=3, help="seconds between checks for the dashboard's Close button")
     ap.add_argument("--aggressive", action="store_true", help="aggressive sizing (see AGGR_* constants)")
     a = ap.parse_args(argv)
     os.makedirs(HOME, exist_ok=True)
@@ -803,7 +822,22 @@ def main(argv=None):
                 return
         except TopstepXError as e:
             log.warning("API problem: %s (will retry)", e)
-        time.sleep(a.interval)
+        wait_for_next_step(bot, a.interval, a.poll)
+
+
+def wait_for_next_step(fleet, interval, poll, sleep=time.sleep, now=time.monotonic):
+    """Sleep until the next trading check, asking the app for a button press every `poll` seconds meanwhile."""
+    end = now() + interval
+    while True:
+        left = end - now()
+        if left <= 0:
+            return
+        sleep(min(poll, left) if poll and poll > 0 else left)
+        if poll and poll > 0 and end - now() > 0.5:
+            try:
+                fleet.poll()
+            except Exception as e:  # noqa: BLE001 - polling must never stop trading
+                log.warning("button poll problem: %s", e)
 
 
 if __name__ == "__main__":
