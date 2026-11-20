@@ -94,7 +94,11 @@ class ChallengeState:
     cycle_best_day: float = 0.0
     cap_hit: bool = False
     payout_notified: str = ""   # cycle_start of the last "payout ready" message
-    check_log: dict = field(default_factory=dict)  # today's hourly decisions for the dashboard ("10:00" -> outcome)
+    check_log: dict = field(default_factory=dict)
+    # owner rule 2026-11-20 (tested: pass 47.2% / 46.0% vs 48.5% / 38.8% without): once the day has banked profit,
+    # a later trade may give back at most half of it - the bot closes and stops for the day at that level.
+    lock_frac: float = 0.5
+    day_banked: float = 0.0   # best realized profit of the day so far (measured while flat)  # today's hourly decisions for the dashboard ("10:00" -> outcome)
 
     def cycle_trade_days(self):
         return [d for d in self.trade_days if self.cycle_start and d >= self.cycle_start]
@@ -143,6 +147,7 @@ def new_day(state, day, balance):
     if state.day == day:  # bot restarted during the same day: keep the day's starting balance (daily stop, best day)
         return state
     state.check_log = {}
+    state.day_banked = 0.0
     if state.day and state.day != day:  # yesterday's realized result counts toward the consistency rule
         state.best_day = max(state.best_day, balance - state.day_start_balance)
         if state.cycle_cap and state.cycle_start:

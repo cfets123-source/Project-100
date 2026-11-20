@@ -413,6 +413,18 @@ class Bot:
                 self.event(*entry_ev)
         self.mark_trade_day()
 
+    def profit_lock(self, pos, bal, open_pnl):
+        """Track the day's banked profit; return the protected level when an open trade has given back too much."""
+        today = bal - (self.state.day_start_balance or bal)
+        if not pos:
+            self.state.day_banked = max(self.state.day_banked, today)
+            return None
+        frac = self.state.lock_frac or 0.0
+        if frac <= 0 or self.state.day_banked <= 0:
+            return None
+        floor = frac * self.state.day_banked
+        return floor if today + open_pnl <= floor else None
+
     def log_check(self, t, action, reason, lv=None, force=False):
         """Record what an hourly decision did and why, for the dashboard (fast-mode checks only when they act)."""
         if t.minute != 55 and not force:
@@ -476,6 +488,13 @@ class Bot:
         self.room = bal + open_pnl - self.state.floor
         was_passed, was_halted = self.state.passed, self.state.halted_day == self.state.day or self.state.finished
         allowed, must_flat, why = check(self.state, bal, open_pnl)
+        lock_floor = self.profit_lock(pos, bal, open_pnl)
+        if lock_floor is not None and allowed:
+            allowed, must_flat = False, True
+            why = "profit lock: keeping at least $%.0f of today's $%.0f" % (lock_floor, self.state.day_banked)
+            self.state.halted_day, self.state.halted_reason = self.state.day, why
+            self.event("halt", "Profit lock: closed to keep at least $%.0f of today's banked $%.0f. "
+                               "Back to normal tomorrow." % (lock_floor, self.state.day_banked))
         if self.state.cycle_cap and self.state.payout_ready(self.state.day, bal + open_pnl) \
                 and self.state.payout_notified != self.state.cycle_start:
             gross, mine = self.state.payable(bal + open_pnl)
@@ -489,7 +508,9 @@ class Bot:
         need = self.state.required_target(bal + open_pnl - self.state.day_start_balance)
         status = {"balance": bal, "open_pnl": round(open_pnl, 2), "position": pos, "price": price, "avg": avg,
                   "floor": self.state.floor, "allowed": allowed, "note": why, "kind": self.state.kind,
-                  "target": need, "size_k": self.size_k, "fast": self.state.fast_day == self.state.day}
+                  "target": need, "size_k": self.size_k, "fast": self.state.fast_day == self.state.day,
+                  "banked": round(self.state.day_banked, 2),
+                  "lock_floor": round(self.state.lock_frac * self.state.day_banked, 2) if self.state.day_banked > 0 else None}
         news_block, news_why = self.news.blocked(now) if self.news else (False, "")
         if news_block and not must_flat:
             status["note"] = news_why
