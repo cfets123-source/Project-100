@@ -210,15 +210,16 @@ class CmdOpener(FakeOpener):
 
 def test_dashboard_close_button_closes_live_trades_once_and_trading_continues(tmp_path):
     api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
-    opener = CmdOpener({"id": "abc123", "kind": "close_now", "status": "pending"})
+    opener = CmdOpener({"id": "abc123", "kind": "close_now", "status": "done"})
     f = fleet(tmp_path, api, feed=worker.Feed(url="https://example.test/prop/feed", token="tok", opener=opener))
     d = sorted(api.days)[30]
-    api.now = dt.datetime.combine(d, dt.time(11, 2), ET)
-    f.step()                                        # picks up the command from the app's reply
+    api.now = dt.datetime.combine(d, dt.time(11, 1), ET)
+    f.step()
     a = api.accts[1]
     a.pos, a.avg = 2, api.last_price() - 20         # an open trade
+    opener.cmd = {"id": "abc123", "kind": "close_now", "status": "pending"}
     api.now += dt.timedelta(minutes=1)
-    f.step()                                        # acts on it, reports the ack in the same send
+    f.step()                                        # picks up the command and closes in the same step
     assert a.pos == 0
     assert opener.bodies[-1]["ack"] == {"id": "abc123", "result": "closed 50KTC-A"}
     assert opener.cmd["status"] == "done" and f.feed.pending_ack is None
@@ -431,3 +432,42 @@ def test_profit_lock_does_nothing_before_any_profit_is_banked(tmp_path):
     api.now += dt.timedelta(minutes=1)
     f.step()
     assert st.day_banked == 0 and "profit lock" not in (st.halted_reason or "")
+
+
+def test_close_button_is_picked_up_between_trading_checks_within_seconds(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    opener = CmdOpener({"id": "none", "kind": "close_now", "status": "done"})
+    f = fleet(tmp_path, api, feed=worker.Feed(url="https://example.test/prop/feed", token="tok", opener=opener))
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(11, 2), ET)
+    f.step()
+    a = api.accts[1]
+    a.pos, a.avg = 1, api.last_price() + 10         # an open trade
+    n = len(api.orders)
+    assert f.poll() is False and a.pos == 1 and len(api.orders) == n
+    opener.cmd = {"id": "fast1", "kind": "close_now", "status": "pending"}   # owner presses the button
+    assert f.poll() is True                         # the report brings the command back ...
+    assert a.pos == 0                               # ... and it is acted on in the same poll
+    assert opener.bodies[-1]["ack"] == {"id": "fast1", "result": "closed 50KTC-A"}
+    assert opener.cmd["status"] == "done"
+
+
+def test_wait_for_next_step_polls_every_few_seconds_then_returns():
+    clock = {"t": 0.0}
+    polls = []
+
+    class F:
+        def poll(self):
+            polls.append(clock["t"])
+
+    def sleep(s):
+        clock["t"] += s
+    worker.wait_for_next_step(F(), 15, 3, sleep=sleep, now=lambda: clock["t"])
+    assert clock["t"] == 15 and polls == [3, 6, 9, 12]
+
+    class Broken:
+        def poll(self):
+            raise RuntimeError("network down")
+    clock["t"] = 0.0
+    worker.wait_for_next_step(Broken(), 15, 3, sleep=sleep, now=lambda: clock["t"])   # never stops the bot
+    assert clock["t"] == 15
