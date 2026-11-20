@@ -386,3 +386,48 @@ def test_restart_keeps_the_logged_decisions(tmp_path):
     f2.step()
     after = f2.bots[0].state.check_log
     assert before and all(after[k]["action"] == before[k]["action"] for k in before)
+
+
+def test_profit_lock_keeps_half_of_the_days_banked_profit_then_stops_for_the_day(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(9, 40), ET)
+    f.step()
+    st, a = f.bots[0].state, api.accts[1]
+    a.bal = st.day_start_balance + 600              # a take-profit banked $600 today
+    api.now = dt.datetime.combine(d, dt.time(10, 30), ET)
+    f.step()
+    assert st.day_banked == 600
+    px = api.last_price()
+    a.pos, a.avg = 1, px + 140                      # later trade is down $280: equity +$320, still above the $300 floor
+    api.now += dt.timedelta(minutes=1)
+    f.step()
+    assert a.pos == 1 and st.halted_day != d.isoformat()
+    a.avg = px + 160                                # now down $320: equity +$280 is below the floor -> close
+    api.now += dt.timedelta(minutes=1)
+    f.step()
+    assert a.pos == 0 and st.halted_day == d.isoformat() and "profit lock" in st.halted_reason
+    assert a.bal - st.day_start_balance > 0         # the day still ends green
+    n = len(api.orders)
+    t = dt.datetime.combine(d, dt.time(10, 32), ET)
+    while t.time() < dt.time(15, 59):               # no new trades the rest of the day
+        api.now = t
+        f.step()
+        t += dt.timedelta(minutes=5)
+    assert len(api.orders) == n and a.pos == 0
+    run_day(f, api, sorted(api.days)[31])           # back to normal tomorrow
+    assert "profit lock" not in (st.halted_reason or "") or st.halted_day != sorted(api.days)[31].isoformat()
+
+
+def test_profit_lock_does_nothing_before_any_profit_is_banked(tmp_path):
+    api = FakeMultiAPI(trading_days(45), [Acct(1, "50KTC-A", 50000.0)])
+    f = fleet(tmp_path, api)
+    d = sorted(api.days)[30]
+    api.now = dt.datetime.combine(d, dt.time(10, 30), ET)
+    f.step()
+    st, a = f.bots[0].state, api.accts[1]
+    a.pos, a.avg = 1, api.last_price() + 100        # losing trade, nothing banked yet: normal daily stop rules
+    api.now += dt.timedelta(minutes=1)
+    f.step()
+    assert st.day_banked == 0 and "profit lock" not in (st.halted_reason or "")
