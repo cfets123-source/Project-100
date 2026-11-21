@@ -1,0 +1,185 @@
+"""Prop-challenge feed: the bot on the owner's Mac reports its status here; the app only displays it.
+
+The server never places prop-account orders (Topstep forbids orders from remote servers). The Mac authenticates
+with a pairing token whose SHA-256 hash is stored; the token itself is shown once, at pairing.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import hashlib
+import hmac
+import json
+import secrets
+from zoneinfo import ZoneInfo
+
+from app.models.models import AppState
+
+ET = ZoneInfo("America/New_York")
+MAX_EVENTS = 300
+MAX_BARS = 90
+MAX_ACCOUNTS = 20
+PUSH_KINDS = {"buy", "sell", "flat", "halt", "pass", "error"}
+COMMAND_TTL_S = 180  # a close request the Mac has not picked up within 3 minutes expires (never acts late)
+
+
+def _get(db, key, default=None):
+    row = db.get(AppState, key)
+    return json.loads(row.value) if row else default
+
+
+def _put(db, key, value):
+    row = db.get(AppState, key)
+    text = json.dumps(value, default=str)
+    if row is None:
+        db.add(AppState(key=key, value=text))
+    else:
+        row.value = text
+
+
+def _hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def pair(db) -> str:
+    token = secrets.token_urlsafe(24)
+    _put(db, "prop_token_hash", _hash(token))
+    db.commit()
+    return token
+
+
+def verify(db, token: str | None) -> bool:
+    stored = _get(db, "prop_token_hash")
+    return bool(token and stored and hmac.compare_digest(stored, _hash(token)))
+
+
+def _clean_bars(bars):
+    out = []
+    for b in (bars or [])[-MAX_BARS:]:
+        try:
+            out.append([str(b[0]), float(b[1]), float(b[2]), float(b[3]), float(b[4])])
+        except (TypeError, ValueError, IndexError):
+            continue
+    return out
+
+
+def _clean_accounts(accounts):
+    out = []
+    for a in (accounts or [])[:MAX_ACCOUNTS]:
+        if isinstance(a, dict):
+            out.append({"account": str(a.get("account") or "")[:80], "orders": bool(a.get("orders")),
+                        "firm": str(a.get("firm") or "Topstep")[:40], "estimated": bool(a.get("estimated")),
+                        "contract": str(a.get("contract") or "")[:40],
+                        "status": a.get("status") if isinstance(a.get("status"), dict) else {}})
+    return out
+
+
+def _keep_last_values(prev, latest):
+    """A report sent while the market is closed has no balance and no bars (the bot is idle). Keep the last real values
+    so the dashboard never blanks out; the new report's state and heartbeat still replace the old ones."""
+    if not prev:
+        return
+    if not latest["bars"] and prev.get("bars"):
+        latest["bars"] = prev["bars"]
+    if "balance" not in latest["status"] and "balance" in (prev.get("status") or {}):
+        latest["status"] = dict(prev["status"], **latest["status"])
+    before = {a.get("account"): a for a in prev.get("accounts") or []}
+    for a in latest["accounts"]:
+        old = before.get(a["account"])
+        if old and "balance" not in a["status"] and "balance" in (old.get("status") or {}):
+            a["status"] = dict(old["status"], **a["status"])
+
+
+def ingest(db, payload: dict, now: dt.datetime | None = None) -> list[dict]:
+    """Store the latest status and new events. Returns events that should be pushed to phones."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    status = payload.get("status") if isinstance(payload.get("status"), dict) else {}
+    latest = {"received_at": now.isoformat(), "status": status, "bars": _clean_bars(payload.get("bars")),
+              "account": str(payload.get("account") or "")[:80], "orders": bool(payload.get("orders")),
+              "contract": str(payload.get("contract") or "")[:40], "accounts": _clean_accounts(payload.get("accounts"))}
+    _keep_last_values(_get(db, "prop_latest"), latest)
+    _put(db, "prop_latest", latest)
+    events = _get(db, "prop_events", [])
+    seen = {e.get("id") for e in events}
+    fresh = []
+    for e in payload.get("events") or []:
+        if not isinstance(e, dict) or not e.get("id") or e["id"] in seen:
+            continue
+        clean = {k: e.get(k) for k in ("id", "time", "kind", "text", "price", "size", "pnl", "account")}
+        clean["text"] = str(clean.get("text") or "")[:200]
+        clean["account"] = str(clean.get("account") or "")[:80] or None
+        fresh.append(clean)
+        seen.add(e["id"])
+    if fresh:
+        _put(db, "prop_events", (events + fresh)[-MAX_EVENTS:])
+    ack = payload.get("ack")
+    cmd = _get(db, "prop_command")
+    if isinstance(ack, dict) and cmd and ack.get("id") == cmd.get("id") and cmd.get("status") == "pending":
+        cmd.update(status="done", done_at=now.isoformat(), result=str(ack.get("result") or "")[:300])
+        _put(db, "prop_command", cmd)
+    db.commit()
+    return [e for e in fresh if e.get("kind") in PUSH_KINDS]
+
+
+def request_close(db, now: dt.datetime | None = None) -> dict:
+    """Owner pressed "Close trade now": the Mac bot picks this up with its next report (about every 15 s), closes the
+    open trade on every live account and keeps trading. The server itself never places or closes prop orders."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    cmd = {"id": secrets.token_hex(8), "kind": "close_now", "requested_at": now.isoformat(), "status": "pending",
+           "result": None}
+    _put(db, "prop_command", cmd)
+    db.commit()
+    return cmd
+
+
+def pending_command(db, now: dt.datetime | None = None) -> dict | None:
+    """The command for the Mac, if one is waiting and still fresh (expired ones are marked and not sent)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    cmd = _get(db, "prop_command")
+    if not cmd or cmd.get("status") != "pending":
+        return None
+    if (now - dt.datetime.fromisoformat(cmd["requested_at"])).total_seconds() > COMMAND_TTL_S:
+        cmd["status"] = "expired"
+        _put(db, "prop_command", cmd)
+        db.commit()
+        return None
+    return {"id": cmd["id"], "kind": cmd["kind"], "requested_at": cmd["requested_at"], "status": "pending"}
+
+
+def state(db, now: dt.datetime | None = None) -> dict:
+    now = now or dt.datetime.now(dt.timezone.utc)
+    latest = _get(db, "prop_latest")
+    age = None
+    if latest:
+        age = (now - dt.datetime.fromisoformat(latest["received_at"])).total_seconds()
+    return {"paired": _get(db, "prop_token_hash") is not None, "latest": latest,
+            "events": list(reversed(_get(db, "prop_events", [])))[:100],
+            "heartbeat_age_s": round(age) if age is not None else None,
+            "online": age is not None and age < 120, "command": _get(db, "prop_command")}
+
+
+def missed_start(db, now: dt.datetime | None = None) -> dict | None:
+    """Weekdays 9:40 AM-3:00 PM ET: if the bot has not reported since 9:20 AM, return one alert per day."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    local = now.astimezone(ET)
+    if local.weekday() >= 5 or not (dt.time(9, 40) <= local.time() <= dt.time(15, 0)):
+        return None
+    if _get(db, "prop_token_hash") is None or _get(db, "prop_missed_alert") == local.date().isoformat():
+        return None
+    latest = _get(db, "prop_latest")
+    start = dt.datetime.combine(local.date(), dt.time(9, 20), ET)
+    if latest and dt.datetime.fromisoformat(latest["received_at"]) >= start:
+        return None
+    _put(db, "prop_missed_alert", local.date().isoformat())
+    db.commit()
+    return {"title": "Prop bot is not running",
+            "body": "No report from your Mac since 9:20 AM. Is it on, awake and online? Today's trades are being missed.",
+            "tag": "prop-missed", "url": "/prop"}
+
+
+def push_message(event: dict) -> dict:
+    titles = {"buy": "Prop: bought", "sell": "Prop: sold", "flat": "Prop: flat", "halt": "Prop: stopped",
+              "pass": "Prop: CHALLENGE PASSED", "error": "Prop: problem"}
+    acct = (event.get("account") or "").split("-")[0]  # e.g. "50KTC" so several accounts are distinguishable
+    body = ("%s: " % acct if acct else "") + (event.get("text") or "")
+    return {"title": titles.get(event.get("kind"), "Prop bot"), "body": body,
+            "tag": "prop-" + str(event.get("id")), "url": "/prop"}

@@ -4,12 +4,18 @@ This module deliberately supports only the MCP handshake and ``tools/list``.
 It contains no ``tools/call`` method, so an application OAuth connection cannot
 be mistaken for permission to inspect accounts, preview orders, or trade.
 """
+import contextlib
+import fcntl
 import json
+import os
+import tempfile
+import time
 import uuid
 from typing import Optional
 
 import httpx
 from cryptography.fernet import InvalidToken
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.brokers.robinhood_oauth import (BROKER, MCP_URL, TOKEN_URL,
@@ -109,31 +115,82 @@ class RobinhoodMcpDiscoveryClient:
         return safe_tools
 
 
+_CACHE_DDL = ("CREATE TABLE IF NOT EXISTS robinhood_access_cache "
+              "(id TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at REAL NOT NULL)")
+_LOCK_PATH = os.environ.get("ROBINHOOD_TOKEN_LOCK", "/data/.robinhood-token.lock")
+
+
+@contextlib.contextmanager
+def _refresh_lock():
+    """One refresh at a time across every container sharing /data.
+
+    Robinhood rotates the refresh token on use. Two workers refreshing with the
+    same stored token at once makes the second one present an already-used token,
+    which the broker treats as reuse and revokes, i.e. the account "disconnects".
+    """
+    path = _LOCK_PATH if os.path.isdir(os.path.dirname(_LOCK_PATH)) else os.path.join(
+        tempfile.gettempdir(), "robinhood-token.lock")
+    with open(path, "a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _cached_access_token(db: Session, fernet) -> str | None:
+    db.execute(text(_CACHE_DDL))
+    row = db.execute(text("SELECT token, expires_at FROM robinhood_access_cache WHERE id = :i"),
+                     {"i": BROKER}).first()
+    if row and row[1] > time.time() + 60:
+        try:
+            return fernet.decrypt(row[0].encode()).decode()
+        except (InvalidToken, UnicodeDecodeError):
+            return None
+    return None
+
+
 def _access_token(db: Session, encryption_key: str) -> str:
-    connection = db.get(BrokerConnection, BROKER)
-    # OAuth completion records "authorized" first. Capability discovery is the
-    # next safe, read-only step; it must not require a fictional prior state.
-    if connection is None or connection.status not in {"authorized", "connected"}:
-        raise RobinhoodMcpError("Application OAuth has not been completed.")
-    try:
-        refresh_token = _fernet(encryption_key).decrypt(connection.encrypted_refresh_token.encode()).decode()
-    except (InvalidToken, UnicodeDecodeError) as exc:
-        raise RobinhoodMcpError("Stored broker authorization cannot be decrypted") from exc
-    response = httpx.post(TOKEN_URL, data={
-        "grant_type": "refresh_token", "client_id": connection.client_id,
-        "refresh_token": refresh_token,
-    }, timeout=15)
-    response.raise_for_status()
-    payload = response.json()
-    token = payload.get("access_token")
-    if not isinstance(token, str) or not token:
-        raise RobinhoodMcpError("Robinhood did not return an access token")
-    rotated = payload.get("refresh_token")
-    if isinstance(rotated, str) and rotated:
-        connection.encrypted_refresh_token = _fernet(encryption_key).encrypt(rotated.encode()).decode()
-        db.add(connection)
+    fernet = _fernet(encryption_key)
+    cached = _cached_access_token(db, fernet)
+    if cached:
+        return cached
+    with _refresh_lock():
+        db.expire_all()  # another container may have refreshed while we waited
+        cached = _cached_access_token(db, fernet)
+        if cached:
+            db.commit()
+            return cached
+        connection = db.get(BrokerConnection, BROKER)
+        # OAuth completion records "authorized" first. Capability discovery is the
+        # next safe, read-only step; it must not require a fictional prior state.
+        if connection is None or connection.status not in {"authorized", "connected"}:
+            raise RobinhoodMcpError("Application OAuth has not been completed.")
+        try:
+            refresh_token = fernet.decrypt(connection.encrypted_refresh_token.encode()).decode()
+        except (InvalidToken, UnicodeDecodeError) as exc:
+            raise RobinhoodMcpError("Stored broker authorization cannot be decrypted") from exc
+        response = httpx.post(TOKEN_URL, data={
+            "grant_type": "refresh_token", "client_id": connection.client_id,
+            "refresh_token": refresh_token,
+        }, timeout=15)
+        response.raise_for_status()
+        payload = response.json()
+        token = payload.get("access_token")
+        if not isinstance(token, str) or not token:
+            raise RobinhoodMcpError("Robinhood did not return an access token")
+        rotated = payload.get("refresh_token")
+        if isinstance(rotated, str) and rotated:
+            connection.encrypted_refresh_token = fernet.encrypt(rotated.encode()).decode()
+            db.add(connection)
+        lifetime = payload.get("expires_in")
+        lifetime = float(lifetime) if isinstance(lifetime, (int, float)) and lifetime > 0 else 300.0
+        db.execute(text("INSERT OR REPLACE INTO robinhood_access_cache (id, token, expires_at) "
+                        "VALUES (:i, :t, :e)"),
+                   {"i": BROKER, "t": fernet.encrypt(token.encode()).decode(),
+                    "e": time.time() + lifetime})
         db.commit()
-    return token
+        return token
 
 
 def discover_capabilities(db: Session, encryption_key: str) -> dict:

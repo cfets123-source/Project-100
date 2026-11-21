@@ -1,0 +1,58 @@
+per  nmax buf  cushion path         avg$   med$   p25$  p(any)  life  alive2y  $/month-alive
+2500  2   150   3000  standard      4843    226      0   52.8%   140   41.7%     380
+2500  3   150   3000  standard      4842    226      0   52.8%   140   41.7%     380
+2500  1   150   3000  standard      4293    226      0   52.8%   140   33.5%     357
+1500  1   150   3000  standard      4293    226      0   52.8%   140   33.5%     357
+1000  1   150   3000  standard      4293    226      0   52.8%   140   33.5%     357
+1500  3   150   3000  standard      4017    236      0   52.8%   140   10.3%     395
+1500  2   150   3000  standard      4006    236      0   52.8%   140   16.4%     387
+1500  3   150   3000  consistency   3864    147      0   52.8%   140   38.7%     318
+1500  2   150   2000  consistency   3705    879      0   54.9%   138   30.3%     332
+2500  1   150   2000  consistency   3582    894      0   54.9%   140   25.5%     330
+1500  1   150   2000  consistency   3582    894      0   54.9%   140   25.5%     330
+1000  1   150   2000  consistency   3582    894      0   54.9%   140   25.5%     330
+1500  2   150   3000  consistency   3494    147      0   52.8%   140   29.7%     316
+2500  2   150   2000  consistency   3441    894      0   54.9%   140   26.1%     315
+== standalone (unit = 1x notional, vol-scaled) ==
+QQQ  DEV    4.43bp/day  Sharpe  1.60  win 26.5%
+QQQ  CONF   3.24bp/day  Sharpe  1.10  win 23.2%
+SPY  DEV    3.24bp/day  Sharpe  1.16  win 25.5%
+SPY  CONF   0.14bp/day  Sharpe  0.05  win 24.1%
+IWM  DEV   -0.12bp/day  Sharpe -0.04  win 24.6%
+IWM  CONF  -1.52bp/day  Sharpe -0.57  win 21.5%
+GLD  DEV   -0.06bp/day  Sharpe -0.03  win 22.0%
+GLD  CONF   1.65bp/day  Sharpe  0.73  win 22.3%
+
+== daily return correlation with QQQ ==
+SPY  DEV  0.64
+SPY  CONF 0.69
+IWM  DEV  0.31
+IWM  CONF 0.32
+GLD  DEV  0.01
+GLD  CONF -0.00
+
+== prop EV per 50K Topstep attempt (risk scaled to MNQ-equivalent) ==
+QQQ DEV                          day  5.68bp pass 43.9% fees  79 xfa1y $ 3371  EV/attempt $  1334
+QQQ CONF                         day  3.44bp pass 38.1% fees  76 xfa1y $ 1125  EV/attempt $   296
+SPY DEV                          day  1.67bp pass 50.0% fees 113 xfa1y $ 1628  EV/attempt $   626
+SPY CONF                         day -0.16bp pass 28.4% fees 106 xfa1y $    0  EV/attempt $  -149
+IWM DEV                          day -0.29bp pass  0.0% fees 256 xfa1y $    0  EV/attempt $  -256
+IWM CONF                         day -0.66bp pass  1.1% fees 256 xfa1y $    0  EV/attempt $  -258
+GLD DEV                          day  0.29bp pass 23.8% fees 119 xfa1y $   88  EV/attempt $  -134
+GLD CONF                         day  0.91bp pass 23.7% fees 139 xfa1y $  848  EV/attempt $    26
+   QQQ+SPY CONF combined 1.69bp/day Sharpe 0.64
+QQQ+SPY DEV                      day  3.84bp pass 52.0% fees  89 xfa1y $ 2768  EV/attempt $  1273
+QQQ+SPY CONF                     day  1.69bp pass 30.6% fees  90 xfa1y $  185  EV/attempt $   -79
+   QQQ+IWM CONF combined 0.86bp/day Sharpe 0.37
+QQQ+IWM DEV                      day  2.16bp pass 37.2% fees 101 xfa1y $ 1321  EV/attempt $   335
+QQQ+IWM CONF                     day  0.86bp pass 16.2% fees  96 xfa1y $    0  EV/attempt $  -120
+   QQQ+GLD CONF combined 2.45bp/day Sharpe 1.32
+QQQ+GLD DEV                      day  2.18bp pass 40.8% fees 105 xfa1y $  982  EV/attempt $   235
+QQQ+GLD CONF                     day  2.45bp pass 48.6% fees 120 xfa1y $ 1225  EV/attempt $   403
+   QQQ+SPY+IWM+GLD CONF combined 0.88bp/day Sharpe 0.48
+QQQ+SPY+IWM+GLD DEV              day  1.87bp pass 41.7% fees 124 xfa1y $  955  EV/attempt $   212
+QQQ+SPY+IWM+GLD CONF             day  0.88bp pass 13.3% fees 122 xfa1y $    0  EV/attempt $  -142
+QQQ+0.25GLD DEV                  day  4.41bp pass 41.9% fees  76 xfa1y $ 2547  EV/attempt $   928
+QQQ+0.25GLD CONF                 day  3.65bp pass 33.8% fees  87 xfa1y $  882  EV/attempt $   161
+QQQ+0.50GLD DEV                  day  4.40bp pass 34.3% fees  68 xfa1y $ 2255  EV/attempt $   655
+QQQ+0.50GLD CONF                 day  4.07bp pass 35.6% fees  71 xfa1y $  856  EV/attempt $   181

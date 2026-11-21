@@ -250,6 +250,8 @@ class ExecutionGateway:
             order.order_class = "bracket"
             order.take_profit_price = signal.target_price
             order.stop_loss_price = signal.stop_price
+            tif = str(getattr(self.risk_engine.cfg, "ALPACA_BRACKET_TIME_IN_FORCE", "day")).lower()
+            order.time_in_force = tif if tif in {"day", "gtc"} else "day"
         try:
             result = self.broker.place_order(order)
         except Exception as e:  # noqa: BLE001 — broker-side failure of unknown kind

@@ -1,0 +1,6 @@
+TP $250 (2-tick fill) DEV  $/day    26  win 28.6%  pass(fresh) 44.9%  med days  31  pass(from today) 35.9%
+                     CONF $/day    25  win 27.3%  pass(fresh) 49.8%  med days  36  pass(from today) 39.8%
+TP $400 (2-tick fill) DEV  $/day    39  win 27.7%  pass(fresh) 48.6%  med days  31  pass(from today) 38.0%
+                     CONF $/day    26  win 25.9%  pass(fresh) 37.0%  med days  27  pass(from today) 29.8%
+TP $600 (2-tick fill) DEV  $/day    41  win 27.1%  pass(fresh) 48.5%  med days  29  pass(from today) 40.4%
+                     CONF $/day    38  win 25.2%  pass(fresh) 38.8%  med days  22  pass(from today) 33.2%
