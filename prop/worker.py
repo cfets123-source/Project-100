@@ -296,6 +296,28 @@ class Bot:
         raise TopstepXError("account disappeared")
 
     def size(self, price):
+        return self.payout_ceiling(price, self._raw_size(price))
+
+    def payout_ceiling(self, price, n):
+        """Funded CFD accounts (payout cap + best-day rule): never size a trade so its take-profit wins more than the
+        payout can use - at most best-day share x cap per day (Eightcap 30% x 5% = $75 on 5K) and what is left of
+        the cycle cap. Profit beyond the cap is forfeited, so a bigger trade only adds risk."""
+        st = self.state
+        if not st.cycle_cap or not self.tp_move_frac or not price:
+            return n
+        bal = getattr(self, "cur_bal", None)
+        if bal is None:
+            return n
+        allow = st.cycle_cap - (bal - st.cycle_start_balance)
+        if st.payout_day_share:
+            allow = min(allow, st.payout_day_share * st.cycle_cap - (bal - st.day_start_balance))
+        step = getattr(self, "min_lot", 1) or 1
+        per_unit = price * self.tp_move_frac * self.point_value
+        most = math.floor(max(0.0, allow) / per_unit / step + 1e-9) * step if per_unit > 0 else n
+        most = max(step, round(most, 6))
+        return n if n <= most else most
+
+    def _raw_size(self, price):
         if self.sizer:
             return self.sizer(price, getattr(self, "scale", 1.0), self)
         if self.fixed_contracts:
@@ -486,6 +508,7 @@ class Bot:
         open_pnl = (price - avg) * pos * self.point_value if (pos and avg) else 0.0
         bal = self.balance()
         self.room = bal + open_pnl - self.state.floor
+        self.cur_bal = bal
         was_passed, was_halted = self.state.passed, self.state.halted_day == self.state.day or self.state.finished
         allowed, must_flat, why = check(self.state, bal, open_pnl)
         lock_floor = self.profit_lock(pos, bal, open_pnl)
