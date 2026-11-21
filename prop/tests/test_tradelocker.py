@@ -444,3 +444,32 @@ def test_funded_eightcap_stops_at_the_payout_cap_and_tells_the_owner(tmp_path):
     n = len(fake.placed)
     run_day(f, api, sorted(api.days)[sorted(api.days).index(d) + 1])     # cap hit, no payout yet: no new trades
     assert len(fake.placed) == n and fake.pos == {}
+
+
+def test_funded_trade_size_never_wins_more_than_the_payout_can_use(tmp_path):
+    cfg = dict(CFG, name="EIGHTCAP-5K-F", kind="funded", leverage=1.5,
+               rules={"mll": 400, "daily_stop": 150, "mll_buffer": 60, "static_mll": True, "consistency": 1.0,
+                      "min_days": 0, "cycle_cap": 250, "cycle_days": 14, "payout_min_days": 7, "payout_day_share": 0.3})
+    api, fake, f = make_fleet(tmp_path, cfg=cfg)
+    ec = f.bots[1]
+    ec.point_value, ec.min_lot = 10.0, 0.01                 # NDX100: $10 per point per lot
+    guard.new_day(ec.state, "2026-12-01", 5000.0)
+    ec.cur_bal = 5000.0
+    # a win at the +0.526% take-profit on 25,000 is $1,315 per lot -> best day 30% x $250 = $75 -> 0.05 lot
+    assert ec.payout_ceiling(25000.0, 0.20) == 0.05
+    assert ec.payout_ceiling(25000.0, 0.03) == 0.03          # smaller sizes are left alone
+    ec.cur_bal = 5070.0                                       # $70 already made today: only the minimum lot
+    assert ec.payout_ceiling(25000.0, 0.20) == 0.01
+    guard.new_day(ec.state, "2026-12-02", 5230.0)             # next day, $230 of the $250 cycle cap used
+    ec.cur_bal = 5230.0
+    assert ec.payout_ceiling(25000.0, 0.20) == 0.01
+    ec.cur_bal = 4900.0                                       # losing cycle: room is the best-day share
+    guard.new_day(ec.state, "2026-12-03", 4900.0)
+    assert ec.payout_ceiling(25000.0, 0.20) == 0.05
+
+
+def test_challenge_accounts_keep_their_size(tmp_path):
+    api, fake, f = make_fleet(tmp_path)
+    ec = f.bots[1]
+    ec.point_value, ec.min_lot, ec.cur_bal = 10.0, 0.01, 5000.0
+    assert ec.state.kind == "combine" and ec.payout_ceiling(25000.0, 0.20) == 0.20
